@@ -61,8 +61,15 @@ export async function openDatabaseAndMigrate(dbPath: string): Promise<Client> {
   // transaction resets the client's `busy_timeout` to 0. The migration
   // runner uses transactions, so by this point the timeout is 0 and any
   // contended write would immediately return SQLITE_BUSY instead of
-  // waiting. Re-apply it. Phase 4 will need a `withTransaction` helper
-  // that re-applies after any application-level transaction commits.
+  // waiting. Re-apply it.
+  //
+  // Phase 2 will need a `withTransaction(client, fn)` helper that
+  // re-applies busy_timeout after commit. Substrate-edit tools in Phase 4
+  // do NOT need this — they write to JSON files (boards/*.json) via
+  // atomic temp-and-rename, not to SQLite. Where the helper bites:
+  //   - Phase 2: update_task (bumps version + emits TaskEvent atomically)
+  //   - Phase 2: add_comment / edit_comment (write row + TaskEvent)
+  //   - Phase 3: policy engine cascades (multi-write within one call)
   await client.execute(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
 
   return client;
