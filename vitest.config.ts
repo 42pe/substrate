@@ -2,10 +2,16 @@ import { defineConfig } from 'vitest/config';
 
 // Multi-project setup:
 //  - "unit": fast, parallel, source-collocated *.test.ts files in src/
-//  - "integration": serialized (single fork) integration tests in tests/integration/
+//  - "integration": serialized (fileParallelism: false) integration tests
+//    in tests/integration/ — needed because some integration tests bind to
+//    a fixed port (substrate.serve uses 7475 by default).
 //
 // Smoke tests live in tests/smoke/ and run via dedicated `pnpm test:smoke:*`
-// scripts; they are not included in the default `pnpm test` run.
+// scripts; they are excluded from the default `pnpm test` run.
+//
+// Notes on Vitest 4: `poolOptions` is no longer a project-level option;
+// the file-parallelism control moved to `fileParallelism` (boolean) and lives
+// at the project level. See https://vitest.dev/guide/migration#pool-rework.
 
 export default defineConfig({
   test: {
@@ -22,12 +28,7 @@ export default defineConfig({
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
-          pool: 'forks',
-          poolOptions: {
-            forks: {
-              singleFork: true,
-            },
-          },
+          fileParallelism: false,
         },
       },
     ],
