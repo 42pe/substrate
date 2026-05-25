@@ -337,8 +337,8 @@ The UI bootstrap proves Vite + Tailwind v4 compose with our build pipeline. Shad
 - `tests/integration/http-health.test.ts`: starts the Hono server in-process, fetches `/api/health`, asserts response.
 
 ### Smoke tests (Vitest with `pnpm test:smoke:*` scripts)
-- `tests/smoke/concurrency.test.ts`: spawns 1 serve + 3 mcp children, all writing for 30s (shorter than spike to fit in CI budget; the 60s spike result is reference). Zero errors.
-- `tests/smoke/atomic-write.test.ts`: writes a fixture JSON file 100 times atomically while another process reads 100 times. Zero parse failures on macOS/Linux.
+- `tests/smoke/concurrency.test.ts`: spawns 1 serve + 3 mcp children, all writing for **60s** (matches the Phase 0 spike that already proved clean behavior). Zero errors required.
+- ~~`tests/smoke/atomic-write.test.ts`~~ — **deferred to Phase 4** (Architect Reviewer's concern #2: shipping `src/substrate/writer.ts` as a stub for a future-phase smoke test violates Phase 1 scope per §7 "Substrate-edit tools out of scope"). Phase 4 owns both the writer implementation and its smoke test.
 
 ### Real-MCP-client manual check
 - Documented in README of `tests/manual/` (created in Phase 1): step-by-step for connecting MCP Inspector or Claude Code to `npx substrate mcp` and verifying `create_task`. Run once at end of Phase 1; record outcome in audit.
@@ -404,8 +404,7 @@ The UI bootstrap proves Vite + Tailwind v4 compose with our build pipeline. Shad
 - `curl -H "Host: external.com" http://localhost:7475/api/health` returns 403.
 - `npx substrate mcp` started as child; JSON-RPC `tools/list` returns `create_task` and `whoami`; `tools/call create_task` persists; row visible via direct SQLite query.
 - **Real-MCP-client smoke (manual, recorded in audit):** MCP Inspector or Claude Code connects to `npx substrate mcp`, calls `create_task`, sees the response.
-- **Concurrency smoke (`pnpm test:smoke:concurrency`):** 4 processes, 30s, zero errors.
-- **Atomic-write smoke (`pnpm test:smoke:atomic-write`):** zero parse failures.
+- **Concurrency smoke (`pnpm test:smoke:concurrency`):** 4 processes, 60s, zero errors. (Atomic-write smoke deferred to Phase 4.)
 - **Lifecycle:** Two `npx substrate serve` from same dir → second refuses cleanly. Ctrl-C cleans up PID file.
 - **Schema guard:** Manually bumping `PRAGMA user_version` to 999 → serve refuses with clear error.
 - `pnpm lint`, `pnpm format:check`, `tsc --noEmit` all clean.

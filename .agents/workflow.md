@@ -2,7 +2,7 @@
 
 This document defines how we build Substrate. It is the single reference for roles, stages, gates, and process. The Orchestrator and any spawned agents follow this document.
 
-**Stack:** TypeScript / Node ≥ 20 LTS / Hono / `@libsql/client` (WASM) / React 18 + Tailwind v4 + ShadCN + Vite + TanStack Router / `marked` + `isomorphic-dompurify` / `@modelcontextprotocol/sdk` (stdio). See [`../prd.md`](../prd.md) §7 for the locked stack.
+**Stack:** TypeScript / Node ≥ 20 LTS / Hono / `@libsql/client` (native binding; WASM rejected by Phase 0 spike) / React 18 + Tailwind v4 + ShadCN + Vite + TanStack Router / `marked` + `isomorphic-dompurify` / `@modelcontextprotocol/sdk` (stdio). See [`../prd.md`](../prd.md) §7 for the locked stack.
 
 **Last updated:** 2026-05-09.
 
