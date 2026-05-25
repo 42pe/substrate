@@ -10,6 +10,7 @@ import {
 } from '../../../core/envelope.js';
 import type { Task } from '../../../core/types.js';
 import { createTask } from '../../../storage/repositories/tasks.js';
+import { logger } from '../../../shared/logger.js';
 import type { ToolDeps } from '../../deps.js';
 
 /**
@@ -76,9 +77,16 @@ export async function createTaskHandler(
     await createTask(deps.client, task);
   } catch (e) {
     if (SubstrateError.is(e)) return errorEnvelope(e);
-    return errorEnvelope(
-      SubstrateError.internalError(`Failed to create task: ${(e as Error).message}`),
-    );
+    // Unknown error: log the underlying message scrubbed for server-side
+    // debugging, but return a GENERIC envelope to the agent. Mirrors the
+    // HTTP error handler's posture — never reflect raw error messages
+    // across the trust boundary, even when the boundary is stdio MCP.
+    // Reviewer C3 fix.
+    logger.error('Unhandled error in create_task handler', {
+      error: (e as Error).message,
+      agent_name: input.agent_name,
+    });
+    return errorEnvelope(SubstrateError.internalError('Internal error'));
   }
 
   return successEnvelope<Task>({

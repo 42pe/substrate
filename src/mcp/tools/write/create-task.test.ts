@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -178,6 +178,45 @@ describe('createTaskHandler', () => {
     });
     if (!env.ok) throw new Error('expected success');
     expect(env.applied.state.created_at).toBe(env.applied.state.updated_at);
+  });
+});
+
+describe('createTaskHandler — unknown error handling (C3)', () => {
+  it('returns a generic internal_error envelope and does NOT leak the underlying message', async () => {
+    // Stub client whose .execute throws a non-SubstrateError with a secret-y message.
+    const stubClient = {
+      execute: () => {
+        throw new Error('libsql failed: connection string was hunter2@db.internal/secrets');
+      },
+      close: () => undefined,
+    } as unknown as Client;
+
+    const deps: ToolDeps = {
+      client: stubClient,
+      config: fixtureConfig,
+    };
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const env = await createTaskHandler(
+      { board_id: 'b', group_id: 'g', title: 't', agent_name: 'a' },
+      deps,
+    );
+
+    if (env.ok) throw new Error('expected error envelope');
+    expect(env.error.code).toBe('internal_error');
+    expect(env.error.message).toBe('Internal error');
+    // Critical: the underlying message must not appear in the envelope
+    expect(env.error.message).not.toContain('hunter2');
+    expect(env.error.message).not.toContain('libsql');
+    expect(env.error.message).not.toContain('db.internal');
+
+    // But the server-side log SHOULD have it for debugging
+    const logCall = errorSpy.mock.calls[0]?.[0] as string;
+    expect(logCall).toContain('Unhandled error in create_task handler');
+    expect(logCall).toContain('hunter2'); // confirm scrubbing of the *message* only, not the log
+
+    errorSpy.mockRestore();
   });
 });
 

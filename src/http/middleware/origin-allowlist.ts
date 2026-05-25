@@ -20,6 +20,11 @@ import { httpStatusFor } from '../../core/errors.js';
  *  - Origin header present and not in the allowlist: 403 forbidden.
  *  - Host header present and not in the allowlist: 403 forbidden.
  *    (Defeats DNS rebinding even if Origin is absent.)
+ *
+ * v1.x followup: add Sec-Fetch-Site / Sec-Fetch-Mode checks for additional
+ * depth (e.g., require Sec-Fetch-Site `same-origin` or `none` on state-
+ * changing methods). For Phase 1's localhost-only surface, Origin + Host
+ * is adequate against realistic attacks.
  */
 export function originAllowlist(opts: {
   allowedOrigins: readonly string[];

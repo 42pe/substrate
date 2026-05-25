@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerAllTools } from './registry.js';
 import type { ToolDeps } from './deps.js';
+import { BINARY_VERSION } from '../core/version.js';
 
 /**
  * Build a configured MCP server with all Phase 1 tools registered.
@@ -11,7 +12,7 @@ import type { ToolDeps } from './deps.js';
 export function buildServer(deps: ToolDeps): McpServer {
   const server = new McpServer({
     name: 'substrate',
-    version: '0.0.1',
+    version: BINARY_VERSION,
   });
   registerAllTools(server, deps);
   return server;
@@ -23,6 +24,11 @@ export function buildServer(deps: ToolDeps): McpServer {
  *
  * The caller (`substrate mcp` CLI command) is responsible for closing
  * `deps.client` after this returns.
+ *
+ * v1.x followup: the current shutdown signal is "stdin close or end". If the
+ * MCP SDK exposes transport-level error/close events, also listen to those.
+ * Also wire SIGINT/SIGTERM so the CLI command can drive shutdown explicitly
+ * rather than relying on the parent process pipe behavior.
  */
 export async function startStdioServer(deps: ToolDeps): Promise<void> {
   const server = buildServer(deps);

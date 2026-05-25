@@ -41,7 +41,6 @@ export function defaultHttpConfig(projectRoot: string): HttpConfig {
  */
 export function createApp(config: HttpConfig): Hono {
   const app = new Hono();
-  const startedAtMs = Date.now();
 
   // Middleware order matters: security gate runs before any route.
   app.use(
@@ -53,7 +52,7 @@ export function createApp(config: HttpConfig): Hono {
   );
 
   // Routes
-  registerHealthRoute(app, startedAtMs);
+  registerHealthRoute(app);
   registerStaticFallback(app, config.projectRoot);
 
   // Top-level error handler — catches anything thrown from routes/middleware

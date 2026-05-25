@@ -8,3 +8,15 @@
  *   - If equal: open normally.
  */
 export const BINARY_SCHEMA_VERSION = 1;
+
+/**
+ * The release version of this Substrate binary. Single source of truth — both
+ * the MCP server's `name/version` (mcp/server.ts) and the HTTP `/api/health`
+ * endpoint (http/routes/health.ts) read this. Bump in lockstep with
+ * `package.json`'s `version` field.
+ *
+ * v1.x candidate: replace with a generated `version.generated.ts` written
+ * from `package.json` during the build step. For Phase 1, the manual
+ * lockstep is acceptable — there are only a handful of files to keep in sync.
+ */
+export const BINARY_VERSION = '0.0.1';
