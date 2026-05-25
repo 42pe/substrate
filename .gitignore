@@ -1,0 +1,38 @@
+# Node
+node_modules/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.npm
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+ui/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Claude Code (per-user state; project settings should be committed)
+.claude/local/
+.claude/cache/
+
+# Substrate runtime (when dogfooded later — keep just-in-case patterns now)
+.substrate/data.sqlite
+.substrate/data.sqlite-wal
+.substrate/data.sqlite-shm
+.substrate/substrate.pid
+.substrate/attachments/
