@@ -1,0 +1,112 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readConfig, writeConfig } from './config.js';
+import { SubstrateError } from '../core/errors.js';
+import type { Config } from '../core/types.js';
+
+async function makeTempRoot(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'substrate-test-'));
+  const root = join(dir, '.substrate');
+  await mkdir(root, { recursive: true });
+  return root;
+}
+
+const validConfig: Config = {
+  project_id: '12345678-1234-4123-8123-123456789012',
+  project_name: 'TestProject',
+  schema_version: 1,
+  created_at: '2026-05-09T00:00:00.000Z',
+};
+
+describe('writeConfig / readConfig (round-trip)', () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await makeTempRoot();
+  });
+
+  it('writes and reads back a valid config', async () => {
+    await writeConfig(root, validConfig);
+    const read = await readConfig(root);
+    expect(read).toEqual(validConfig);
+  });
+
+  it('writes JSON formatted with 2-space indent + trailing newline', async () => {
+    await writeConfig(root, validConfig);
+    const { readFile } = await import('node:fs/promises');
+    const raw = await readFile(join(root, 'config.json'), 'utf-8');
+    expect(raw.endsWith('\n')).toBe(true);
+    expect(raw).toContain('  "project_id"');
+  });
+});
+
+describe('readConfig errors', () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await makeTempRoot();
+  });
+
+  it('throws notFound when config.json missing', async () => {
+    try {
+      await readConfig(root);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(SubstrateError.is(e)).toBe(true);
+      if (SubstrateError.is(e)) {
+        expect(e.code).toBe('not_found');
+      }
+    }
+  });
+
+  it('throws internalError on malformed JSON', async () => {
+    await writeFile(join(root, 'config.json'), '{ not valid json', 'utf-8');
+    try {
+      await readConfig(root);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(SubstrateError.is(e)).toBe(true);
+      if (SubstrateError.is(e)) {
+        expect(e.code).toBe('internal_error');
+        expect(e.message).toMatch(/malformed/i);
+      }
+    }
+  });
+
+  it('throws internalError on JSON that does not match shape', async () => {
+    await writeFile(
+      join(root, 'config.json'),
+      JSON.stringify({ project_id: 'not-a-uuid', project_name: '', schema_version: 0 }),
+      'utf-8',
+    );
+    try {
+      await readConfig(root);
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(SubstrateError.is(e)).toBe(true);
+      if (SubstrateError.is(e)) {
+        expect(e.code).toBe('internal_error');
+        expect(e.details).toBeDefined();
+      }
+    }
+  });
+});
+
+describe('writeConfig validation', () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await makeTempRoot();
+  });
+
+  it('rejects an invalid Config at write time', async () => {
+    const bad = { ...validConfig, project_id: 'not-a-uuid' } as Config;
+    await expect(writeConfig(root, bad)).rejects.toThrow();
+  });
+});
+
+// Clean up temp dirs after all tests
+describe.skipIf(process.env['CI'] === undefined)('cleanup', () => {
+  it('removes temp dirs (CI only)', async () => {
+    await rm(tmpdir(), { recursive: true, force: true }).catch(() => undefined);
+  });
+});
