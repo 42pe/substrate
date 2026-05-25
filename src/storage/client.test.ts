@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDatabaseAndMigrate, openExistingDatabase } from './client.js';
+import { openDatabaseAndMigrate, openClient } from './client.js';
 import { BINARY_SCHEMA_VERSION } from '../core/version.js';
 import { getCurrentSchemaVersion } from './migrations/runner.js';
 import { SubstrateError } from '../core/errors.js';
@@ -80,10 +80,10 @@ describe('openDatabaseAndMigrate', () => {
   });
 });
 
-describe('openExistingDatabase', () => {
+describe('openClient', () => {
   let dir: string;
   let dbPath: string;
-  let client: Awaited<ReturnType<typeof openExistingDatabase>> | null = null;
+  let client: Awaited<ReturnType<typeof openClient>> | null = null;
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'substrate-storage-'));
@@ -100,12 +100,12 @@ describe('openExistingDatabase', () => {
   });
 
   it('opens without running migrations', async () => {
-    // openExistingDatabase will create the file if missing but won't migrate.
+    // openClient will create the file if missing but won't migrate.
     // The DB is empty; user_version should be 0.
     const { mkdir } = await import('node:fs/promises');
     await mkdir(join(dir, '.substrate'), { recursive: true });
 
-    client = await openExistingDatabase(dbPath);
+    client = await openClient(dbPath);
     const version = await getCurrentSchemaVersion(client);
     expect(version).toBe(0);
 

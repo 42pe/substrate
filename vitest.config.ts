@@ -34,7 +34,8 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      include: ['src/core/**', 'src/policy/**', 'src/storage/**'],
+      // Phase 1 doesn't have src/policy/ yet — added in Phase 3.
+      include: ['src/core/**', 'src/storage/**'],
       thresholds: {
         lines: 80,
         branches: 75,

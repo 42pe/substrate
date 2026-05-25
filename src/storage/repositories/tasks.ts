@@ -31,6 +31,15 @@ type TaskRow = {
   archived_at: string | null;
 };
 
+function coerceVersion(raw: unknown, taskId: string): number {
+  if (typeof raw === 'bigint') return Number(raw);
+  if (typeof raw === 'number') return raw;
+  throw SubstrateError.internalError(
+    `Task ${taskId} has invalid version field (${typeof raw}); expected number or bigint.`,
+    { task_id: taskId, version_typeof: typeof raw },
+  );
+}
+
 function rowToTask(row: TaskRow): Task {
   let custom: Record<string, unknown>;
   try {
@@ -50,7 +59,7 @@ function rowToTask(row: TaskRow): Task {
     title: row.title,
     description: row.description,
     custom_data: custom,
-    version: typeof row.version === 'bigint' ? Number(row.version) : row.version,
+    version: coerceVersion(row.version, row.id),
     created_by_agent: row.created_by_agent,
     created_at: row.created_at,
     updated_at: row.updated_at,

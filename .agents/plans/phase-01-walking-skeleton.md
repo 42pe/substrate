@@ -424,7 +424,7 @@ Reviewer flagged missing rows in v1.0; restored here in full.
 | `shared/paths` | `src/shared/paths.test.ts` |
 | `shared/config` | `src/shared/config.test.ts` |
 | `shared/logger` | `src/shared/logger.test.ts` |
-| `shared/db` lifecycle | `src/shared/db.test.ts` |
+| Storage client + lifecycle | `src/storage/client.test.ts` *(was planned as `src/shared/db.ts`; landed in `src/storage/client.ts` — storage layer is the architecturally cleaner home; reviewer-confirmed)* |
 | Migration runner | `src/storage/migrations/runner.test.ts` |
 | Tasks repo | `src/storage/repositories/tasks.test.ts` |
 | `create_task` MCP handler | `src/mcp/tools/write/create-task.test.ts` |

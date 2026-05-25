@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,12 +6,23 @@ import { readConfig, writeConfig } from './config.js';
 import { SubstrateError } from '../core/errors.js';
 import type { Config } from '../core/types.js';
 
+// Each test owns its tempdir and cleans it up via afterEach.
+let tempDirs: string[] = [];
+
 async function makeTempRoot(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'substrate-test-'));
+  tempDirs.push(dir);
   const root = join(dir, '.substrate');
   await mkdir(root, { recursive: true });
   return root;
 }
+
+afterEach(async () => {
+  for (const dir of tempDirs) {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+  tempDirs = [];
+});
 
 const validConfig: Config = {
   project_id: '12345678-1234-4123-8123-123456789012',
@@ -101,12 +112,5 @@ describe('writeConfig validation', () => {
   it('rejects an invalid Config at write time', async () => {
     const bad = { ...validConfig, project_id: 'not-a-uuid' } as Config;
     await expect(writeConfig(root, bad)).rejects.toThrow();
-  });
-});
-
-// Clean up temp dirs after all tests
-describe.skipIf(process.env['CI'] === undefined)('cleanup', () => {
-  it('removes temp dirs (CI only)', async () => {
-    await rm(tmpdir(), { recursive: true, force: true }).catch(() => undefined);
   });
 });

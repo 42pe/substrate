@@ -1,6 +1,5 @@
-import type { Client, Transaction } from '@libsql/client';
-
-type Executor = Client | Transaction;
+import type { Transaction } from '@libsql/client';
+import type { Migration } from './runner.js';
 
 /**
  * Migration 001 — initial schema.
@@ -15,11 +14,14 @@ type Executor = Client | Transaction;
  * Important: this migration does NOT set `PRAGMA user_version`. The runner
  * (src/storage/migrations/runner.ts) is the sole place that stamps the
  * version, immediately after `up()` completes within the same transaction.
+ *
+ * Takes a `Transaction` (not `Client`) — schema changes never escape the
+ * transactional boundary. The runner is the only valid caller.
  */
-export const migration001 = {
+export const migration001: Migration = {
   id: 1,
   description: 'Initial schema: tasks table',
-  async up(tx: Executor): Promise<void> {
+  async up(tx: Transaction): Promise<void> {
     await tx.execute(`
       CREATE TABLE tasks (
         id                TEXT PRIMARY KEY,

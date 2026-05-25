@@ -3,7 +3,8 @@ import { createClient, type Client } from '@libsql/client';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getCurrentSchemaVersion, runMigrations, migrations, type Migration } from './runner.js';
+import { getCurrentSchemaVersion, runMigrations, type Migration } from './runner.js';
+import { migration001 } from './001-initial.js';
 import { SubstrateError } from '../../core/errors.js';
 
 async function tempDbClient(): Promise<{ client: Client; dir: string }> {
@@ -96,36 +97,61 @@ describe('runMigrations', () => {
         throw new Error('boom');
       },
     };
+    const testList: readonly Migration[] = [migration001, faulty];
 
-    // First bring up to v1 cleanly
-    await runMigrations(client, 1);
+    // Bring to v1 cleanly using the test list (same as production migration001)
+    await runMigrations(client, 1, testList);
     expect(await getCurrentSchemaVersion(client)).toBe(1);
 
-    // Now patch the migrations list locally for this test only
-    const originalLength = migrations.length;
-    (migrations as Migration[]).push(faulty);
-
+    let caught: unknown;
     try {
-      let caught: unknown;
-      try {
-        await runMigrations(client, 2);
-      } catch (e) {
-        caught = e;
-      }
-      expect(caught).toBeInstanceOf(Error);
-      expect((caught as Error).message).toBe('boom');
-
-      // Version stayed at 1 — the failed migration did not stamp
-      expect(await getCurrentSchemaVersion(client)).toBe(1);
-
-      // The `poisoned` table was rolled back, not persisted
-      const poisoned = await client.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='poisoned'",
-      );
-      expect(poisoned.rows).toHaveLength(0);
-    } finally {
-      // Restore migrations array for other tests
-      (migrations as Migration[]).length = originalLength;
+      await runMigrations(client, 2, testList);
+    } catch (e) {
+      caught = e;
     }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('boom');
+
+    // Version stayed at 1 — the failed migration did not stamp
+    expect(await getCurrentSchemaVersion(client)).toBe(1);
+
+    // The `poisoned` table was rolled back, not persisted
+    const poisoned = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='poisoned'",
+    );
+    expect(poisoned.rows).toHaveLength(0);
+  });
+
+  it('attaches rollback failure as Error.cause without masking the original', async () => {
+    // Simulate a tx where both up() and rollback() fail.
+    // We can't easily make libsql's rollback throw, so we wrap a transaction
+    // proxy that overrides rollback.
+    const faulty: Migration = {
+      id: 2,
+      description: 'fails up() with a rollback that also fails',
+      async up(tx) {
+        // Monkey-patch rollback on this specific tx instance to throw
+        const originalRollback = tx.rollback.bind(tx);
+        tx.rollback = async () => {
+          // Drain the real rollback so we don't leak — but report a failure to the caller
+          await originalRollback().catch(() => undefined);
+          throw new Error('rollback also failed');
+        };
+        throw new Error('up failed');
+      },
+    };
+    const testList: readonly Migration[] = [migration001, faulty];
+
+    await runMigrations(client, 1, testList);
+
+    let caught: Error | undefined;
+    try {
+      await runMigrations(client, 2, testList);
+    } catch (e) {
+      caught = e as Error;
+    }
+    expect(caught?.message).toBe('up failed');
+    const cause = (caught as Error & { cause?: unknown }).cause;
+    expect((cause as Error)?.message).toBe('rollback also failed');
   });
 });

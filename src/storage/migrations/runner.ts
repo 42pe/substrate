@@ -6,13 +6,15 @@ import { migration001 } from './001-initial.js';
  * A migration is a forward-only schema change with a stable integer id.
  * Migrations are applied in id order; each runs inside its own transaction.
  *
- * `up()` receives a transaction handle, not the client — schema changes
- * should never escape the transactional boundary.
+ * `up()` receives a `Transaction` (not a `Client`) — schema changes must
+ * never escape the transactional boundary. The runner is the only valid
+ * invoker; constructing a migration that's intended to run outside a
+ * transaction is a category error.
  */
 export interface Migration {
   id: number;
   description: string;
-  up(tx: Client | Transaction): Promise<void>;
+  up(tx: Transaction): Promise<void>;
 }
 
 /**
@@ -20,8 +22,11 @@ export interface Migration {
  *
  * As new migrations land, append to this array. Never reorder, never delete,
  * never modify a migration that has shipped — make a new one.
+ *
+ * Tests that need a different migration list pass their own array to
+ * `runMigrations` rather than mutating this export.
  */
-export const migrations: readonly Migration[] = [migration001];
+export const migrations: readonly Migration[] = Object.freeze([migration001]);
 
 /**
  * Read the current schema version from `PRAGMA user_version`.
@@ -52,10 +57,22 @@ export async function getCurrentSchemaVersion(client: Client): Promise<number> {
  * the migration's `up()` so the version bump is atomic with the schema
  * change.
  *
+ * If `tx.rollback()` itself throws, the rollback failure is attached as
+ * `Error.cause` on the original migration error — the original failure
+ * is the more interesting signal for debugging.
+ *
+ * `migrationList` defaults to the module-level `migrations` constant. Tests
+ * pass a custom list to validate rollback / version-check behavior without
+ * mutating the production list.
+ *
  * Backup-before-migration is deferred to Phase 4 per the v1 architecture
  * plan; Phase 1's runner has version-check + transactional apply only.
  */
-export async function runMigrations(client: Client, targetVersion: number): Promise<void> {
+export async function runMigrations(
+  client: Client,
+  targetVersion: number,
+  migrationList: readonly Migration[] = migrations,
+): Promise<void> {
   const current = await getCurrentSchemaVersion(client);
 
   if (current > targetVersion) {
@@ -67,22 +84,28 @@ export async function runMigrations(client: Client, targetVersion: number): Prom
     );
   }
 
-  const pending = [...migrations].filter((m) => m.id > current).sort((a, b) => a.id - b.id);
+  const pending = [...migrationList]
+    .filter((m) => m.id > current && m.id <= targetVersion)
+    .sort((a, b) => a.id - b.id);
 
   for (const migration of pending) {
-    if (migration.id > targetVersion) {
-      // Migration exists in code but is ahead of the requested target; skip.
-      // Useful for tests that pin to an older target.
-      continue;
-    }
     const tx = await client.transaction('write');
     try {
       await migration.up(tx);
       await tx.execute(`PRAGMA user_version = ${migration.id}`);
       await tx.commit();
-    } catch (e) {
-      await tx.rollback();
-      throw e;
+    } catch (originalError) {
+      try {
+        await tx.rollback();
+      } catch (rollbackError) {
+        // Preserve the original failure; attach rollback failure as cause.
+        // The original error is the actionable signal; the rollback failure
+        // is operational noise we don't want to lose visibility into either.
+        if (originalError instanceof Error) {
+          (originalError as Error & { cause?: unknown }).cause = rollbackError;
+        }
+      }
+      throw originalError;
     }
   }
 }

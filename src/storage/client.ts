@@ -11,12 +11,20 @@ import { runMigrations } from './migrations/runner.js';
 const BUSY_TIMEOUT_MS = 5000;
 
 /**
- * Open a libsql connection to a file. Sets only `busy_timeout` — does not
- * apply migrations or set WAL/synchronous PRAGMAs. Use this when you need
- * to inspect an existing database without performing any side effects (e.g.,
- * the schema-version refuse-to-open path that runs before migrations).
+ * Open a libsql client and set `busy_timeout` only — does not apply
+ * migrations, does not set WAL/synchronous, does not validate that the file
+ * already exists. libsql's `file:` URL will create the file if missing.
+ *
+ * Use this when you need a connection without performing schema work:
+ *   - the schema-version refuse-to-open path (read user_version before
+ *     deciding to migrate)
+ *   - tests that want a raw client over a temp file
+ *
+ * Despite the name, this is NOT side-effect-free at the connection level:
+ * `PRAGMA busy_timeout` is a per-connection setting. It does not touch the
+ * database file. Connection-level side effects are unavoidable in libsql.
  */
-export async function openExistingDatabase(dbPath: string): Promise<Client> {
+export async function openClient(dbPath: string): Promise<Client> {
   const client = createClient({ url: `file:${dbPath}` });
   await client.execute(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
   return client;
@@ -37,12 +45,14 @@ export async function openExistingDatabase(dbPath: string): Promise<Client> {
  *        - applies pending migrations forward, or
  *        - refuses to open if the file's schema version > the binary's
  *          target version (returns `SubstrateError.internalError`).
+ *   5. Re-applies `busy_timeout` (libsql resets it after a transaction
+ *      commits; see comment below).
  *
  * Callers are responsible for `client.close()` when done.
  */
 export async function openDatabaseAndMigrate(dbPath: string): Promise<Client> {
   await mkdir(dirname(dbPath), { recursive: true });
-  const client = await openExistingDatabase(dbPath);
+  const client = await openClient(dbPath);
   await client.execute('PRAGMA journal_mode = WAL');
   await client.execute('PRAGMA synchronous = NORMAL');
   await runMigrations(client, BINARY_SCHEMA_VERSION);
