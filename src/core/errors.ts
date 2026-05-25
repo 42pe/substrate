@@ -68,13 +68,21 @@ export class SubstrateError extends Error {
 }
 
 /**
+ * HTTP status codes used by Substrate. Narrowed to a literal union so the
+ * HTTP layer (Hono `c.json(body, status)`) can accept it directly without
+ * a cast — Hono's `ContentfulStatusCode` is a literal union and a `number`
+ * does not satisfy it.
+ */
+export type HttpStatusCode = 400 | 403 | 404 | 409 | 422 | 500;
+
+/**
  * HTTP status code for an error code, used by the HTTP error-handler
  * middleware (Step 6) when surfacing errors over HTTP.
  *
  * MCP responses also reference these via the envelope code, but the HTTP
  * status only matters for the JSON-API route surface.
  */
-export const HTTP_STATUS_FOR: Readonly<Record<ErrorCode, number>> = {
+export const HTTP_STATUS_FOR: Readonly<Record<ErrorCode, HttpStatusCode>> = {
   schema_violation: 400,
   transition_blocked: 422,
   version_mismatch: 409,
@@ -84,6 +92,6 @@ export const HTTP_STATUS_FOR: Readonly<Record<ErrorCode, number>> = {
   internal_error: 500,
 };
 
-export function httpStatusFor(code: ErrorCode): number {
+export function httpStatusFor(code: ErrorCode): HttpStatusCode {
   return HTTP_STATUS_FOR[code];
 }
