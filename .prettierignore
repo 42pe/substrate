@@ -1,0 +1,11 @@
+node_modules/
+dist/
+ui/dist/
+ui/node_modules/
+coverage/
+pnpm-lock.yaml
+.substrate/
+
+# Long-form documentation — formatted by hand, not by Prettier
+*.md
+.agents/**/*.md

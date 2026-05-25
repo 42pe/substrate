@@ -1,0 +1,57 @@
+{
+  "name": "@diegoferreyra/substrate",
+  "version": "0.0.1",
+  "description": "Local-first, per-project agent-collaborative substrate exposed via MCP.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "author": "Diego Ferreyra <diego@404.pe>",
+  "homepage": "https://github.com/diegoferreyra/substrate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diegoferreyra/substrate.git"
+  },
+  "bin": {
+    "substrate": "./dist/server/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm build:server && pnpm build:ui",
+    "build:server": "tsc -p tsconfig.build.json && node scripts/post-build.mjs",
+    "build:ui": "pnpm --dir ui build",
+    "dev:serve": "tsx src/cli/index.ts serve",
+    "dev:mcp": "tsx src/cli/index.ts mcp",
+    "test": "vitest run",
+    "test:smoke:concurrency": "vitest run tests/smoke/concurrency.test.ts",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@hono/node-server": "2.0.4",
+    "@libsql/client": "0.17.3",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "hono": "4.12.23",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.1",
+    "@typescript-eslint/eslint-plugin": "8.59.4",
+    "@typescript-eslint/parser": "8.59.4",
+    "@vitest/coverage-v8": "4.1.7",
+    "eslint": "9.39.4",
+    "eslint-plugin-import": "2.32.0",
+    "prettier": "3.8.3",
+    "tsx": "4.22.3",
+    "typescript": "6.0.3",
+    "vitest": "4.1.7"
+  }
+}
