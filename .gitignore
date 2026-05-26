@@ -36,3 +36,4 @@ coverage/
 .substrate/data.sqlite-shm
 .substrate/substrate.pid
 .substrate/attachments/
+*.tgz
