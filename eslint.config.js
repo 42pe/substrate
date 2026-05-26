@@ -8,8 +8,11 @@ export default [
     ignores: [
       'dist/**',
       'node_modules/**',
-      'ui/dist/**',
-      'ui/node_modules/**',
+      // The ui/ subpackage has its own tsconfig (different lib, jsx,
+      // bundler module resolution). Root ESLint cannot resolve its files
+      // via the root tsconfig.json's "project" reference. Phase 5 may
+      // add a UI-specific ESLint config; for Phase 1 we just exclude it.
+      'ui/**',
       'coverage/**',
       '.substrate/**',
     ],

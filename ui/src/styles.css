@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+
+/*
+ * Tailwind v4 uses CSS-first config. Theme tokens, custom variants, and
+ * other configuration live here via `@theme` directive blocks. Phase 1
+ * needs no customization — defaults are fine for a hello-world.
+ *
+ * Dark mode (configured for Phase 5 when the inspector lands):
+ *   @custom-variant dark (&:where(.dark, .dark *));
+ */
