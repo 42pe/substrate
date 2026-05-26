@@ -6,6 +6,12 @@
     "rootDir": "./src",
     "sourceMap": false,
     "removeComments": false,
+    // `rootDir: "./src"` narrows TS's auto-discovery of @types/* — without
+    // this explicit list, the production build (`tsc -p tsconfig.build.json`)
+    // can't find @types/node and reports `Cannot find name 'node:fs'` etc.
+    // The root `tsconfig.json` (no rootDir) does discover them automatically,
+    // which is why `tsc --noEmit` passes from root but the build fails.
+    // Do not remove. Re-add to any future tsconfig that pins a `rootDir`.
     "types": ["node"]
   },
   "include": ["src/**/*"],

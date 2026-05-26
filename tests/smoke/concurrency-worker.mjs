@@ -2,10 +2,19 @@
 // Args: <dbPath> <role> <durationMs>
 //
 // Opens a libsql client against the shared data.sqlite and writes rows
-// in a loop until durationMs elapses. Each row exercises the same code
-// path as MCP's create_task (INSERT into tasks via parameterized query).
+// in a loop until durationMs elapses. The INSERT statement below is
+// hand-written rather than imported from src/storage/repositories/tasks.ts
+// so the worker can stay as plain .mjs (no tsx in the spawn chain).
+//
+// IMPORTANT: keep this INSERT and the column list in sync with
+// src/storage/migrations/001-initial.ts (the schema) and
+// src/storage/repositories/tasks.ts (the production code path).
+// A schema change that renames or reorders columns must be reflected
+// here, otherwise the smoke test will report errors that look like
+// concurrency regressions but are actually drift. Reviewer C1 mitigation.
+//
 // On exit, prints a single line of JSON with the role, pid, writeCount,
-// errorCount, and any error code map.
+// errorCount, and any error code map, then exits 0 explicitly.
 
 import { createClient } from '@libsql/client';
 import { randomUUID } from 'node:crypto';
@@ -63,8 +72,10 @@ while (Date.now() - start < durationMs) {
     writeCount += 1;
   } catch (e) {
     errorCount += 1;
-    const key = e?.code || e?.message?.slice(0, 80) || 'unknown';
-    errorsByCode.set(key, (errorsByCode.get(key) || 0) + 1);
+    // Reviewer S5 — use ?? not || so a libsql code of 0 (or other falsy
+    // codes a future SDK version might use) isn't swallowed.
+    const key = e?.code ?? e?.message?.slice(0, 80) ?? 'unknown';
+    errorsByCode.set(key, (errorsByCode.get(key) ?? 0) + 1);
   }
   await new Promise((r) => setTimeout(r, writeIntervalMs));
 }
@@ -81,3 +92,7 @@ process.stdout.write(
 );
 
 client.close?.();
+
+// Reviewer S1 — explicit exit. Don't depend on event-loop drain in case
+// the libsql native binding keeps a handle alive past close().
+process.exit(0);

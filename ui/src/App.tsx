@@ -23,12 +23,20 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     fetch('/api/health')
-      .then((r) => r.json() as Promise<HealthResponse>)
+      .then(async (r) => {
+        // Reviewer C2 fix — check r.ok before parsing. Otherwise a 500
+        // returning the error envelope would silently pass the type
+        // assertion and render `undefined`s.
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return (await r.json()) as HealthResponse;
+      })
       .then((data) => {
         if (!cancelled) setHealth(data);
       })
-      .catch((e: Error) => {
-        if (!cancelled) setError(e.message);
+      .catch((e: unknown) => {
+        // Reviewer C3 fix — promise rejections are unknown-typed.
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : String(e));
       });
     return () => {
       cancelled = true;

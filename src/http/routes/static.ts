@@ -1,26 +1,31 @@
 import type { Hono } from 'hono';
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { resolve, extname, join } from 'node:path';
 
 /**
- * Phase 1 fallback for non-API routes.
+ * Phase 1 static route — serves the built Vite UI when present.
  *
- * If `dist/ui/index.html` exists (built UI is bundled), serve it. The full
- * static-asset serving (CSS, JS chunks, fonts) lands in Phase 5 when the
- * UI ships beyond hello-world. For now, the single index.html is enough to
- * demonstrate the build pipeline composes.
+ * Vite produces:
+ *   - dist/ui/index.html               served at `/`
+ *   - dist/ui/assets/<hashed>.js       served at `/assets/<hashed>.js`
+ *   - dist/ui/assets/<hashed>.css      served at `/assets/<hashed>.css`
  *
- * If `dist/ui/` is absent (developer hasn't built UI yet, or the binary is
- * running in dev mode before any UI was built), return a plain HTML
- * placeholder that confirms the server is alive and tells the user how to
- * build the UI.
+ * Without serving `/assets/*` the browser loads `index.html` and then 404s
+ * on its referenced JS/CSS — the page renders as a blank `<div id="root">`.
+ * Reviewer B1 fix.
  *
- * The file is read ONCE at registration time and memoized in a closure.
- * Avoids sync IO on every request, and avoids races where the file changes
- * between `existsSync` and `readFileSync`. The trade-off: a UI built AFTER
- * the server starts won't be picked up without a restart. That's an
- * acceptable v1 limitation — `pnpm build` is a one-time pre-launch step.
- * Reviewer C1 fix.
+ * Implementation: at registration time, scan `dist/ui/assets/` and load
+ * every file into memory (Phase 1 UI is ~200 KB total). Requests to
+ * `/assets/<file>` look the file up in the map and serve it directly. No
+ * per-request fs IO. No path-traversal surface — the map is built from
+ * exactly the files inside `assets/`, so a crafted `/assets/../etc/passwd`
+ * request will not match any key. Trade-off: a UI re-built after the
+ * server starts requires a server restart to be picked up. Acceptable for
+ * Phase 1; Vite dev mode is the workflow for live reload.
+ *
+ * If `dist/ui/` is absent, the placeholder HTML below tells the user how
+ * to build it. The placeholder body has no user input and no inline
+ * scripts — CSP-friendly out of the box.
  */
 const PLACEHOLDER_HTML = `<!doctype html>
 <html lang="en">
@@ -37,21 +42,64 @@ const PLACEHOLDER_HTML = `<!doctype html>
   <h1>Substrate is running</h1>
   <p>The HTTP server is up. The web UI is not built yet.</p>
   <p>To build the UI, run <code>pnpm build:ui</code>. Then restart the server.</p>
-  <p class="muted">Phase 1 walking skeleton. Full UI lands in Phase 5.</p>
+  <p class="muted">Phase 1 walking skeleton.</p>
 </body>
 </html>
 `;
 
-export function registerStaticFallback(app: Hono, projectRoot: string): void {
-  const indexHtmlPath = resolve(projectRoot, 'dist', 'ui', 'index.html');
+const CONTENT_TYPE_BY_EXT: Readonly<Record<string, string>> = {
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+};
 
-  // Resolve the response body ONCE at registration time. No per-request IO.
-  const responseHtml: string = existsSync(indexHtmlPath)
+function loadAssetsRecursive(dir: string, prefix: string, map: Map<string, Buffer>): void {
+  if (!existsSync(dir)) return;
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    const st = statSync(full);
+    const relUrl = `${prefix}/${entry}`;
+    if (st.isDirectory()) {
+      loadAssetsRecursive(full, relUrl, map);
+    } else if (st.isFile()) {
+      map.set(relUrl, readFileSync(full));
+    }
+  }
+}
+
+export function registerStaticFallback(app: Hono, projectRoot: string): void {
+  const uiDir = resolve(projectRoot, 'dist', 'ui');
+  const indexHtmlPath = resolve(uiDir, 'index.html');
+  const assetsDir = resolve(uiDir, 'assets');
+
+  // Load index.html once at registration time
+  const indexHtml: string = existsSync(indexHtmlPath)
     ? readFileSync(indexHtmlPath, 'utf-8')
     : PLACEHOLDER_HTML;
 
-  app.get('/', (c) => c.html(responseHtml));
+  // Load every asset under /assets/ once at registration time (B1 fix)
+  const assetMap = new Map<string, Buffer>();
+  loadAssetsRecursive(assetsDir, '/assets', assetMap);
 
-  // Phase 5 will add proper static-asset routing for /assets/*, /favicon.ico,
-  // etc. once Vite produces them. Phase 1 only needs the index fallback.
+  app.get('/', (c) => c.html(indexHtml));
+
+  app.get('/assets/*', (c) => {
+    const requestedPath = decodeURIComponent(c.req.path);
+    const body = assetMap.get(requestedPath);
+    if (!body) return c.notFound();
+    const ext = extname(requestedPath).toLowerCase();
+    const contentType = CONTENT_TYPE_BY_EXT[ext] ?? 'application/octet-stream';
+    return c.body(new Uint8Array(body), 200, { 'Content-Type': contentType });
+  });
 }
