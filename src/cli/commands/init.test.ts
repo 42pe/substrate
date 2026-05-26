@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { initCommand } from './init.js';
 import { readConfig } from '../../shared/config.js';
 import { openClient } from '../../storage/client.js';
@@ -35,7 +35,7 @@ describe('initCommand', () => {
     expect(config.project_id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
-    expect(config.project_name).toBe(cwd.split('/').pop());
+    expect(config.project_name).toBe(basename(cwd));
     expect(config.schema_version).toBe(BINARY_SCHEMA_VERSION);
 
     // Round-trip
@@ -61,7 +61,7 @@ describe('initCommand', () => {
   it('creates a .gitignore if absent', async () => {
     await initCommand(cwd);
     const gi = await readFile(join(cwd, '.gitignore'), 'utf-8');
-    expect(gi).toContain('# Substrate runtime state');
+    expect(gi).toContain('# substrate:v1:gitignore-block (managed by `substrate init`)');
     expect(gi).toContain('.substrate/data.sqlite');
     expect(gi).toContain('.substrate/attachments/');
   });
@@ -72,7 +72,7 @@ describe('initCommand', () => {
     const gi = await readFile(join(cwd, '.gitignore'), 'utf-8');
     expect(gi).toContain('node_modules/');
     expect(gi).toContain('*.log');
-    expect(gi).toContain('# Substrate runtime state');
+    expect(gi).toContain('# substrate:v1:gitignore-block (managed by `substrate init`)');
   });
 
   it('is idempotent on .gitignore — does not add a second block', async () => {
@@ -81,7 +81,8 @@ describe('initCommand', () => {
     await rm(join(cwd, '.substrate'), { recursive: true });
     await initCommand(cwd);
     const gi = await readFile(join(cwd, '.gitignore'), 'utf-8');
-    const occurrences = gi.split('# Substrate runtime state').length - 1;
+    const occurrences =
+      gi.split('# substrate:v1:gitignore-block (managed by `substrate init`)').length - 1;
     expect(occurrences).toBe(1);
   });
 

@@ -5,7 +5,16 @@ import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { initCommand } from '../../src/cli/commands/init.js';
 import { openClient } from '../../src/storage/client.js';
-import { spawnCli, findFreePort } from '../helpers/spawn.js';
+import { spawnCli, findFreePort, waitFor } from '../helpers/spawn.js';
+
+async function fetchOk(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 describe('substrate serve — schema version guard (integration)', () => {
   let cwd: string;
@@ -24,6 +33,26 @@ describe('substrate serve — schema version guard (integration)', () => {
     }
     child = null;
     await rm(cwd, { recursive: true, force: true });
+  });
+
+  it('starts cleanly when user_version == BINARY_SCHEMA_VERSION (positive path)', async () => {
+    // initCommand already stamped user_version = BINARY_SCHEMA_VERSION (1).
+    // This is the happy-path counterpart to the refuse-on-greater test below
+    // — adding it explicitly so a future regression that breaks the equal
+    // path can't silently pass while only the unit test catches it.
+    child = spawnCli(['serve'], {
+      cwd,
+      env: { SUBSTRATE_PORT_OVERRIDE: String(port) },
+    });
+
+    await waitFor(() => fetchOk(port), { timeoutMs: 15_000 });
+
+    expect(child.exitCode).toBeNull(); // still running
+
+    child.kill('SIGINT');
+    await new Promise<void>((resolve) => {
+      child!.once('exit', () => resolve());
+    });
   });
 
   it('refuses to start when data.sqlite user_version > BINARY_SCHEMA_VERSION', async () => {

@@ -63,16 +63,42 @@ export function createApp(config: HttpConfig): Hono {
 }
 
 /**
- * Bind the Hono app to a TCP port on 127.0.0.1. Returns the ServerType from
- * @hono/node-server so the caller can close it cleanly on shutdown.
+ * Bind the Hono app to a TCP port on 127.0.0.1 and resolve only after the
+ * server is actually listening. Rejects on bind errors (EADDRINUSE, EACCES,
+ * etc.) by way of the underlying http.Server's `'error'` event.
+ *
+ * `@hono/node-server`'s `serve()` returns synchronously, but EADDRINUSE
+ * fires asynchronously on the server's `'error'` event. A naive try/catch
+ * around `serve()` will NOT catch it — the original Phase 1 code was
+ * silently broken on port conflicts. Reviewer B-1 fix.
  *
  * Listens on 127.0.0.1 only — never on 0.0.0.0 — per PRD §3 (no remote
  * access in v1).
+ *
+ * Returns a Promise<ServerType> so callers can close it cleanly on shutdown.
  */
-export function startHttpServer(app: Hono, port: number): ServerType {
-  return serve({
-    fetch: app.fetch,
-    port,
-    hostname: '127.0.0.1',
+export function startHttpServer(app: Hono, port: number): Promise<ServerType> {
+  return new Promise((resolve, reject) => {
+    const server: ServerType = serve(
+      {
+        fetch: app.fetch,
+        port,
+        hostname: '127.0.0.1',
+      },
+      () => resolve(server),
+    );
+    server.once('error', reject);
+  });
+}
+
+/**
+ * Promise-wrap server.close(). Node's `http.Server.close()` is async
+ * (stops accepting new connections, then waits for in-flight requests to
+ * finish, then calls the callback). Callers must `await` this before
+ * `process.exit()` to avoid corrupting in-flight responses. Reviewer C-2 fix.
+ */
+export function closeHttpServer(server: ServerType): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => resolve());
   });
 }

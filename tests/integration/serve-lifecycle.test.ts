@@ -112,6 +112,63 @@ describe('substrate serve — lifecycle (integration)', () => {
   });
 });
 
+describe('substrate serve — port conflict (integration; B-1 regression test)', () => {
+  let cwd1: string;
+  let cwd2: string;
+  let port: number;
+  let child1: ChildProcess | null = null;
+  let child2: ChildProcess | null = null;
+
+  beforeEach(async () => {
+    cwd1 = await mkdtemp(join(tmpdir(), 'substrate-port1-'));
+    cwd2 = await mkdtemp(join(tmpdir(), 'substrate-port2-'));
+    port = await findFreePort();
+    await initCommand(cwd1);
+    await initCommand(cwd2);
+  });
+
+  afterEach(async () => {
+    for (const c of [child1, child2]) {
+      if (c && c.exitCode === null) {
+        await killAndWait(c, 'SIGKILL').catch(() => undefined);
+      }
+    }
+    child1 = null;
+    child2 = null;
+    await rm(cwd1, { recursive: true, force: true });
+    await rm(cwd2, { recursive: true, force: true });
+  });
+
+  it('refuses to start with a clear stderr error when the port is taken (EADDRINUSE)', async () => {
+    // First instance grabs the port
+    child1 = spawnCli(['serve'], {
+      cwd: cwd1,
+      env: { SUBSTRATE_PORT_OVERRIDE: String(port) },
+    });
+    await waitFor(() => fetchOk(port), { timeoutMs: 15_000 });
+
+    // Second instance, DIFFERENT cwd (so PID-file path is different),
+    // SAME port → should hit EADDRINUSE and report clearly.
+    child2 = spawnCli(['serve'], {
+      cwd: cwd2,
+      env: { SUBSTRATE_PORT_OVERRIDE: String(port) },
+    });
+
+    let stderr = '';
+    child2.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    const code = await new Promise<number | null>((resolve) => {
+      child2!.once('exit', (c) => resolve(c));
+      setTimeout(() => resolve(null), 10_000);
+    });
+
+    expect(code).not.toBe(0);
+    expect(stderr).toMatch(/already in use|EADDRINUSE/i);
+  });
+});
+
 describe('substrate serve — missing .substrate/ (integration)', () => {
   let cwd: string;
   let port: number;

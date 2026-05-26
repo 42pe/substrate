@@ -40,18 +40,46 @@ After running 'init', add Substrate to your agent runtime's MCP config:
   }
 `;
 
+/**
+ * Allowed flags per subcommand. Phase 1 has no flags that actually do
+ * anything — `--no-starter-board` is reserved per spec §3.2 and accepted
+ * as a no-op so users can experiment with the eventual API shape without
+ * a surprise rejection. Unknown flags are rejected loudly. Reviewer S-2 fix.
+ */
+const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
+  init: new Set(['--no-starter-board']),
+  serve: new Set(),
+  mcp: new Set(),
+};
+
+function rejectUnknownFlags(cmd: string, argv: string[]): void {
+  const allowed = ALLOWED_FLAGS_BY_COMMAND[cmd];
+  if (!allowed) return; // commands with no allowlist defined are validated elsewhere
+  for (const arg of argv) {
+    if (!arg.startsWith('-')) continue; // positional, not a flag
+    if (!allowed.has(arg)) {
+      const supportedLabel =
+        allowed.size === 0 ? '(no flags supported)' : `[${[...allowed].join(', ')}]`;
+      process.stderr.write(`Unknown flag for '${cmd}': ${arg}\nSupported: ${supportedLabel}\n`);
+      process.exit(1);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
+  const rest = process.argv.slice(3);
   const cwd = process.cwd();
 
   switch (cmd) {
     case undefined:
     case 'serve':
+      rejectUnknownFlags('serve', rest);
       await serveCommand(cwd);
       return;
     case 'init':
+      rejectUnknownFlags('init', rest);
       await initCommand(cwd);
-      // initCommand returns a summary; CLI prints it.
       process.stdout.write(`Substrate initialized in ${cwd}/.substrate
 
 Next steps:
@@ -61,6 +89,7 @@ Next steps:
 `);
       return;
     case 'mcp':
+      rejectUnknownFlags('mcp', rest);
       await mcpCommand(cwd);
       return;
     case '--help':
