@@ -31,6 +31,18 @@ export default defineConfig({
           fileParallelism: false,
         },
       },
+      {
+        test: {
+          name: 'smoke',
+          include: ['tests/smoke/**/*.test.ts'],
+          environment: 'node',
+          fileParallelism: false,
+          // Smoke tests are long (60s+). Default pnpm test scripts filter
+          // them out via `--project=unit --project=integration`; only
+          // `pnpm test:smoke:*` runs them.
+          testTimeout: 120_000,
+        },
+      },
     ],
     coverage: {
       provider: 'v8',

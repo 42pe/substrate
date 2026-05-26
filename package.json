@@ -29,8 +29,9 @@
     "build:ui": "pnpm --dir ui build",
     "dev:serve": "tsx src/cli/index.ts serve",
     "dev:mcp": "tsx src/cli/index.ts mcp",
-    "test": "vitest run",
-    "test:smoke:concurrency": "vitest run tests/smoke/concurrency.test.ts",
+    "test": "vitest run --project=unit --project=integration",
+    "test:smoke": "vitest run --project=smoke",
+    "test:smoke:concurrency": "vitest run --project=smoke tests/smoke/concurrency.test.ts",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format": "prettier --write ."
