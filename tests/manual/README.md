@@ -15,13 +15,34 @@ release. Outcome is recorded in `.agents/audits/phase-01-audit.md`.
 - Before merging `feature/phase-01-walking-skeleton` to `main`.
 - After any change that touches `src/mcp/**`.
 
-## What you need
+## Three procedures, pick one
 
-- A built or `tsx`-runnable substrate at this branch.
-- One of:
-  - **MCP Inspector** (recommended for the smoke — it shows raw JSON
-    responses and is fastest to set up): `npx @modelcontextprotocol/inspector`.
-  - **Claude Code** with the ability to add MCP servers via `.mcp.json`.
+| | Procedure | Speed | Rigor |
+|---|---|---|---|
+| **A** | MCP Inspector (browser UI) | slow (manual click-through) | high — visual, shows raw JSON |
+| **B** | Claude Code (LLM in the loop) | medium | medium — LLM behavior can mask issues |
+| **C** | `node tests/manual/run-smoke.mjs` | fast (~5 s) | high — programmatic assertions via the official SDK |
+
+**Default: Procedure C.** It uses `@modelcontextprotocol/sdk`'s own
+`Client` + `StdioClientTransport` (the same SDK MCP Inspector and most
+agent runtimes use internally), runs the full smoke programmatically,
+asserts each step, and exits 0 on PASS. Procedures A and B are still
+documented below for cases when you want a visual confirmation or to
+test against a real LLM client.
+
+## Procedure C — programmatic SDK runner (DEFAULT)
+
+```sh
+node tests/manual/run-smoke.mjs
+```
+
+Runs the full smoke against a fresh `.substrate/` in a temp dir:
+init → connect MCP → tools/list → whoami → create_task → SQLite
+persistence check → clean shutdown. Asserts each step and prints a
+pass/fail summary. Exit code 0 = PASS.
+
+If you need to debug a failure, the script is short and uses standard
+patterns — read `tests/manual/run-smoke.mjs` directly.
 
 ## Procedure A — MCP Inspector
 
