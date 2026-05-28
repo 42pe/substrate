@@ -4,8 +4,14 @@ import { errorEnvelope } from '../core/envelope.js';
 import { logger } from '../shared/logger.js';
 
 /**
- * Shared MCP tool wrapper — the single error surface for every tool (reads and
- * writes alike, per the Architect Reviewer lock).
+ * Shared MCP tool wrapper — the outermost error surface for every tool (reads
+ * and writes alike, per the Architect Reviewer lock).
+ *
+ * Reads rely entirely on this wrapper: their handlers throw `SubstrateError`
+ * (e.g. not_found) and the wrapper converts. Write handlers ALSO catch
+ * internally — not redundantly, but to attach `agent_name` to the scrubbed
+ * server-side log before returning an envelope; the wrapper's own catch is
+ * their backstop. Either way, every failure leaves through one envelope shape.
  *
  * A wrapped handler:
  *   1. Re-parses raw input against the tool's Zod schema. On failure, returns a

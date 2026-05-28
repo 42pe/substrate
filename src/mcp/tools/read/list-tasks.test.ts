@@ -89,6 +89,26 @@ describe('listTasksToolHandler', () => {
     expect(r.results.map((t) => t.id)).toEqual(['without-sev']);
   });
 
+  it('missing_required_fields on a board with no required fields returns empty (not all)', async () => {
+    // Board 'board-2' declares severity but NOT required.
+    const noReqBoard: Board = {
+      ...board,
+      id: 'board-2',
+      field_schema: { task: { severity: { type: 'enum', values: ['low'] } }, comments: {} },
+    };
+    deps = {
+      client,
+      config: fixtureConfig,
+      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [noReqBoard] }),
+    };
+    await createTask(client, makeTask('t1', { board_id: 'board-2', custom_data: {} }));
+    const r = await listTasksToolHandler(
+      { filters: { board_id: 'board-2', missing_required_fields: true } },
+      deps,
+    );
+    expect(r.results).toEqual([]);
+  });
+
   it('rejects missing_required_fields without board_id (schema_violation)', async () => {
     let caught: unknown;
     try {

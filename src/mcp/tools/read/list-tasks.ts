@@ -2,7 +2,11 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SubstrateError } from '../../../core/errors.js';
 import { wrapToolHandler } from '../../wrapper.js';
-import { paginationShape, type PaginationOutput } from '../../../core/pagination.js';
+import {
+  paginationShape,
+  DEFAULT_PAGE_SIZE,
+  type PaginationOutput,
+} from '../../../core/pagination.js';
 import {
   listTasks,
   type ListTasksOptions,
@@ -102,6 +106,18 @@ export async function listTasksToolHandler(
     requiredTaskFields = Object.entries(board.field_schema.task)
       .filter(([, entry]) => entry.required === true)
       .map(([field]) => field);
+
+    // If the board declares NO required fields, "tasks missing a required
+    // field" is the empty set — short-circuit. Otherwise the repo's
+    // `length > 0` guard would silently drop the filter and return every task
+    // (a correctness inversion). Reviewer C1.
+    if (requiredTaskFields.length === 0) {
+      const pageSize = input.pagination?.page_size ?? DEFAULT_PAGE_SIZE;
+      return {
+        results: [],
+        pagination: { next_cursor: null, has_more: false, page_size: pageSize },
+      };
+    }
   }
 
   // Zod `.optional()` yields `T | undefined`, which exactOptionalPropertyTypes
