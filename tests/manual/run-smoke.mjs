@@ -96,8 +96,8 @@ try {
         'whoami',
         `project_id mismatch — server returned ${whoamiPayload.project_id}, config had ${expectedConfig.project_id}`,
       );
-    } else if (whoamiPayload.schema_version !== 1) {
-      fail('whoami', `schema_version=${whoamiPayload.schema_version}, expected 1`);
+    } else if (whoamiPayload.schema_version !== 2) {
+      fail('whoami', `schema_version=${whoamiPayload.schema_version}, expected 2`);
     } else {
       pass('whoami', `project_id ${whoamiPayload.project_id.slice(0, 8)}…`);
     }

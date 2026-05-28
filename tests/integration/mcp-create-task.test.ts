@@ -180,7 +180,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       hints: unknown[];
     };
     expect(payload.project_id).toMatch(/^[0-9a-f]{8}-/i);
-    expect(payload.schema_version).toBe(1);
+    expect(payload.schema_version).toBe(2);
     expect(payload.boards).toEqual([]);
     expect(payload.hints).toEqual([]);
   });

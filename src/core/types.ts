@@ -1,11 +1,10 @@
 /**
  * Core entity types for Substrate.
  *
- * Phase 1 ships only Task + Config. Comment, TaskEvent, Board, Group, Policy
- * land in later phases (per v1-architecture plan):
- *   - Comment, TaskEvent          → Phase 2
- *   - Board, Group                → Phase 2 (substrate JSON loading)
- *   - Policy                      → Phase 3 (policy engine)
+ * Phase 1 shipped Task + Config. Phase 2 adds Comment, TaskEvent, and the
+ * substrate-JSON entities (Board, Group, Policy, FieldSchema, Substrate).
+ * Policy carries a structural type in Phase 2; the engine that evaluates
+ * `definition` lands in Phase 3.
  *
  * Field shapes are derived from the design doc §Entities, with adjustments
  * per the local-first pivot (no User, no Token; created_by_token removed).
@@ -59,4 +58,133 @@ export interface Task {
   updated_at: string;
   /** Soft delete; ISO-8601 UTC. */
   archived_at: string | null;
+}
+
+/**
+ * Comment on a task. Threaded via `parent_id`. Append-only with
+ * last-write-wins on edits — NO version column (design doc §Concurrency).
+ */
+export interface Comment {
+  id: string;
+  task_id: string;
+  /** Nested reply; null for a thread-root comment. */
+  parent_id: string | null;
+  /** Markdown. */
+  body: string;
+  /** Validated against board.field_schema.comments. */
+  custom_data: Record<string, unknown>;
+  created_by_agent: string;
+  created_at: string;
+  /** Set on edit_comment; null if never edited. */
+  edited_at: string | null;
+  archived_at: string | null;
+}
+
+/**
+ * TaskEvent event types for v1. No `automation_executed` (no automation
+ * class in v1) and no `forked` (no fork_task tool in v1).
+ */
+export type TaskEventType =
+  | 'created'
+  | 'updated'
+  | 'archived'
+  | 'unarchived'
+  | 'comment_added'
+  | 'comment_edited'
+  | 'comment_archived';
+
+/**
+ * Append-only change log + audit entry. `id` is an INTEGER rowid (not a
+ * uuid) so chronological ordering is free even when `occurred_at`
+ * timestamps tie at millisecond resolution. `changes` shape varies by
+ * `event_type` (see Phase 2 spec §3.2).
+ */
+export interface TaskEvent {
+  id: number;
+  task_id: string;
+  event_type: TaskEventType;
+  changes: Record<string, unknown>;
+  actor_agent_name: string;
+  occurred_at: string;
+}
+
+/**
+ * One field declaration in a board's field_schema. `format` is
+ * informational in v1 (not enforced). `values` is required when
+ * `type === 'enum'`.
+ */
+export interface FieldSchemaEntry {
+  type: 'string' | 'number' | 'boolean' | 'enum' | 'markdown' | 'string_list';
+  required?: boolean;
+  format?: string;
+  values?: string[];
+}
+
+/**
+ * Per-board declaration of the custom_data fields tasks and comments may
+ * carry. Comment fields are flat (no per-type sub-schemas).
+ */
+export interface FieldSchema {
+  task: Record<string, FieldSchemaEntry>;
+  comments: Record<string, FieldSchemaEntry>;
+}
+
+/**
+ * A category within a board. Tasks belong to one group. Meaning is per-board
+ * (status / owner / category / time period). Lives nested in boards/<id>.json.
+ */
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  position: number;
+  color: string | null;
+  version: number;
+  archived_at: string | null;
+}
+
+/**
+ * A rule attached to a board. v1 ships two classes. The `definition` JSON
+ * is structural-only in Phase 2 (engine evaluates it in Phase 3).
+ */
+export interface Policy {
+  id: string;
+  name: string;
+  description: string;
+  type: 'transition_guard' | 'agent_responsibility';
+  definition: Record<string, unknown>;
+  priority: number;
+  enabled: boolean;
+  version: number;
+  created_by_agent: string;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+/**
+ * A board, as parsed from `.substrate/boards/<board_id>.json`. Groups,
+ * field_schema, and policies are nested inline (PRD §6.2). Boards are NOT
+ * stored in SQLite — they are substrate-as-code.
+ */
+export interface Board {
+  id: string;
+  name: string;
+  description: string;
+  field_schema: FieldSchema;
+  groups: Group[];
+  policies: Policy[];
+  version: number;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+/**
+ * The whole substrate read once per MCP call: the implicit project config
+ * plus every board parsed from `.substrate/boards/*.json`.
+ */
+export interface Substrate {
+  config: Config;
+  boards: Board[];
 }

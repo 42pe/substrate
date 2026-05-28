@@ -26,7 +26,12 @@ export interface SuccessEnvelope<T = unknown> {
   applied: {
     entity: AppliedEntity;
     id: string;
-    version: number;
+    /**
+     * Post-write version for OCC. `null` for entities without optimistic
+     * concurrency control — comments are append-only / last-write-wins and
+     * carry no version (design doc §Concurrency). Tasks always have a number.
+     */
+    version: number | null;
     state: T;
   };
   policies_fired: PolicyFiredEntry[];

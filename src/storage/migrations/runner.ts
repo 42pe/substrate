@@ -1,6 +1,7 @@
 import type { Client, Transaction } from '@libsql/client';
 import { SubstrateError } from '../../core/errors.js';
 import { migration001 } from './001-initial.js';
+import { migration002 } from './002-comments-events.js';
 
 /**
  * A migration is a forward-only schema change with a stable integer id.
@@ -26,7 +27,7 @@ export interface Migration {
  * Tests that need a different migration list pass their own array to
  * `runMigrations` rather than mutating this export.
  */
-export const migrations: readonly Migration[] = Object.freeze([migration001]);
+export const migrations: readonly Migration[] = Object.freeze([migration001, migration002]);
 
 /**
  * Read the current schema version from `PRAGMA user_version`.

@@ -7,7 +7,7 @@
  *   - If file_version < BINARY_SCHEMA_VERSION: apply pending migrations forward.
  *   - If equal: open normally.
  */
-export const BINARY_SCHEMA_VERSION = 1;
+export const BINARY_SCHEMA_VERSION = 2;
 
 /**
  * The release version of this Substrate binary. Single source of truth — both

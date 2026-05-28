@@ -48,6 +48,17 @@ describe('successEnvelope', () => {
     });
     expect(env.applied.state.title).toBe('x');
   });
+
+  it('accepts version: null for entities without OCC (comments)', () => {
+    const env = successEnvelope({
+      entity: 'comment',
+      id: 'c1',
+      version: null,
+      state: { id: 'c1', body: 'hi' },
+    });
+    expect(env.applied.version).toBeNull();
+    expect(env.applied.entity).toBe('comment');
+  });
 });
 
 describe('errorEnvelope', () => {

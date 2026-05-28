@@ -1,8 +1,17 @@
-import { createClient, type Client } from '@libsql/client';
+import { createClient, type Client, type Transaction } from '@libsql/client';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { BINARY_SCHEMA_VERSION } from '../core/version.js';
 import { runMigrations } from './migrations/runner.js';
+
+/**
+ * A thing you can run SQL against — either the pooled client or an open
+ * write transaction. Repository functions accept this so the SAME function
+ * works for non-transactional reads (pass the Client) and for atomic write
+ * sequences (pass the Transaction). Repos must NEVER open their own
+ * transaction — the handler owns the transaction (see `withTransaction`).
+ */
+export type Executor = Client | Transaction;
 
 /**
  * SQLite busy_timeout for all connections, per Substrate convention.
@@ -59,18 +68,53 @@ export async function openDatabaseAndMigrate(dbPath: string): Promise<Client> {
 
   // libsql quirk (verified 2026-05-09 by Phase 1 spike): committing a
   // transaction resets the client's `busy_timeout` to 0. The migration
-  // runner uses transactions, so by this point the timeout is 0 and any
-  // contended write would immediately return SQLITE_BUSY instead of
-  // waiting. Re-apply it.
-  //
-  // Phase 2 will need a `withTransaction(client, fn)` helper that
-  // re-applies busy_timeout after commit. Substrate-edit tools in Phase 4
-  // do NOT need this — they write to JSON files (boards/*.json) via
-  // atomic temp-and-rename, not to SQLite. Where the helper bites:
-  //   - Phase 2: update_task (bumps version + emits TaskEvent atomically)
-  //   - Phase 2: add_comment / edit_comment (write row + TaskEvent)
-  //   - Phase 3: policy engine cascades (multi-write within one call)
+  // runner uses transactions, so by this point the timeout is 0. Re-apply.
+  // (`withTransaction` does the same after every application-level commit.)
   await client.execute(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
 
   return client;
+}
+
+/**
+ * Run `fn` inside a single libsql write transaction, committing on success
+ * and rolling back on error. The HANDLER owns the transaction — repository
+ * functions take an `Executor` and never open their own. This keeps a
+ * write's read-for-merge, the write itself, and its TaskEvent emission
+ * atomic (so a crash mid-write never leaves a row at a new state with no
+ * audit event, and the OCC read-for-merge can't race the write).
+ *
+ * Re-applies `busy_timeout` in a `finally` — libsql resets it to 0 after a
+ * commit (and we reapply after rollback too, defensively). The `.catch`
+ * swallows a PRAGMA error if the connection is already dead, so cleanup
+ * never masks the original failure.
+ *
+ * On rollback failure, the rollback error is attached as `Error.cause` of
+ * the original error (mirrors the migration runner's pattern) — the
+ * original failure is the actionable signal.
+ *
+ * Substrate convention: the Client is single-threaded — one MCP call runs
+ * one fully-awaited transaction at a time. Do not issue concurrent
+ * statements on the same Client.
+ */
+export async function withTransaction<T>(
+  client: Client,
+  fn: (tx: Transaction) => Promise<T>,
+): Promise<T> {
+  const tx = await client.transaction('write');
+  try {
+    const result = await fn(tx);
+    await tx.commit();
+    return result;
+  } catch (originalError) {
+    try {
+      await tx.rollback();
+    } catch (rollbackError) {
+      if (originalError instanceof Error) {
+        (originalError as Error & { cause?: unknown }).cause = rollbackError;
+      }
+    }
+    throw originalError;
+  } finally {
+    await client.execute(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`).catch(() => undefined);
+  }
 }

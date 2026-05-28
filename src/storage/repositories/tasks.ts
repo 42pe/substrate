@@ -1,13 +1,19 @@
-import type { Client } from '@libsql/client';
 import type { Task } from '../../core/types.js';
 import { SubstrateError } from '../../core/errors.js';
+import type { Executor } from '../client.js';
 
 /**
- * Tasks repository. Phase 1 ships only `createTask` and `getTask`.
- * Update / archive / list and the rest of the surface land in Phase 2.
+ * Tasks repository.
+ *
+ * Functions take an `Executor` (Client | Transaction) so the same code path
+ * serves non-transactional reads (pass the Client) and atomic write
+ * sequences (pass a Transaction). Repos NEVER open their own transaction —
+ * the handler owns it via `withTransaction`.
  *
  * Always uses parameterized queries (libsql `{ sql, args }` form). Never
  * raw-concatenates SQL strings (workflow.md §Conventions).
+ *
+ * Phase 1 shipped createTask + getTask. Step 2 adds update/archive/list.
  */
 
 /**
@@ -71,8 +77,8 @@ function rowToTask(row: TaskRow): Task {
  * Insert a task row. Returns the task as written (the input, unchanged in
  * Phase 1 since no server-side derivation happens here).
  */
-export async function createTask(client: Client, task: Task): Promise<Task> {
-  await client.execute({
+export async function createTask(exec: Executor, task: Task): Promise<Task> {
+  await exec.execute({
     sql: `
       INSERT INTO tasks (
         id, board_id, group_id, parent_id, origin_task_id,
@@ -102,8 +108,8 @@ export async function createTask(client: Client, task: Task): Promise<Task> {
 /**
  * Read a task by id. Throws `SubstrateError.notFound` if no row matches.
  */
-export async function getTask(client: Client, id: string): Promise<Task> {
-  const result = await client.execute({
+export async function getTask(exec: Executor, id: string): Promise<Task> {
+  const result = await exec.execute({
     sql: 'SELECT * FROM tasks WHERE id = ?',
     args: [id],
   });
