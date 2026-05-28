@@ -57,7 +57,9 @@ try {
   }
   pass('substrate init');
 
-  const expectedConfig = JSON.parse(await readFile(join(cwd, '.substrate', 'config.json'), 'utf-8'));
+  const expectedConfig = JSON.parse(
+    await readFile(join(cwd, '.substrate', 'config.json'), 'utf-8'),
+  );
 
   // Step 2 — connect MCP
   const transport = new StdioClientTransport({
@@ -67,7 +69,10 @@ try {
   });
   const client = new Client({ name: 'manual-smoke', version: '0.0.0' });
   await client.connect(transport);
-  pass('connect MCP', `server: ${client.getServerVersion()?.name} v${client.getServerVersion()?.version}`);
+  pass(
+    'connect MCP',
+    `server: ${client.getServerVersion()?.name} v${client.getServerVersion()?.version}`,
+  );
 
   // Step 3 — tools/list
   const tools = await client.listTools();
