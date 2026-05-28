@@ -99,6 +99,17 @@ describe('concurrency smoke', () => {
         const persistedCount =
           typeof row['n'] === 'bigint' ? Number(row['n']) : (row['n'] as number);
         expect(persistedCount).toBe(reportedTotal);
+
+        // Each write also emits a `created` task_event in the same transaction.
+        // The event count must match exactly — proves atomicity under
+        // concurrency (no task without its audit entry, no orphan event).
+        const eventResult = await dbClient.execute(
+          "SELECT COUNT(*) AS n FROM task_events WHERE event_type = 'created'",
+        );
+        const erow = eventResult.rows[0] as Record<string, unknown>;
+        const eventCount =
+          typeof erow['n'] === 'bigint' ? Number(erow['n']) : (erow['n'] as number);
+        expect(eventCount).toBe(reportedTotal);
       } finally {
         dbClient.close();
       }

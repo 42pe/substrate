@@ -7,21 +7,36 @@ import { initCommand } from '../../src/cli/commands/init.js';
 import { openClient } from '../../src/storage/client.js';
 import { spawnCli } from '../helpers/spawn.js';
 
-/** A minimal valid board with id 'b' and group 'g' for create_task validation. */
+/**
+ * A valid board 'b' with group 'g' (+ 'g2') and a `severity` enum task field,
+ * used by both the simple create_task test and the full bootstrap-flow test.
+ */
 async function writeFixtureBoard(cwd: string): Promise<void> {
   const boardsDir = join(cwd, '.substrate', 'boards');
   await mkdir(boardsDir, { recursive: true });
   const board = {
     id: 'b',
     name: 'Board B',
-    description: '',
-    field_schema: { task: {}, comments: {} },
+    description: 'Bootstrap fixture board',
+    field_schema: {
+      task: { severity: { type: 'enum', values: ['low', 'medium', 'high', 'critical'] } },
+      comments: {},
+    },
     groups: [
       {
         id: 'g',
-        name: 'Group',
+        name: 'Todo',
         description: '',
         position: 0,
+        color: null,
+        version: 1,
+        archived_at: null,
+      },
+      {
+        id: 'g2',
+        name: 'Done',
+        description: '',
+        position: 1,
         color: null,
         version: 1,
         archived_at: null,
@@ -231,4 +246,134 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     expect(payload.boards).toEqual([]);
     expect(payload.hints).toEqual([]);
   });
+
+  it('runs the full bootstrap flow end-to-end against a real substrate', async () => {
+    await writeFixtureBoard(cwd);
+
+    // Call a tool and return its parsed JSON payload (read result or envelope).
+    async function callTool<T = Record<string, unknown>>(
+      name: string,
+      args: Record<string, unknown>,
+    ): Promise<{ payload: T; isError: boolean }> {
+      const response = await client.request('tools/call', { name, arguments: args });
+      expect(response.error, `${name} JSON-RPC error`).toBeUndefined();
+      const result = response.result as {
+        content: Array<{ text: string }>;
+        isError?: boolean;
+      };
+      return { payload: JSON.parse(result.content[0]!.text) as T, isError: !!result.isError };
+    }
+
+    // 1. whoami → board 'b' is visible.
+    const whoami = await callTool<{ boards: Array<{ id: string }> }>('whoami', {});
+    expect(whoami.payload.boards.map((b) => b.id)).toEqual(['b']);
+
+    // 2. get_board_substrate → groups + field_schema + (empty) policies.
+    const sub = await callTool<{
+      groups: Array<{ id: string }>;
+      field_schema: { task: Record<string, unknown> };
+      policies: unknown[];
+    }>('get_board_substrate', { board_id: 'b' });
+    expect(sub.payload.groups.map((g) => g.id)).toEqual(['g', 'g2']);
+    expect(sub.payload.field_schema.task).toHaveProperty('severity');
+    expect(sub.payload.policies).toEqual([]);
+
+    // 3a. create_task with an invalid severity → schema_violation.
+    const bad = await callTool<{ ok: boolean; error: { code: string } }>('create_task', {
+      board_id: 'b',
+      group_id: 'g',
+      title: 'bad sev',
+      custom_data: { severity: 'urgent' },
+      agent_name: 'flow',
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.payload.ok).toBe(false);
+    expect(bad.payload.error.code).toBe('schema_violation');
+
+    // 3b. create_task with a valid severity → success, version 1.
+    const created = await callTool<{
+      ok: boolean;
+      applied: { id: string; version: number; state: { title: string } };
+    }>('create_task', {
+      board_id: 'b',
+      group_id: 'g',
+      title: 'Flow task',
+      custom_data: { severity: 'low' },
+      agent_name: 'flow',
+    });
+    expect(created.payload.ok).toBe(true);
+    expect(created.payload.applied.version).toBe(1);
+    const taskId = created.payload.applied.id;
+
+    // 4a. update_task with a stale version → version_mismatch.
+    const stale = await callTool<{ ok: boolean; error: { code: string } }>('update_task', {
+      id: taskId,
+      version: 99,
+      title: 'stale',
+      agent_name: 'flow',
+    });
+    expect(stale.payload.ok).toBe(false);
+    expect(stale.payload.error.code).toBe('version_mismatch');
+
+    // 4b. update_task moving groups → version 2.
+    const updated = await callTool<{ ok: boolean; applied: { version: number } }>('update_task', {
+      id: taskId,
+      version: 1,
+      group_id: 'g2',
+      agent_name: 'flow',
+    });
+    expect(updated.payload.ok).toBe(true);
+    expect(updated.payload.applied.version).toBe(2);
+
+    // 5. comment lifecycle: add → edit → archive.
+    const comment = await callTool<{ ok: boolean; applied: { id: string; version: null } }>(
+      'add_comment',
+      { task_id: taskId, body: 'first comment', agent_name: 'flow' },
+    );
+    expect(comment.payload.ok).toBe(true);
+    expect(comment.payload.applied.version).toBeNull();
+    const commentId = comment.payload.applied.id;
+
+    const edited = await callTool<{ ok: boolean; applied: { state: { body: string } } }>(
+      'edit_comment',
+      { id: commentId, body: 'edited comment', agent_name: 'flow' },
+    );
+    expect(edited.payload.applied.state.body).toBe('edited comment');
+
+    await callTool('archive_comment', { id: commentId, agent_name: 'flow' });
+
+    // 6. archive then unarchive the task.
+    const archived = await callTool<{ ok: boolean; applied: { version: number } }>('archive_task', {
+      id: taskId,
+      version: 2,
+      agent_name: 'flow',
+    });
+    expect(archived.payload.applied.version).toBe(3);
+    const unarchived = await callTool<{ applied: { version: number } }>('unarchive_task', {
+      id: taskId,
+      version: 3,
+      agent_name: 'flow',
+    });
+    expect(unarchived.payload.applied.version).toBe(4);
+
+    // 7. get_task_history → the full chronological event trail.
+    const history = await callTool<{ results: Array<{ event_type: string }> }>('get_task_history', {
+      task_id: taskId,
+    });
+    expect(history.payload.results.map((e) => e.event_type)).toEqual([
+      'created',
+      'updated',
+      'comment_added',
+      'comment_edited',
+      'comment_archived',
+      'archived',
+      'unarchived',
+    ]);
+
+    // 8. list_tasks finds the (now active) task on board 'b'.
+    const list = await callTool<{ results: Array<{ id: string }> }>('list_tasks', {
+      filters: { board_id: 'b' },
+    });
+    expect(list.payload.results.map((t) => t.id)).toContain(taskId);
+  }, 30_000);
 });

@@ -6,12 +6,17 @@
 // hand-written rather than imported from src/storage/repositories/tasks.ts
 // so the worker can stay as plain .mjs (no tsx in the spawn chain).
 //
-// IMPORTANT: keep this INSERT and the column list in sync with
-// src/storage/migrations/001-initial.ts (the schema) and
-// src/storage/repositories/tasks.ts (the production code path).
+// IMPORTANT: keep these INSERTs and the column lists in sync with
+// src/storage/migrations/{001-initial,002-comments-events}.ts (the schema)
+// and src/storage/repositories/{tasks,events}.ts (the production code path).
 // A schema change that renames or reorders columns must be reflected
 // here, otherwise the smoke test will report errors that look like
 // concurrency regressions but are actually drift. Reviewer C1 mitigation.
+//
+// Each write mirrors the real write path (Phase 2): a task row AND its
+// `created` task_event are inserted inside ONE write transaction, so the
+// test can assert task_events count == reported writes (atomicity under
+// concurrency).
 //
 // On exit, prints a single line of JSON with the role, pid, writeCount,
 // errorCount, and any error code map, then exits 0 explicitly.
@@ -45,30 +50,49 @@ const now = () => new Date().toISOString();
 while (Date.now() - start < durationMs) {
   try {
     const id = randomUUID();
-    await client.execute({
-      sql: `
-        INSERT INTO tasks (
-          id, board_id, group_id, parent_id, origin_task_id,
-          title, description, custom_data, version,
-          created_by_agent, created_at, updated_at, archived_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      args: [
-        id,
-        'smoke-board',
-        'smoke-group',
-        null,
-        null,
-        `${role} task ${writeCount + 1}`,
-        '',
-        '{}',
-        1,
-        role,
-        now(),
-        now(),
-        null,
-      ],
-    });
+    const ts = now();
+    // Mirror withTransaction: task row + created event, atomic.
+    const tx = await client.transaction('write');
+    try {
+      await tx.execute({
+        sql: `
+          INSERT INTO tasks (
+            id, board_id, group_id, parent_id, origin_task_id,
+            title, description, custom_data, version,
+            created_by_agent, created_at, updated_at, archived_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          id,
+          'smoke-board',
+          'smoke-group',
+          null,
+          null,
+          `${role} task ${writeCount + 1}`,
+          '',
+          '{}',
+          1,
+          role,
+          ts,
+          ts,
+          null,
+        ],
+      });
+      await tx.execute({
+        sql: `
+          INSERT INTO task_events (task_id, event_type, changes, actor_agent_name, occurred_at)
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        args: [id, 'created', '{}', role, ts],
+      });
+      await tx.commit();
+    } catch (txErr) {
+      await tx.rollback().catch(() => undefined);
+      throw txErr;
+    } finally {
+      // busy_timeout resets after commit; re-apply (mirrors withTransaction).
+      await client.execute('PRAGMA busy_timeout = 5000').catch(() => undefined);
+    }
     writeCount += 1;
   } catch (e) {
     errorCount += 1;

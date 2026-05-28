@@ -25,7 +25,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -61,6 +61,44 @@ try {
     await readFile(join(cwd, '.substrate', 'config.json'), 'utf-8'),
   );
 
+  // Step 1b — author a substrate board so the write tools have a real target.
+  const boardsDir = join(cwd, '.substrate', 'boards');
+  await mkdir(boardsDir, { recursive: true });
+  await writeFile(
+    join(boardsDir, 'smoke-board.json'),
+    JSON.stringify(
+      {
+        id: 'smoke-board',
+        name: 'Smoke Board',
+        description: '',
+        field_schema: {
+          task: { severity: { type: 'enum', values: ['low', 'medium', 'high', 'critical'] } },
+          comments: {},
+        },
+        groups: [
+          {
+            id: 'smoke-group',
+            name: 'Todo',
+            description: '',
+            position: 0,
+            color: null,
+            version: 1,
+            archived_at: null,
+          },
+        ],
+        policies: [],
+        version: 1,
+        created_at: '2026-05-09T00:00:00.000Z',
+        updated_at: '2026-05-09T00:00:00.000Z',
+        archived_at: null,
+      },
+      null,
+      2,
+    ),
+    'utf-8',
+  );
+  pass('author board');
+
   // Step 2 — connect MCP
   const transport = new StdioClientTransport({
     command: 'npx',
@@ -77,11 +115,28 @@ try {
   // Step 3 — tools/list
   const tools = await client.listTools();
   const toolNames = tools.tools.map((t) => t.name).sort();
-  const expected = ['create_task', 'whoami'];
+  const expected = [
+    'add_comment',
+    'archive_comment',
+    'archive_task',
+    'create_task',
+    'edit_comment',
+    'get_board_substrate',
+    'get_comment',
+    'get_project',
+    'get_task',
+    'get_task_history',
+    'list_boards',
+    'list_comments',
+    'list_tasks',
+    'unarchive_task',
+    'update_task',
+    'whoami',
+  ];
   if (JSON.stringify(toolNames) !== JSON.stringify(expected)) {
     fail('tools/list', `got ${JSON.stringify(toolNames)}, expected ${JSON.stringify(expected)}`);
   } else {
-    pass('tools/list', toolNames.join(', '));
+    pass('tools/list', `${toolNames.length} tools`);
   }
 
   // Step 4 — whoami
@@ -110,6 +165,7 @@ try {
       board_id: 'smoke-board',
       group_id: 'smoke-group',
       title: 'Hello from manual smoke',
+      custom_data: { severity: 'low' },
       agent_name: 'manual-smoke-runner',
     },
   });
@@ -153,6 +209,63 @@ try {
         } else {
           pass('sqlite persistence', 'row visible via sqlite3');
         }
+      }
+
+      const taskId = envelope.applied.id;
+
+      // Step 6b — update_task → version bumps to 2.
+      const updateRes = await client.callTool({
+        name: 'update_task',
+        arguments: {
+          id: taskId,
+          version: 1,
+          group_id: 'smoke-group',
+          title: 'Updated',
+          agent_name: 'manual-smoke-runner',
+        },
+      });
+      const updateEnv = JSON.parse(updateRes.content[0].text);
+      if (!updateEnv.ok || updateEnv.applied.version !== 2) {
+        fail(
+          'update_task',
+          `expected ok + version 2, got ${JSON.stringify(updateEnv.applied ?? updateEnv.error)}`,
+        );
+      } else {
+        pass('update_task', 'version → 2');
+      }
+
+      // Step 6c — add_comment → success envelope with version: null (no OCC).
+      const commentRes = await client.callTool({
+        name: 'add_comment',
+        arguments: { task_id: taskId, body: 'a smoke comment', agent_name: 'manual-smoke-runner' },
+      });
+      const commentEnv = JSON.parse(commentRes.content[0].text);
+      if (!commentEnv.ok) {
+        fail('add_comment', `envelope ok=false: ${JSON.stringify(commentEnv.error)}`);
+      } else if (commentEnv.applied.version !== null) {
+        fail(
+          'add_comment',
+          `expected version: null, got ${JSON.stringify(commentEnv.applied.version)}`,
+        );
+      } else {
+        pass('add_comment', 'version: null (no OCC)');
+      }
+
+      // Step 6d — get_task_history → created, updated, comment_added.
+      const historyRes = await client.callTool({
+        name: 'get_task_history',
+        arguments: { task_id: taskId },
+      });
+      const historyPayload = JSON.parse(historyRes.content[0].text);
+      const eventTypes = (historyPayload.results ?? []).map((e) => e.event_type);
+      const expectedEvents = ['created', 'updated', 'comment_added'];
+      if (JSON.stringify(eventTypes) !== JSON.stringify(expectedEvents)) {
+        fail(
+          'get_task_history',
+          `got ${JSON.stringify(eventTypes)}, expected ${JSON.stringify(expectedEvents)}`,
+        );
+      } else {
+        pass('get_task_history', eventTypes.join(' → '));
       }
     }
   }
