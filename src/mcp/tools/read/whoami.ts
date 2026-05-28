@@ -1,49 +1,65 @@
+import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 
 /**
- * MCP tool: whoami — Phase 1 minimal.
+ * MCP tool: whoami — the bootstrap call.
  *
- * Returns the project metadata an agent needs to bootstrap. In Phase 1
- * there are no boards yet and no easter egg, so `boards` and `hints` are
- * always empty arrays — but the keys are present, establishing the shape
- * Phase 3 will populate (with the `reverse_captcha` hint and the board
- * summary list).
+ * Returns project metadata plus a summary of every board in the substrate
+ * (including archived ones — agents should see the whole namespace). No task
+ * or group counts: those drift constantly, so an agent that needs them calls
+ * `list_tasks` / `get_board_substrate` for a fresh read.
  *
- * Phase 3 will also gain a `phase` field that's updated as we ship more
- * tools.
+ * `hints` is `[]` in Phase 2; Phase 3 populates the easter-egg pointer. The
+ * key is present now to lock the shape.
  */
+
+export interface BoardSummary {
+  id: string;
+  name: string;
+  description: string;
+  archived_at: string | null;
+  version: number;
+}
 
 export interface WhoamiResult {
   project_id: string;
   project_name: string;
   schema_version: number;
   phase: string;
-  boards: never[];
-  hints: never[];
+  boards: BoardSummary[];
+  hints: string[];
 }
 
+export const PHASE_STRING = 'v0.0.2 (storage + reads + writes)';
+
 export async function whoamiHandler(deps: ToolDeps): Promise<WhoamiResult> {
+  const substrate = await deps.loadSubstrate();
   return {
     project_id: deps.config.project_id,
     project_name: deps.config.project_name,
     schema_version: deps.config.schema_version,
-    phase: 'v0.0.1 (walking skeleton)',
-    boards: [],
+    phase: PHASE_STRING,
+    boards: substrate.boards.map((b) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description,
+      archived_at: b.archived_at,
+      version: b.version,
+    })),
     hints: [],
   };
 }
 
+export const whoamiShape = {};
+const whoamiSchema = z.object(whoamiShape);
+
 export function registerWhoami(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'whoami',
-    'Returns project metadata an agent needs to bootstrap. Phase 1 ships a minimal payload; Phase 3 will populate `boards` (accessible board summaries) and `hints` (easter-egg pointer).',
-    {},
-    async () => {
-      const result = await whoamiHandler(deps);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-      };
-    },
+    'Get your bearings: project metadata, summaries of every board you can see, and hints to follow. Call this first.',
+    whoamiShape,
+    wrapToolHandler('whoami', whoamiSchema, () => whoamiHandler(deps)),
   );
 }

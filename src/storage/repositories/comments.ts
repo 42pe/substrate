@@ -3,6 +3,7 @@ import { SubstrateError } from '../../core/errors.js';
 import type { Executor } from '../client.js';
 import {
   type PaginationOutput,
+  type PaginationInput,
   type CursorTuple,
   encodeCursor,
   decodeCursor,
@@ -143,9 +144,9 @@ export async function archiveComment(
 }
 
 export interface ListCommentsFilters {
-  parent_id?: string | null;
-  since?: string;
-  until?: string;
+  parent_id?: string | null | undefined;
+  since?: string | undefined;
+  until?: string | undefined;
 }
 
 /** List a task's comments oldest-first, paginated. Active (non-archived) only. */
@@ -153,7 +154,7 @@ export async function listComments(
   exec: Executor,
   taskId: string,
   filters: ListCommentsFilters = {},
-  pagination?: { cursor?: string; page_size?: number },
+  pagination?: PaginationInput,
 ): Promise<{ results: Comment[]; pagination: PaginationOutput }> {
   const where: string[] = ['task_id = ?', 'archived_at IS NULL'];
   const args: Array<string | number | null> = [taskId];

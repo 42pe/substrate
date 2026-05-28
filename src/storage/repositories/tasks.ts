@@ -3,6 +3,7 @@ import { SubstrateError } from '../../core/errors.js';
 import type { Executor } from '../client.js';
 import {
   type PaginationOutput,
+  type PaginationInput,
   type CursorTuple,
   encodeCursor,
   decodeCursor,
@@ -316,7 +317,7 @@ export interface ListTasksFilters {
 export interface ListTasksOptions {
   filters: ListTasksFilters;
   sort?: { field: 'created_at' | 'updated_at'; direction: 'asc' | 'desc' };
-  pagination?: { cursor?: string; page_size?: number };
+  pagination?: PaginationInput;
   /** Required-field keys derived from the board's field_schema by the
    *  handler. When provided, restricts to tasks missing at least one. */
   requiredTaskFields?: string[];

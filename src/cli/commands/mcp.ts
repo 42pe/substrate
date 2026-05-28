@@ -3,6 +3,7 @@ import { paths, substrateRootFromCwd } from '../../shared/paths.js';
 import { readConfig } from '../../shared/config.js';
 import { openDatabaseAndMigrate } from '../../storage/client.js';
 import { startStdioServer } from '../../mcp/server.js';
+import { loadSubstrate } from '../../substrate/loader.js';
 import { SubstrateError } from '../../core/errors.js';
 
 /**
@@ -51,7 +52,7 @@ export async function mcpCommand(cwd: string): Promise<void> {
   process.once('beforeExit', safeClose);
 
   try {
-    await startStdioServer({ client, config });
+    await startStdioServer({ client, config, loadSubstrate: () => loadSubstrate(root) });
   } finally {
     safeClose();
   }

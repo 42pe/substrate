@@ -40,6 +40,16 @@ export interface PaginationOutput {
   page_size: number;
 }
 
+/**
+ * Pagination input as accepted by repositories. Optionals explicitly include
+ * `undefined` so a Zod `.optional()` output (which is `T | undefined`) assigns
+ * cleanly under `exactOptionalPropertyTypes`.
+ */
+export interface PaginationInput {
+  cursor?: string | undefined;
+  page_size?: number | undefined;
+}
+
 export interface CursorTuple<I extends string | number> {
   /** Primary sort value (ISO timestamp). */
   u: string;

@@ -85,7 +85,11 @@ describe('createTaskHandler', () => {
     dir = await mkdtemp(join(tmpdir(), 'substrate-create-task-'));
     const dbPath = join(dir, '.substrate', 'data.sqlite');
     client = await openDatabaseAndMigrate(dbPath);
-    deps = { client, config: fixtureConfig };
+    deps = {
+      client,
+      config: fixtureConfig,
+      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
+    };
   });
 
   afterEach(async () => {
@@ -194,6 +198,7 @@ describe('createTaskHandler — unknown error handling (C3)', () => {
     const deps: ToolDeps = {
       client: stubClient,
       config: fixtureConfig,
+      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
     };
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);

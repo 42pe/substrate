@@ -3,6 +3,7 @@ import { SubstrateError } from '../../core/errors.js';
 import type { Executor } from '../client.js';
 import {
   type PaginationOutput,
+  type PaginationInput,
   type CursorTuple,
   encodeCursor,
   decodeCursor,
@@ -84,9 +85,9 @@ export async function appendEvent(exec: Executor, event: NewTaskEvent): Promise<
 }
 
 export interface ListEventsFilters {
-  event_types?: TaskEventType[];
-  since?: string;
-  until?: string;
+  event_types?: TaskEventType[] | undefined;
+  since?: string | undefined;
+  until?: string | undefined;
 }
 
 /** List a task's events oldest-first (occurred_at, then id tiebreaker). */
@@ -94,7 +95,7 @@ export async function listEvents(
   exec: Executor,
   taskId: string,
   filters: ListEventsFilters = {},
-  pagination?: { cursor?: string; page_size?: number },
+  pagination?: PaginationInput,
 ): Promise<{ results: TaskEvent[]; pagination: PaginationOutput }> {
   const where: string[] = ['task_id = ?'];
   const args: Array<string | number | null> = [taskId];

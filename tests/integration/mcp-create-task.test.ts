@@ -120,12 +120,23 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  it('lists create_task and whoami in tools/list', async () => {
+  it('lists the Phase 2 read tools plus create_task in tools/list', async () => {
     const response = await client.request('tools/list');
     expect(response.error).toBeUndefined();
     const result = response.result as { tools: Array<{ name: string }> };
     const names = result.tools.map((t) => t.name).sort();
-    expect(names).toEqual(['create_task', 'whoami']);
+    expect(names).toEqual([
+      'create_task',
+      'get_board_substrate',
+      'get_comment',
+      'get_project',
+      'get_task',
+      'get_task_history',
+      'list_boards',
+      'list_comments',
+      'list_tasks',
+      'whoami',
+    ]);
   });
 
   it('create_task persists a row in data.sqlite', async () => {

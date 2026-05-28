@@ -1,5 +1,5 @@
 import type { Client } from '@libsql/client';
-import type { Config } from '../core/types.js';
+import type { Config, Substrate } from '../core/types.js';
 
 /**
  * Dependencies injected into every MCP tool handler.
@@ -8,11 +8,14 @@ import type { Config } from '../core/types.js';
  * `substrate mcp`) and threaded through to tool registrations. Tools never
  * import these globally — keeps them pure / testable.
  *
- * Phase 1 needs only `client` (libsql) and `config` (project metadata).
- * Phase 2 will likely add a substrate loader; Phase 3 will add the policy
- * engine. Extend this interface narrowly as those phases land.
+ * Phase 1 needed only `client` (libsql) and `config` (project metadata).
+ * Phase 2 adds `loadSubstrate` — a thunk that reads `boards/*.json` fresh on
+ * each call (substrate-as-code can change under a long-lived process; no
+ * caching in v1). Phase 3 will add the policy engine. Extend narrowly.
  */
 export interface ToolDeps {
   client: Client;
   config: Config;
+  /** Reads the whole substrate (config + boards) fresh from disk. */
+  loadSubstrate: () => Promise<Substrate>;
 }
