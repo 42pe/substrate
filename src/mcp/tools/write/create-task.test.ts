@@ -12,8 +12,9 @@ import {
 } from './create-task.js';
 import { openDatabaseAndMigrate } from '../../../storage/client.js';
 import { getTask } from '../../../storage/repositories/tasks.js';
+import { listEvents } from '../../../storage/repositories/events.js';
 import type { ToolDeps } from '../../deps.js';
-import type { Config } from '../../../core/types.js';
+import type { Board, Config, Substrate } from '../../../core/types.js';
 
 const fixtureConfig: Config = {
   project_id: '00000000-0000-4000-8000-000000000001',
@@ -21,6 +22,33 @@ const fixtureConfig: Config = {
   schema_version: 1,
   created_at: '2026-05-09T00:00:00.000Z',
 };
+
+// Board 'b' with group 'g' and a `severity` enum field, so create_task's
+// substrate validation passes for the happy-path tests.
+const fixtureBoard: Board = {
+  id: 'b',
+  name: 'Board B',
+  description: '',
+  field_schema: { task: { severity: { type: 'enum', values: ['low', 'high'] } }, comments: {} },
+  groups: [
+    {
+      id: 'g',
+      name: 'Group',
+      description: '',
+      position: 0,
+      color: null,
+      version: 1,
+      archived_at: null,
+    },
+  ],
+  policies: [],
+  version: 1,
+  created_at: '2026-05-09T00:00:00.000Z',
+  updated_at: '2026-05-09T00:00:00.000Z',
+  archived_at: null,
+};
+
+const fixtureSubstrate: Substrate = { config: fixtureConfig, boards: [fixtureBoard] };
 
 describe('createTaskSchema (input validation)', () => {
   it('accepts a minimal valid payload', () => {
@@ -88,7 +116,7 @@ describe('createTaskHandler', () => {
     deps = {
       client,
       config: fixtureConfig,
-      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
+      loadSubstrate: () => Promise.resolve(fixtureSubstrate),
     };
   });
 
@@ -183,22 +211,102 @@ describe('createTaskHandler', () => {
     if (!env.ok) throw new Error('expected success');
     expect(env.applied.state.created_at).toBe(env.applied.state.updated_at);
   });
+
+  it('emits a created TaskEvent atomically with the row', async () => {
+    const env = await call({
+      board_id: 'b',
+      group_id: 'g',
+      title: 'with event',
+      agent_name: 'a',
+      custom_data: { severity: 'high' },
+    });
+    if (!env.ok) throw new Error('expected success');
+    const { results } = await listEvents(client, env.applied.id);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.event_type).toBe('created');
+    expect(results[0]!.changes).toMatchObject({
+      initial_state: {
+        board_id: 'b',
+        group_id: 'g',
+        title: 'with event',
+        custom_data: { severity: 'high' },
+      },
+    });
+  });
+
+  it('rejects an unknown board with not_found', async () => {
+    const env = await call({ board_id: 'ghost', group_id: 'g', title: 'x', agent_name: 'a' });
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('not_found');
+    expect(env.error.details).toMatchObject({ entity: 'board', id: 'ghost' });
+  });
+
+  it('rejects an unknown group with not_found', async () => {
+    const env = await call({ board_id: 'b', group_id: 'ghost', title: 'x', agent_name: 'a' });
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('not_found');
+    expect(env.error.details).toMatchObject({ entity: 'group', id: 'ghost' });
+  });
+
+  it('rejects custom_data that violates field_schema with schema_violation', async () => {
+    const env = await call({
+      board_id: 'b',
+      group_id: 'g',
+      title: 'x',
+      agent_name: 'a',
+      custom_data: { severity: 'urgent' }, // not in enum [low, high]
+    });
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('schema_violation');
+  });
+
+  it('accepts custom_data keys not declared in field_schema (free-form)', async () => {
+    const env = await call({
+      board_id: 'b',
+      group_id: 'g',
+      title: 'x',
+      agent_name: 'a',
+      custom_data: { undeclared: 123 },
+    });
+    expect(env.ok).toBe(true);
+  });
+
+  it('does not persist a task when field validation fails', async () => {
+    const env = await call({
+      board_id: 'b',
+      group_id: 'g',
+      title: 'x',
+      agent_name: 'a',
+      custom_data: { severity: 'urgent' },
+    });
+    if (env.ok) throw new Error('expected error');
+    const rows = await client.execute('SELECT COUNT(*) AS n FROM tasks');
+    expect(Number((rows.rows[0] as unknown as { n: number }).n)).toBe(0);
+  });
 });
 
 describe('createTaskHandler — unknown error handling (C3)', () => {
   it('returns a generic internal_error envelope and does NOT leak the underlying message', async () => {
     // Stub client whose .execute throws a non-SubstrateError with a secret-y message.
+    // create_task now writes inside withTransaction, so the throwing surface is
+    // the transaction's execute (the row insert), not the bare client.
     const stubClient = {
-      execute: () => {
-        throw new Error('libsql failed: connection string was hunter2@db.internal/secrets');
-      },
+      transaction: () =>
+        Promise.resolve({
+          execute: () => {
+            throw new Error('libsql failed: connection string was hunter2@db.internal/secrets');
+          },
+          commit: () => Promise.resolve(),
+          rollback: () => Promise.resolve(),
+        }),
+      execute: () => Promise.resolve({ rows: [] }),
       close: () => undefined,
     } as unknown as Client;
 
     const deps: ToolDeps = {
       client: stubClient,
       config: fixtureConfig,
-      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
+      loadSubstrate: () => Promise.resolve(fixtureSubstrate),
     };
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);

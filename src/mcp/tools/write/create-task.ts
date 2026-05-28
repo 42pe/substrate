@@ -10,28 +10,23 @@ import {
 } from '../../../core/envelope.js';
 import type { Task } from '../../../core/types.js';
 import { createTask } from '../../../storage/repositories/tasks.js';
+import { appendEvent } from '../../../storage/repositories/events.js';
+import { withTransaction } from '../../../storage/client.js';
+import { validateFieldSchema } from '../../../substrate/field-validator.js';
 import { logger } from '../../../shared/logger.js';
+import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 
 /**
- * MCP tool: create_task — Phase 1 minimal.
+ * MCP tool: create_task.
  *
- * No policy enforcement, no `field_schema` validation against board substrate
- * (boards don't exist yet in Phase 1). Just inserts a row into the tasks
- * table after Zod input validation.
- *
- * In Phase 2: gain `field_schema` validation. In Phase 3: gain policy
- * engine integration (transition_guards run on group_id changes;
- * agent_responsibility hints accumulate into `policies_fired`).
+ * Validates against the board's substrate before writing: the board and group
+ * must exist, and `custom_data` is validated lazily against `field_schema.task`
+ * (touched keys only; undeclared keys accepted; required NOT enforced on write).
+ * The row insert and the `created` TaskEvent share one transaction so a crash
+ * never leaves a task with no audit entry.
  */
 
-/**
- * Zod raw shape for `create_task` input. Exported as the *shape* (the object
- * literal whose values are Zod types) for `McpServer.tool()` registration,
- * which wraps it into a ZodObject internally for `tools/list` schema
- * generation. The wrapped object is also exported as `createTaskSchema` for
- * unit tests and direct handler invocation.
- */
 export const createTaskShape = {
   board_id: z.string().min(1, 'board_id is required'),
   group_id: z.string().min(1, 'group_id is required'),
@@ -46,73 +41,94 @@ export const createTaskSchema = z.object(createTaskShape);
 
 export type CreateTaskInput = z.output<typeof createTaskSchema>;
 
-/**
- * Pure handler: validate, build task, insert, return envelope.
- *
- * Direct call signature used by unit tests. The MCP-protocol wrapper sits
- * on top via `registerCreateTask`.
- */
 export async function createTaskHandler(
   input: CreateTaskInput,
   deps: ToolDeps,
 ): Promise<SuccessEnvelope<Task> | ErrorEnvelope> {
-  const now = new Date().toISOString();
-  const task: Task = {
-    id: randomUUID(),
-    board_id: input.board_id,
-    group_id: input.group_id,
-    parent_id: input.parent_id ?? null,
-    origin_task_id: null,
-    title: input.title,
-    description: input.description ?? '',
-    custom_data: input.custom_data ?? {},
-    version: 1,
-    created_by_agent: input.agent_name,
-    created_at: now,
-    updated_at: now,
-    archived_at: null,
-  };
-
   try {
-    await createTask(deps.client, task);
+    const substrate = await deps.loadSubstrate();
+    const board = substrate.boards.find((b) => b.id === input.board_id);
+    if (!board) {
+      throw SubstrateError.notFound(
+        `Board '${input.board_id}' not found. Use list_boards to see what's available.`,
+        { entity: 'board', id: input.board_id },
+      );
+    }
+    const group = board.groups.find((g) => g.id === input.group_id);
+    if (!group) {
+      throw SubstrateError.notFound(
+        `Group '${input.group_id}' not found in board '${input.board_id}'. Use get_board_substrate to see its groups.`,
+        { entity: 'group', id: input.group_id },
+      );
+    }
+
+    const customData = input.custom_data ?? {};
+    validateFieldSchema({
+      field_schema: board.field_schema.task,
+      merged_custom_data: customData,
+      touched_keys: Object.keys(customData),
+    });
+
+    const now = new Date().toISOString();
+    const task: Task = {
+      id: randomUUID(),
+      board_id: input.board_id,
+      group_id: input.group_id,
+      parent_id: input.parent_id ?? null,
+      origin_task_id: null,
+      title: input.title,
+      description: input.description ?? '',
+      custom_data: customData,
+      version: 1,
+      created_by_agent: input.agent_name,
+      created_at: now,
+      updated_at: now,
+      archived_at: null,
+    };
+
+    // initial_state records the fields the caller explicitly set (not derived
+    // defaults), per spec §3.2.
+    const initialState: Partial<Task> = {
+      board_id: input.board_id,
+      group_id: input.group_id,
+      title: input.title,
+    };
+    if (input.parent_id !== undefined) initialState.parent_id = input.parent_id;
+    if (input.description !== undefined) initialState.description = input.description;
+    if (input.custom_data !== undefined) initialState.custom_data = input.custom_data;
+
+    await withTransaction(deps.client, async (tx) => {
+      await createTask(tx, task);
+      await appendEvent(tx, {
+        task_id: task.id,
+        event_type: 'created',
+        changes: { initial_state: initialState },
+        actor_agent_name: input.agent_name,
+        occurred_at: now,
+      });
+    });
+
+    return successEnvelope<Task>({
+      entity: 'task',
+      id: task.id,
+      version: task.version,
+      state: task,
+    });
   } catch (e) {
     if (SubstrateError.is(e)) return errorEnvelope(e);
-    // Unknown error: log the underlying message scrubbed for server-side
-    // debugging, but return a GENERIC envelope to the agent. Mirrors the
-    // HTTP error handler's posture — never reflect raw error messages
-    // across the trust boundary, even when the boundary is stdio MCP.
-    // Reviewer C3 fix.
     logger.error('Unhandled error in create_task handler', {
       error: (e as Error).message,
       agent_name: input.agent_name,
     });
     return errorEnvelope(SubstrateError.internalError('Internal error'));
   }
-
-  return successEnvelope<Task>({
-    entity: 'task',
-    id: task.id,
-    version: task.version,
-    state: task,
-  });
 }
 
-/**
- * Register the tool onto an `McpServer` instance. Wraps the pure handler
- * in the MCP CallToolResult contract: serializes the envelope as JSON in a
- * single text content block; sets `isError` based on envelope shape.
- */
 export function registerCreateTask(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'create_task',
-    'Create a new task on a board. Returns the task as written, with an empty policies_fired array in Phase 1 (no policy engine yet).',
+    "Create a task on a board. `custom_data` is validated lazily against the board's `field_schema`. Requires `agent_name` for audit.",
     createTaskShape,
-    async (input) => {
-      const envelope = await createTaskHandler(input, deps);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(envelope) }],
-        isError: !envelope.ok,
-      };
-    },
+    wrapToolHandler('create_task', createTaskSchema, (input) => createTaskHandler(input, deps)),
   );
 }

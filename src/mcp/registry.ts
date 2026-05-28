@@ -1,5 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerCreateTask } from './tools/write/create-task.js';
+import { registerUpdateTask } from './tools/write/update-task.js';
+import { registerArchiveTask } from './tools/write/archive-task.js';
+import { registerUnarchiveTask } from './tools/write/unarchive-task.js';
 import { registerWhoami } from './tools/read/whoami.js';
 import { registerGetProject } from './tools/read/get-project.js';
 import { registerListBoards } from './tools/read/list-boards.js';
@@ -32,6 +35,9 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerListComments(server, deps);
   registerGetComment(server, deps);
 
-  // Write tools (singletons) — full set lands in Steps 5-6.
+  // Write tools (singletons) — task writes (Step 5); comment writes land in Step 6.
   registerCreateTask(server, deps);
+  registerUpdateTask(server, deps);
+  registerArchiveTask(server, deps);
+  registerUnarchiveTask(server, deps);
 }

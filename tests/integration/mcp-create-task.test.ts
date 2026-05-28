@@ -1,11 +1,40 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import { initCommand } from '../../src/cli/commands/init.js';
 import { openClient } from '../../src/storage/client.js';
 import { spawnCli } from '../helpers/spawn.js';
+
+/** A minimal valid board with id 'b' and group 'g' for create_task validation. */
+async function writeFixtureBoard(cwd: string): Promise<void> {
+  const boardsDir = join(cwd, '.substrate', 'boards');
+  await mkdir(boardsDir, { recursive: true });
+  const board = {
+    id: 'b',
+    name: 'Board B',
+    description: '',
+    field_schema: { task: {}, comments: {} },
+    groups: [
+      {
+        id: 'g',
+        name: 'Group',
+        description: '',
+        position: 0,
+        color: null,
+        version: 1,
+        archived_at: null,
+      },
+    ],
+    policies: [],
+    version: 1,
+    created_at: '2026-05-09T00:00:00.000Z',
+    updated_at: '2026-05-09T00:00:00.000Z',
+    archived_at: null,
+  };
+  await writeFile(join(boardsDir, 'b.json'), JSON.stringify(board, null, 2), 'utf-8');
+}
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
@@ -126,6 +155,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     const result = response.result as { tools: Array<{ name: string }> };
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'archive_task',
       'create_task',
       'get_board_substrate',
       'get_comment',
@@ -135,11 +165,14 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       'list_boards',
       'list_comments',
       'list_tasks',
+      'unarchive_task',
+      'update_task',
       'whoami',
     ]);
   });
 
   it('create_task persists a row in data.sqlite', async () => {
+    await writeFixtureBoard(cwd); // loadSubstrate reads fresh per call
     const response = await client.request('tools/call', {
       name: 'create_task',
       arguments: {
