@@ -261,7 +261,7 @@ These are blocking requirements. The Orchestrator MUST NOT proceed past them.
 
 2. **No development without an approved plan.** The Orchestrator MUST NOT begin spawning engineers until the plan exists and Diego has approved it (explicitly or by participating in its creation).
 
-3. **No commits without code review.** Code MUST be reviewed by a Code Reviewer agent before any commit is made on the feature branch. Review can happen in batches but no code ships unreviewed.
+3. **No code reaches `main` without code review.** A Code Reviewer agent reviews the phase's full diff once per phase (after development, before merge — see §Code Review). Per-step commits on the feature branch are fine; they're reviewed as a batch before the branch merges. Nothing reaches `main` unreviewed.
 
 4. **No PR without Assistant audit.** The Orchestrator MUST spawn the Assistant and receive a checklist audit BEFORE creating any PR or asking Diego to merge. The audit file at `.agents/audits/phase-{N}-audit.md` is the artifact of this gate.
 
@@ -295,9 +295,9 @@ These gates are non-negotiable. The Orchestrator should treat them as hard error
 ### Code Review
 - The Code Reviewer is always a separate agent from the author
 - All three lenses (security, performance, instrumentation) are covered in a single review
-- BLOCKERs must be fixed before QA begins
-- CONCERNs should be fixed; discuss with Orchestrator if disagreement
-- SUGGESTIONs are optional
+- **Cadence: ONE Code Reviewer pass per phase, not per step.** It runs after all development Steps are complete (before the acceptance pass), covering the full phase diff in one review. Rationale: a per-step review cadence amplifies scope (each pass finds more to do) and is too heavy for a solo project. Per-phase keeps the safety net on the genuinely risky surfaces without the inflation. (Decided 2026-05-28.)
+- This still satisfies Hard Gate #3 — the review happens before the branch merges to `main`, so nothing reaches `main` unreviewed. Per-step commits on the feature branch are fine; they're reviewed as a batch.
+- BLOCKERs must be fixed before merge; CONCERNs should be fixed (discuss with Orchestrator if disagreement); SUGGESTIONs optional.
 
 ### Audit Gate (MANDATORY)
 - Before ANY PR is created, the Orchestrator MUST spawn an Assistant to walk the Phase Completion Checklist

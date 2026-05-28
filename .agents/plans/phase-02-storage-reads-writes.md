@@ -15,12 +15,12 @@
 
 The *what* is in the spec. This plan is the *how*: implementation order, file-by-file work, dependencies, test mapping, Code Reviewer checkpoints, merge strategy.
 
-Phase 2 builds the full storage layer + all 16 singleton MCP tools (9 reads + 7 writes) + the substrate JSON loader + field_schema validation, on Phase 1's walking skeleton. **9 Steps.** Code Reviewer checkpoints after Steps 2, 3, 4, 5, 6 — the storage/OCC layer, the substrate/validation module, the read surface, and the two write surfaces (task / comment).
+Phase 2 builds the full storage layer + all 16 singleton MCP tools (9 reads + 7 writes) + the substrate JSON loader + field_schema validation, on Phase 1's walking skeleton. **10 Steps.** **ONE Code Reviewer pass for the whole phase** (Step 8), after all development is complete and before the acceptance pass — per the workflow's per-phase review cadence (decided 2026-05-28; per-step review was amplifying scope). Development commits land per step on the feature branch and are reviewed as a batch before merge.
 
 ## 2. Branching & merge strategy
 
 - Create `feature/phase-02-storage-reads-writes` from `main` (tag `phase-01-complete`).
-- Commit per Step. Code Reviewer runs after Steps 2, 3, 4, 5, 6 (workflow Hard Gate #3 — no commit ships unreviewed; 2/3/5/6 are deep, 4 is lighter).
+- Commit per Step. **One Code Reviewer pass (Step 8)** covers the whole phase diff before merge (workflow §Code Review — per-phase cadence). The plan calls out per-Step "Reviewer focus" notes so the single Step-8 review knows where the risk is concentrated.
 - Fast-forward merge to `main`, no squash, tag `phase-02-complete`.
 
 **Dev-DB footgun (Reviewer #6):** Step 1 bumps `BINARY_SCHEMA_VERSION` to 2 with migration 002. Phase 1's guard refuses to open a `data.sqlite` whose `user_version` > the binary's. While this branch is in progress, any manually-inited dev `.substrate/data.sqlite` migrates to v2 and a `main`-built binary will refuse it (forward migrations are one-way; no down-migration in v1). **Mitigation: use a throwaway `.substrate/` for branch dev, or `rm .substrate/data.sqlite*` when switching back to main.** Tests are unaffected (they use temp DBs). Documented so it's not a surprise.
@@ -75,7 +75,7 @@ Tests:
 - `comments.test.ts` (new) — CRUD; edit LWW + edited_at; archive idempotency.
 - `events.test.ts` (new) — append-only; tied-timestamp ordering via id tiebreaker; event_type filter; pagination.
 
-**🛑 Code Reviewer checkpoint after Step 2.** Focus: handler-owns-tx discipline (repos never wrap); OCC correctness + no current_version leak; **bound JSON paths, no string interpolation**; idempotency edges; SQL parameterization throughout.
+_Reviewer focus (for the Step 8 whole-phase review):_ handler-owns-tx discipline (repos never wrap); OCC correctness + no current_version leak; **bound JSON paths, no string interpolation**; idempotency edges; SQL parameterization throughout.
 
 Commit: `feat(storage): task/comment/event repositories with OCC + filters (Step 2)`.
 
@@ -92,7 +92,7 @@ Tests:
 - `validator.test.ts` — each structural failure; archived-group refs allowed.
 - `field-validator.test.ts` — type checks per FieldSchemaEntry.type; undeclared accepted; null deletion allowed; required NOT enforced.
 
-**🛑 Code Reviewer checkpoint after Step 3.** Focus: strict-load failure modes, error-message actionability (point at file + path), validator completeness, no path-traversal in boards glob.
+_Reviewer focus:_ strict-load failure modes, error-message actionability (point at file + path), validator completeness, no path-traversal in boards glob.
 
 Commit: `feat(substrate): loader, validator, field-validator (Step 3)`.
 
@@ -110,7 +110,7 @@ Tests:
 - One `*.test.ts` per read tool: contract snapshot + happy + edges.
 - `src/mcp/wrapper.test.ts` — ZodError → schema_violation envelope; valid passes through.
 
-**🛑 Code Reviewer checkpoint after Step 4.** Lighter than 2/3/5/6 — reads are lower risk — but a gate must exist (Hard Gate #3). Focus: wrapper error shape, whoami stays pure-substrate, list_tasks filter handler correctness, no DB read in whoami.
+_Reviewer focus:_ wrapper error shape, whoami stays pure-substrate (no DB read), list_tasks filter handler correctness.
 
 Commit: `feat(mcp): read tools, tool wrapper, loadSubstrate wiring (Step 4)`.
 
@@ -126,7 +126,7 @@ Modify / create in `src/mcp/tools/write/`:
 
 Tests: one `*.test.ts` per tool — contract snapshot + happy + every §5 edge + TaskEvent emission verified by reading task_events. Include: update on archived task → conflict; update with board_id in input → schema_violation; update when task's board missing from substrate → not_found; custom_data null-delete.
 
-**🛑 Code Reviewer checkpoint after Step 5.** Focus: every write uses withTransaction; TaskEvent never outside the tx; OCC no current_version; custom_data merge (null deletes); idempotent archive emits no event; board-resolution-for-validation path.
+_Reviewer focus:_ every write uses withTransaction; TaskEvent never outside the tx; OCC no current_version; custom_data merge (null deletes); idempotent archive emits no event; board-resolution-for-validation path.
 
 Commit: `feat(mcp): task write tools — create/update/archive/unarchive with TaskEvents (Step 5)`.
 
@@ -140,7 +140,7 @@ Modify / create in `src/mcp/tools/write/`:
 
 Tests: one `*.test.ts` per tool — contract + happy + §5 edges (parent from different task → conflict; comment on archived task → conflict; edit LWW; idempotent archive) + TaskEvent emission incl. `before.body` on edit.
 
-**🛑 Code Reviewer checkpoint after Step 6.** Focus: parent validation (same task, not archived); comment_edited before.body present; comment envelope `version: null`; withTransaction discipline.
+_Reviewer focus:_ parent validation (same task, not archived); comment_edited before.body present; comment envelope `version: null`; withTransaction discipline.
 
 Commit: `feat(mcp): comment write tools — add/edit/archive with TaskEvents (Step 6)`.
 
@@ -154,7 +154,20 @@ Commit: `feat(mcp): comment write tools — add/edit/archive with TaskEvents (St
 
 Commit: `test: full bootstrap-flow integration + concurrency/manual smoke updates (Step 7)`.
 
-### Step 8 — Final acceptance pass (Backend Engineer)
+### Step 8 — 🛑 Code Reviewer pass (whole phase)
+
+Per the per-phase cadence. Spawn ONE Code Reviewer over the full Phase 2 diff (`git diff main..HEAD`). It uses the per-Step "Reviewer focus" notes above to concentrate on the risky surfaces:
+- Storage/OCC (Steps 1-2): handler-owns-tx, no current_version leak, bound JSON paths, idempotency.
+- Substrate (Step 3): strict-load failure modes, no path traversal in glob.
+- Reads (Step 4): wrapper error shape, whoami pure-substrate.
+- Task writes (Step 5): withTransaction discipline, TaskEvent atomicity, custom_data merge.
+- Comment writes (Step 6): parent validation, before.body audit, version:null envelope.
+
+Fix BLOCKERs + CONCERNs in a follow-up `fix(review)` commit. Then proceed.
+
+Commit: `fix(review): address Phase 2 Code Reviewer findings (Step 8)` (only if findings).
+
+### Step 9 — Final acceptance pass (Backend Engineer)
 
 - `pnpm build` clean (server + ui)
 - `pnpm test` green (target: every §5 edge case has a test; count is a *floor* of ~250, realistically 300-380 — map to coverage, not the number, per Reviewer #7)
@@ -164,9 +177,9 @@ Commit: `test: full bootstrap-flow integration + concurrency/manual smoke update
 - `npm pack --dry-run` — package contents sane
 - Bump `BINARY_VERSION` to `0.0.2` (schema version already bumped to 2 in Step 1)
 
-Commit: `chore(phase-02): final acceptance pass (Step 8)`.
+Commit: `chore(phase-02): final acceptance pass (Step 9)`.
 
-### Step 9 — Audit + merge
+### Step 10 — Audit + merge
 
 - Spawn Assistant agent → `.agents/audits/phase-02-audit.md`.
 - Resolve gaps.
@@ -215,7 +228,7 @@ Commit: `chore(phase-02): final acceptance pass (Step 8)`.
 
 Phase 2 complete when:
 - All Step §4 commits on `feature/phase-02-storage-reads-writes`.
-- All Code Reviewer checkpoint findings (Steps 2/3/4/5/6) resolved.
+- The single whole-phase Code Reviewer pass (Step 8) is done and all BLOCKER/CONCERN findings resolved.
 - All spec §8 acceptance criteria met.
 - Assistant audit clean.
 - Fast-forward merge to `main`, tag `phase-02-complete`.
