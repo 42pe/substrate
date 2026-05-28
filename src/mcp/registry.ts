@@ -3,6 +3,9 @@ import { registerCreateTask } from './tools/write/create-task.js';
 import { registerUpdateTask } from './tools/write/update-task.js';
 import { registerArchiveTask } from './tools/write/archive-task.js';
 import { registerUnarchiveTask } from './tools/write/unarchive-task.js';
+import { registerAddComment } from './tools/write/add-comment.js';
+import { registerEditComment } from './tools/write/edit-comment.js';
+import { registerArchiveComment } from './tools/write/archive-comment.js';
 import { registerWhoami } from './tools/read/whoami.js';
 import { registerGetProject } from './tools/read/get-project.js';
 import { registerListBoards } from './tools/read/list-boards.js';
@@ -35,9 +38,12 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerListComments(server, deps);
   registerGetComment(server, deps);
 
-  // Write tools (singletons) — task writes (Step 5); comment writes land in Step 6.
+  // Write tools (singletons) — task writes (Step 5) + comment writes (Step 6).
   registerCreateTask(server, deps);
   registerUpdateTask(server, deps);
   registerArchiveTask(server, deps);
   registerUnarchiveTask(server, deps);
+  registerAddComment(server, deps);
+  registerEditComment(server, deps);
+  registerArchiveComment(server, deps);
 }

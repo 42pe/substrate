@@ -155,8 +155,11 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     const result = response.result as { tools: Array<{ name: string }> };
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'add_comment',
+      'archive_comment',
       'archive_task',
       'create_task',
+      'edit_comment',
       'get_board_substrate',
       'get_comment',
       'get_project',
