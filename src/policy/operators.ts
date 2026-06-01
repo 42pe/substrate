@@ -10,6 +10,11 @@ import type { LeafOperator, LeafCondition } from './types.js';
  *      policy must never crash a write.
  *   2. No I/O, no substrate access. Just data in → boolean out.
  *
+ * String ops (`contains`, `starts_with`, `ends_with`, `matches_regex`,
+ * `matches_any_keyword`) coerce scalar fields to strings but NOT arrays — a
+ * `string_list` custom field resolves to an array, which doesn't coerce, so
+ * these ops no-match against list fields. Use `has_any` / `has_all` for lists.
+ *
  * `matches_regex` is the only operator that compiles a substrate-authored
  * string. Substrate is user-authored (semi-trusted) and the server is single-
  * threaded, so a pathological pattern could hang it. Mitigation: cap the
