@@ -15,6 +15,7 @@ import { registerGetTask } from './tools/read/get-task.js';
 import { registerGetTaskHistory } from './tools/read/get-task-history.js';
 import { registerListComments } from './tools/read/list-comments.js';
 import { registerGetComment } from './tools/read/get-comment.js';
+import { registerReverseCaptcha } from './tools/read/reverse-captcha.js';
 import type { ToolDeps } from './deps.js';
 
 /**
@@ -37,6 +38,7 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerGetTaskHistory(server, deps);
   registerListComments(server, deps);
   registerGetComment(server, deps);
+  registerReverseCaptcha(server, deps);
 
   // Write tools (singletons) — task writes (Step 5) + comment writes (Step 6).
   registerCreateTask(server, deps);

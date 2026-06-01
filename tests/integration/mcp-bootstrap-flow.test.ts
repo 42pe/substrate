@@ -164,7 +164,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  it('lists the Phase 2 read tools plus create_task in tools/list', async () => {
+  it('lists the full tool surface in tools/list', async () => {
     const response = await client.request('tools/list');
     expect(response.error).toBeUndefined();
     const result = response.result as { tools: Array<{ name: string }> };
@@ -183,6 +183,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       'list_boards',
       'list_comments',
       'list_tasks',
+      'reverse_captcha',
       'unarchive_task',
       'update_task',
       'whoami',
@@ -244,7 +245,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     expect(payload.project_id).toMatch(/^[0-9a-f]{8}-/i);
     expect(payload.schema_version).toBe(2);
     expect(payload.boards).toEqual([]);
-    expect(payload.hints).toEqual([]);
+    expect(payload.hints).toEqual(['Try the reverse_captcha tool — small puzzle for agents only.']);
   });
 
   it('runs the full bootstrap flow end-to-end against a real substrate', async () => {

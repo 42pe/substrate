@@ -285,6 +285,69 @@ describe('createTaskHandler', () => {
   });
 });
 
+describe('createTaskHandler — policy engine', () => {
+  let client: Client;
+  let dir: string;
+  let deps: ToolDeps;
+
+  const policyBoard: Board = {
+    ...fixtureBoard,
+    policies: [
+      {
+        id: 'resp-1',
+        name: 'Auth Responsibility',
+        description: '',
+        type: 'agent_responsibility',
+        definition: {
+          when: [{ field: 'task.title', op: 'matches_any_keyword', values: ['auth', 'login'] }],
+          message: 'May relate to auth tasks.',
+        },
+        priority: 0,
+        enabled: true,
+        version: 1,
+        created_by_agent: 'tester',
+        created_at: '2026-05-09T00:00:00.000Z',
+        updated_at: '2026-05-09T00:00:00.000Z',
+        archived_at: null,
+      },
+    ],
+  };
+  const policySubstrate: Substrate = { config: fixtureConfig, boards: [policyBoard] };
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'substrate-create-policy-'));
+    client = await openDatabaseAndMigrate(join(dir, '.substrate', 'data.sqlite'));
+    deps = { client, config: fixtureConfig, loadSubstrate: () => Promise.resolve(policySubstrate) };
+  });
+  afterEach(async () => {
+    client.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('surfaces a matching agent_responsibility on create', async () => {
+    const env = await createTaskHandler(
+      { board_id: 'b', group_id: 'g', title: 'Fix login', agent_name: 'a' },
+      deps,
+    );
+    if (!env.ok) throw new Error('expected success');
+    expect(env.policies_fired).toContainEqual({
+      policy_id: 'resp-1',
+      policy_name: 'Auth Responsibility',
+      policy_type: 'agent_responsibility',
+      message: 'May relate to auth tasks.',
+    });
+  });
+
+  it('fires no responsibility when the title does not match', async () => {
+    const env = await createTaskHandler(
+      { board_id: 'b', group_id: 'g', title: 'Unrelated work', agent_name: 'a' },
+      deps,
+    );
+    if (!env.ok) throw new Error('expected success');
+    expect(env.policies_fired).toEqual([]);
+  });
+});
+
 describe('createTaskHandler — unknown error handling (C3)', () => {
   it('returns a generic internal_error envelope and does NOT leak the underlying message', async () => {
     // Stub client whose .execute throws a non-SubstrateError with a secret-y message.

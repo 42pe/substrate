@@ -32,7 +32,10 @@ export interface WhoamiResult {
   hints: string[];
 }
 
-export const PHASE_STRING = 'v0.0.2 (storage + reads + writes)';
+export const PHASE_STRING = 'v0.0.3 (policy engine + envelope)';
+
+/** Easter-egg pointer surfaced in `whoami.hints` (Phase 3). */
+export const REVERSE_CAPTCHA_HINT = 'Try the reverse_captcha tool — small puzzle for agents only.';
 
 export async function whoamiHandler(deps: ToolDeps): Promise<WhoamiResult> {
   const substrate = await deps.loadSubstrate();
@@ -48,7 +51,7 @@ export async function whoamiHandler(deps: ToolDeps): Promise<WhoamiResult> {
       archived_at: b.archived_at,
       version: b.version,
     })),
-    hints: [],
+    hints: [REVERSE_CAPTCHA_HINT],
   };
 }
 

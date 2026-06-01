@@ -6,12 +6,14 @@ import {
   errorEnvelope,
   type SuccessEnvelope,
   type ErrorEnvelope,
+  type PolicyFiredEntry,
 } from '../../../core/envelope.js';
 import type { Task } from '../../../core/types.js';
 import { getTask, updateTask, type TaskPatch } from '../../../storage/repositories/tasks.js';
 import { appendEvent } from '../../../storage/repositories/events.js';
 import { withTransaction } from '../../../storage/client.js';
 import { validateFieldSchema } from '../../../substrate/field-validator.js';
+import { runTransitionGuards, runAgentResponsibilities } from '../../../policy/engine.js';
 import { logger } from '../../../shared/logger.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
@@ -87,6 +89,21 @@ export async function updateTaskHandler(
         ...(input.custom_data !== undefined ? { custom_data: merged } : {}),
       };
 
+      // transition_guards fire only on an actual group change. Evaluate against
+      // the candidate post-write task (existing ∪ patch, with merged custom_data)
+      // so guard `require` sees the about-to-be-written values. A block throws
+      // transition_blocked INSIDE the tx → the whole write rolls back.
+      let guardEntries: PolicyFiredEntry[] = [];
+      if (input.group_id !== undefined && input.group_id !== existing.group_id) {
+        const candidate: Task = { ...existing, ...patch };
+        guardEntries = runTransitionGuards({
+          board,
+          fromGroup: existing.group_id,
+          toGroup: input.group_id,
+          candidate: { task: candidate as unknown as Record<string, unknown> },
+        });
+      }
+
       const result = await updateTask(tx, input.id, input.version, patch, now);
 
       // `updated` event: before/after for touched keys only (spec §3.2).
@@ -117,15 +134,26 @@ export async function updateTaskHandler(
         occurred_at: now,
       });
 
-      return result;
+      // Hoist board + guard entries out of the tx for the post-commit
+      // responsibility pass and envelope assembly (C-5).
+      return { result, board, guardEntries };
     });
 
-    return successEnvelope<Task>({
-      entity: 'task',
-      id: updated.id,
-      version: updated.version,
-      state: updated,
+    // agent_responsibilities run AFTER commit, against the post-write task.
+    const responsibilityEntries = runAgentResponsibilities({
+      board: updated.board,
+      state: { task: updated.result as unknown as Record<string, unknown> },
     });
+
+    return successEnvelope<Task>(
+      {
+        entity: 'task',
+        id: updated.result.id,
+        version: updated.result.version,
+        state: updated.result,
+      },
+      updated.guardEntries.concat(responsibilityEntries),
+    );
   } catch (e) {
     if (SubstrateError.is(e)) return errorEnvelope(e);
     logger.error('Unhandled error in update_task handler', {

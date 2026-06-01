@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { whoamiHandler, PHASE_STRING } from './whoami.js';
+import { whoamiHandler, PHASE_STRING, REVERSE_CAPTCHA_HINT } from './whoami.js';
 import type { ToolDeps } from '../../deps.js';
 import type { Board, Config, Substrate } from '../../../core/types.js';
 
@@ -59,15 +59,15 @@ describe('whoamiHandler', () => {
     ]);
   });
 
-  it('returns empty hints in Phase 2', async () => {
+  it('returns the reverse_captcha hint in Phase 3', async () => {
     const result = await whoamiHandler(depsWith([makeBoard('a')]));
-    expect(result.hints).toEqual([]);
+    expect(result.hints).toEqual([REVERSE_CAPTCHA_HINT]);
   });
 
-  it('returns the Phase 2 phase string', async () => {
+  it('returns the Phase 3 phase string', async () => {
     const result = await whoamiHandler(depsWith([]));
     expect(result.phase).toBe(PHASE_STRING);
-    expect(result.phase).toMatch(/storage \+ reads \+ writes/);
+    expect(result.phase).toMatch(/policy engine/);
   });
 
   it('does not leak unexpected fields', async () => {

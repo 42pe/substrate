@@ -176,3 +176,140 @@ describe('updateTaskHandler', () => {
     expect(results).toHaveLength(0);
   });
 });
+
+// Board carrying a transition_guard (g1→g2 requires custom_data.approved) and an
+// agent_responsibility (title keyword) — exercises the Phase 3 engine wiring.
+const policyBoard: Board = {
+  ...board,
+  policies: [
+    {
+      id: 'guard-1',
+      name: 'Approval Guard',
+      description: '',
+      type: 'transition_guard',
+      definition: {
+        from_group: 'g1',
+        to_group: 'g2',
+        require: [{ field: 'task.custom_data.approved', op: 'eq', value: true }],
+        on_failure_message: 'Approve before moving to Done.',
+      },
+      priority: 0,
+      enabled: true,
+      version: 1,
+      created_by_agent: 'tester',
+      created_at: '2026-05-09T00:00:00.000Z',
+      updated_at: '2026-05-09T00:00:00.000Z',
+      archived_at: null,
+    },
+    {
+      id: 'resp-1',
+      name: 'Auth Responsibility',
+      description: '',
+      type: 'agent_responsibility',
+      definition: {
+        when: [{ field: 'task.title', op: 'matches_any_keyword', values: ['auth', 'login'] }],
+        message: 'May relate to auth tasks.',
+      },
+      priority: 0,
+      enabled: true,
+      version: 1,
+      created_by_agent: 'tester',
+      created_at: '2026-05-09T00:00:00.000Z',
+      updated_at: '2026-05-09T00:00:00.000Z',
+      archived_at: null,
+    },
+  ],
+};
+
+const policyBoardSubstrate: Substrate = { config: fixtureConfig, boards: [policyBoard] };
+
+describe('updateTaskHandler — policy engine', () => {
+  let client: Client;
+  let dir: string;
+  let deps: ToolDeps;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'substrate-update-policy-'));
+    client = await openDatabaseAndMigrate(join(dir, '.substrate', 'data.sqlite'));
+    deps = {
+      client,
+      config: fixtureConfig,
+      loadSubstrate: () => Promise.resolve(policyBoardSubstrate),
+    };
+    await createTask(client, makeTask({ title: 'Fix the login flow', custom_data: {} }));
+  });
+  afterEach(async () => {
+    client.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('blocks a guarded transition and rolls back (no version bump, no event)', async () => {
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, group_id: 'g2', agent_name: 'a' },
+      deps,
+    );
+    if (env.ok) throw new Error('expected transition_blocked');
+    expect(env.error.code).toBe('transition_blocked');
+    expect(env.error.message).toBe('Approve before moving to Done.');
+    expect(env.error.details).toMatchObject({
+      policy_id: 'guard-1',
+      from_group: 'g1',
+      to_group: 'g2',
+    });
+
+    const task = await getTask(client, 't1');
+    expect(task.version).toBe(1); // unchanged
+    expect(task.group_id).toBe('g1');
+    const { results } = await listEvents(client, 't1');
+    expect(results).toHaveLength(0); // no `updated` event
+  });
+
+  it('passes a guarded transition when require is met (set approved in the same call) and lists it', async () => {
+    // C-1/N-2: group change + custom_data change in one call — guard sees the NEW value.
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, group_id: 'g2', custom_data: { approved: true }, agent_name: 'a' },
+      deps,
+    );
+    if (!env.ok) throw new Error('expected success');
+    expect(env.applied.state.group_id).toBe('g2');
+    expect(env.policies_fired).toContainEqual({
+      policy_id: 'guard-1',
+      policy_name: 'Approval Guard',
+      policy_type: 'transition_guard',
+    });
+  });
+
+  it('does not evaluate guards when there is no group change (even with a failing require)', async () => {
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, title: 'Renamed', agent_name: 'a' },
+      deps,
+    );
+    if (!env.ok) throw new Error('expected success');
+    expect(env.policies_fired.some((p) => p.policy_id === 'guard-1')).toBe(false);
+  });
+
+  it('surfaces a matching agent_responsibility on update (post-write state)', async () => {
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, title: 'auth login fix', agent_name: 'a' },
+      deps,
+    );
+    if (!env.ok) throw new Error('expected success');
+    expect(env.policies_fired).toContainEqual({
+      policy_id: 'resp-1',
+      policy_name: 'Auth Responsibility',
+      policy_type: 'agent_responsibility',
+      message: 'May relate to auth tasks.',
+    });
+  });
+
+  it('group change to a group with no matching guard proceeds with no guard entries', async () => {
+    // g1 → g1 is not a change; use a real change with approved already set, then
+    // assert only the guard that engages is listed.
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, group_id: 'g2', custom_data: { approved: true }, agent_name: 'a' },
+      deps,
+    );
+    if (!env.ok) throw new Error('expected success');
+    expect(env.policies_fired.filter((p) => p.policy_type === 'transition_guard')).toHaveLength(1);
+  });
+});

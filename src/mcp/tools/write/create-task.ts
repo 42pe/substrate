@@ -13,6 +13,7 @@ import { createTask } from '../../../storage/repositories/tasks.js';
 import { appendEvent } from '../../../storage/repositories/events.js';
 import { withTransaction } from '../../../storage/client.js';
 import { validateFieldSchema } from '../../../substrate/field-validator.js';
+import { runAgentResponsibilities } from '../../../policy/engine.js';
 import { logger } from '../../../shared/logger.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
@@ -108,12 +109,22 @@ export async function createTaskHandler(
       });
     });
 
-    return successEnvelope<Task>({
-      entity: 'task',
-      id: task.id,
-      version: task.version,
-      state: task,
+    // agent_responsibilities run after the write, against the new task.
+    // (create_task is initial placement, not a transition → no guards.)
+    const policiesFired = runAgentResponsibilities({
+      board,
+      state: { task: task as unknown as Record<string, unknown> },
     });
+
+    return successEnvelope<Task>(
+      {
+        entity: 'task',
+        id: task.id,
+        version: task.version,
+        state: task,
+      },
+      policiesFired,
+    );
   } catch (e) {
     if (SubstrateError.is(e)) return errorEnvelope(e);
     logger.error('Unhandled error in create_task handler', {
