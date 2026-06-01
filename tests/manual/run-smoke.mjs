@@ -85,8 +85,37 @@ try {
             version: 1,
             archived_at: null,
           },
+          {
+            id: 'done',
+            name: 'Done',
+            description: '',
+            position: 1,
+            color: null,
+            version: 1,
+            archived_at: null,
+          },
         ],
-        policies: [],
+        policies: [
+          {
+            id: 'guard-done',
+            name: 'Done Guard',
+            description: '',
+            type: 'transition_guard',
+            definition: {
+              from_group: 'smoke-group',
+              to_group: 'done',
+              require: [{ field: 'task.custom_data.approved', op: 'eq', value: true }],
+              on_failure_message: 'Approve before marking Done.',
+            },
+            priority: 0,
+            enabled: true,
+            version: 1,
+            created_by_agent: 'author',
+            created_at: '2026-05-09T00:00:00.000Z',
+            updated_at: '2026-05-09T00:00:00.000Z',
+            archived_at: null,
+          },
+        ],
         version: 1,
         created_at: '2026-05-09T00:00:00.000Z',
         updated_at: '2026-05-09T00:00:00.000Z',
@@ -129,6 +158,7 @@ try {
     'list_boards',
     'list_comments',
     'list_tasks',
+    'reverse_captcha',
     'unarchive_task',
     'update_task',
     'whoami',
@@ -185,9 +215,10 @@ try {
         `created_by_agent=${envelope.applied.state.created_by_agent}, expected manual-smoke-runner`,
       );
     } else if (!Array.isArray(envelope.policies_fired) || envelope.policies_fired.length !== 0) {
+      // No agent_responsibility on this board → policies_fired is empty here.
       fail(
         'create_task',
-        `policies_fired should be [] in Phase 1, got ${JSON.stringify(envelope.policies_fired)}`,
+        `policies_fired should be [] (no matching responsibility), got ${JSON.stringify(envelope.policies_fired)}`,
       );
     } else {
       pass('create_task', `task id ${envelope.applied.id.slice(0, 8)}…`);
@@ -267,7 +298,30 @@ try {
       } else {
         pass('get_task_history', eventTypes.join(' → '));
       }
+
+      // Step 6e — transition_guard blocks an unapproved move to 'done'.
+      const blockedRes = await client.callTool({
+        name: 'update_task',
+        arguments: { id: taskId, version: 2, group_id: 'done', agent_name: 'manual-smoke-runner' },
+      });
+      const blockedEnv = JSON.parse(blockedRes.content[0].text);
+      if (blockedEnv.ok || blockedEnv.error?.code !== 'transition_blocked') {
+        fail('transition_guard', `expected transition_blocked, got ${JSON.stringify(blockedEnv)}`);
+      } else if (blockedEnv.error.message !== 'Approve before marking Done.') {
+        fail('transition_guard', `unexpected message: ${blockedEnv.error.message}`);
+      } else {
+        pass('transition_guard', 'blocked unapproved → done');
+      }
     }
+  }
+
+  // Step 6f — reverse_captcha returns the placeholder.
+  const captchaRes = await client.callTool({ name: 'reverse_captcha', arguments: {} });
+  const captchaEnv = JSON.parse(captchaRes.content[0].text);
+  if (captchaEnv.error !== 'Coming in v0.1.0' || captchaEnv.about?.built_by !== 'Diego Ferreyra') {
+    fail('reverse_captcha', `unexpected payload: ${JSON.stringify(captchaEnv)}`);
+  } else {
+    pass('reverse_captcha', 'placeholder response');
   }
 
   // Step 7 — clean shutdown

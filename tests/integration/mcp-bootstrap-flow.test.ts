@@ -51,6 +51,75 @@ async function writeFixtureBoard(cwd: string): Promise<void> {
   await writeFile(join(boardsDir, 'b.json'), JSON.stringify(board, null, 2), 'utf-8');
 }
 
+/**
+ * Board 'pb' carrying both Phase 3 policy classes, for the end-to-end engine
+ * test: a transition_guard (todo→in_progress requires custom_data.repro_steps)
+ * and an agent_responsibility (title matches auth keywords).
+ */
+async function writePolicyBoard(cwd: string): Promise<void> {
+  const boardsDir = join(cwd, '.substrate', 'boards');
+  await mkdir(boardsDir, { recursive: true });
+  const g = (id: string, name: string, position: number) => ({
+    id,
+    name,
+    description: '',
+    position,
+    color: null,
+    version: 1,
+    archived_at: null,
+  });
+  const board = {
+    id: 'pb',
+    name: 'Policy Board',
+    description: '',
+    field_schema: { task: {}, comments: {} },
+    groups: [g('todo', 'Todo', 0), g('in_progress', 'In Progress', 1)],
+    policies: [
+      {
+        id: 'guard-repro',
+        name: 'Repro Guard',
+        description: '',
+        type: 'transition_guard',
+        definition: {
+          from_group: 'todo',
+          to_group: 'in_progress',
+          require: [{ field: 'task.custom_data.repro_steps', op: 'exists' }],
+          on_failure_message: 'Set repro_steps before moving to In Progress.',
+        },
+        priority: 0,
+        enabled: true,
+        version: 1,
+        created_by_agent: 'author',
+        created_at: '2026-05-09T00:00:00.000Z',
+        updated_at: '2026-05-09T00:00:00.000Z',
+        archived_at: null,
+      },
+      {
+        id: 'resp-auth',
+        name: 'Auth Responsibility',
+        description: '',
+        type: 'agent_responsibility',
+        definition: {
+          when: [{ field: 'task.title', op: 'matches_any_keyword', values: ['login', 'auth'] }],
+          message: 'May relate to auth-domain tasks; consider linking.',
+        },
+        priority: 0,
+        enabled: true,
+        version: 1,
+        created_by_agent: 'author',
+        created_at: '2026-05-09T00:00:00.000Z',
+        updated_at: '2026-05-09T00:00:00.000Z',
+        archived_at: null,
+      },
+    ],
+    version: 1,
+    created_at: '2026-05-09T00:00:00.000Z',
+    updated_at: '2026-05-09T00:00:00.000Z',
+    archived_at: null,
+  };
+  await writeFile(join(boardsDir, 'pb.json'), JSON.stringify(board, null, 2), 'utf-8');
+}
+
 interface JsonRpcResponse {
   jsonrpc: '2.0';
   id: number;
@@ -376,5 +445,79 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       filters: { board_id: 'b' },
     });
     expect(list.payload.results.map((t) => t.id)).toContain(taskId);
+  }, 30_000);
+
+  it('enforces transition_guard and surfaces agent_responsibility end-to-end', async () => {
+    await writePolicyBoard(cwd);
+
+    async function callTool<T = Record<string, unknown>>(
+      name: string,
+      args: Record<string, unknown>,
+    ): Promise<{ payload: T; isError: boolean }> {
+      const response = await client.request('tools/call', { name, arguments: args });
+      expect(response.error, `${name} JSON-RPC error`).toBeUndefined();
+      const result = response.result as { content: Array<{ text: string }>; isError?: boolean };
+      return { payload: JSON.parse(result.content[0]!.text) as T, isError: !!result.isError };
+    }
+
+    // create on 'todo' with an auth-y title → agent_responsibility fires on create.
+    const created = await callTool<{
+      ok: boolean;
+      applied: { id: string; version: number };
+      policies_fired: Array<{ policy_id: string; policy_type: string; message?: string }>;
+    }>('create_task', {
+      board_id: 'pb',
+      group_id: 'todo',
+      title: 'Fix the login bug',
+      agent_name: 'flow',
+    });
+    expect(created.payload.ok).toBe(true);
+    expect(created.payload.policies_fired).toContainEqual({
+      policy_id: 'resp-auth',
+      policy_name: 'Auth Responsibility',
+      policy_type: 'agent_responsibility',
+      message: 'May relate to auth-domain tasks; consider linking.',
+    });
+    const taskId = created.payload.applied.id;
+
+    // move todo→in_progress WITHOUT repro_steps → transition_blocked.
+    const blocked = await callTool<{ ok: boolean; error: { code: string; message: string } }>(
+      'update_task',
+      { id: taskId, version: 1, group_id: 'in_progress', agent_name: 'flow' },
+    );
+    expect(blocked.isError).toBe(true);
+    expect(blocked.payload.ok).toBe(false);
+    expect(blocked.payload.error.code).toBe('transition_blocked');
+    expect(blocked.payload.error.message).toBe('Set repro_steps before moving to In Progress.');
+
+    // the block rolled back — task is untouched at version 1, still in todo.
+    // (get_task is a read tool: it returns the task directly, not an envelope.)
+    const afterBlock = await callTool<{ version: number; group_id: string }>('get_task', {
+      id: taskId,
+    });
+    expect(afterBlock.payload.version).toBe(1);
+    expect(afterBlock.payload.group_id).toBe('todo');
+
+    // add repro_steps + move in the same call → succeeds; the guard is listed.
+    const moved = await callTool<{
+      ok: boolean;
+      applied: { version: number; state: { group_id: string } };
+      policies_fired: Array<{ policy_id: string }>;
+    }>('update_task', {
+      id: taskId,
+      version: 1,
+      group_id: 'in_progress',
+      custom_data: { repro_steps: 'click login, see 500' },
+      agent_name: 'flow',
+    });
+    expect(moved.payload.ok).toBe(true);
+    expect(moved.payload.applied.state.group_id).toBe('in_progress');
+    expect(moved.payload.policies_fired.map((p) => p.policy_id)).toContain('guard-repro');
+
+    // history shows only the created + the ONE successful update (block emitted nothing).
+    const history = await callTool<{ results: Array<{ event_type: string }> }>('get_task_history', {
+      task_id: taskId,
+    });
+    expect(history.payload.results.map((e) => e.event_type)).toEqual(['created', 'updated']);
   }, 30_000);
 });

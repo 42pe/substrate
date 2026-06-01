@@ -1,6 +1,6 @@
 {
   "name": "@diegoferreyra/substrate",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Local-first, per-project agent-collaborative substrate exposed via MCP.",
   "type": "module",
   "private": true,
