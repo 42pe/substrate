@@ -9,9 +9,18 @@ import { paths } from './paths.js';
  * Zod schema for `.substrate/config.json`. Used both at read time (validate
  * what's on disk) and at write time (validate what we're about to persist).
  */
+/**
+ * `version` and `description` were added in Phase 4. They are
+ * optional-with-defaults so a `config.json` written by Phases 1–3 (which lacks
+ * them) still loads — the defaults materialize on the next write. The defaulted
+ * `version` (1) is what `update_project`'s OCC compares against for a legacy
+ * config, so the first `update_project({ version: 1, ... })` succeeds.
+ */
 const ConfigSchema = z.object({
   project_id: z.string().uuid(),
   project_name: z.string().min(1),
+  description: z.string().default(''),
+  version: z.number().int().positive().default(1),
   schema_version: z.number().int().positive(),
   created_at: z.string().min(1),
 });

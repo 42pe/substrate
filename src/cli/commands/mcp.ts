@@ -52,7 +52,7 @@ export async function mcpCommand(cwd: string): Promise<void> {
   process.once('beforeExit', safeClose);
 
   try {
-    await startStdioServer({ client, config, loadSubstrate: () => loadSubstrate(root) });
+    await startStdioServer({ client, config, loadSubstrate: () => loadSubstrate(root), root });
   } finally {
     safeClose();
   }

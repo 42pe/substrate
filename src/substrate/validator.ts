@@ -12,11 +12,19 @@ import { SubstrateError } from '../core/errors.js';
  *   - `type: 'enum'` field_schema entries missing `values`,
  *   - `transition_guard` policies pointing at a group that doesn't exist.
  *
- * Every failure is `internal_error` — substrate is user-authored config, and a
- * structural mistake should fail loudly and point at the board, not silently
- * degrade. References to *archived* groups are allowed (soft delete shouldn't
- * retroactively invalidate substrate; the Phase 3 engine decides at eval time).
+ * On the LOAD path every failure is `internal_error` — substrate is user-
+ * authored config, and a structural mistake should fail loudly. References to
+ * *archived* groups are allowed (soft delete shouldn't retroactively invalidate
+ * substrate; the Phase 3 engine decides at eval time).
+ *
+ * Phase 4 reuses the per-board shape checks on the WRITE path via
+ * `validateBoardStructure`, which raises `schema_violation` instead (the edit
+ * tool is reacting to a bad *input*, not a corrupt on-disk file). The shared
+ * logic takes an error factory so the two call sites differ only in error code.
  */
+
+/** An error factory: `(message, details) => SubstrateError`. */
+type Raise = (message: string, details?: Record<string, unknown>) => SubstrateError;
 export function validateSubstrate(substrate: Substrate): void {
   const seenBoardIds = new Set<string>();
   for (const board of substrate.boards) {
@@ -31,12 +39,17 @@ export function validateSubstrate(substrate: Substrate): void {
   }
 }
 
-function validateBoard(board: Board): void {
+/**
+ * Per-board STRUCTURAL checks shared by the load path and the write path:
+ * duplicate group ids within the board, and `enum` field_schema entries that
+ * declare no `values`. The `raise` factory sets the error code.
+ */
+function checkBoardStructure(board: Board, raise: Raise): void {
   // Duplicate group IDs within the board.
   const groupIds = new Set<string>();
   for (const group of board.groups) {
     if (groupIds.has(group.id)) {
-      throw SubstrateError.internalError(
+      throw raise(
         `Duplicate group id '${group.id}' in board '${board.id}'. Group IDs must be unique within a board.`,
         { board_id: board.id, group_id: group.id },
       );
@@ -48,13 +61,29 @@ function validateBoard(board: Board): void {
   for (const section of ['task', 'comments'] as const) {
     for (const [field, entry] of Object.entries(board.field_schema[section])) {
       if (entry.type === 'enum' && (!entry.values || entry.values.length === 0)) {
-        throw SubstrateError.internalError(
+        throw raise(
           `Field '${field}' in board '${board.id}' field_schema.${section} is type 'enum' but declares no 'values'. Add a non-empty values array.`,
           { board_id: board.id, section, field },
         );
       }
     }
   }
+}
+
+/**
+ * Validate one board's structure on the WRITE path (edit tools) — raises
+ * `schema_violation`. Called on both the input and the post-mutate result so a
+ * substrate edit can never persist a structurally-invalid board.
+ */
+export function validateBoardStructure(board: Board): void {
+  checkBoardStructure(board, SubstrateError.schemaViolation);
+}
+
+function validateBoard(board: Board): void {
+  // Load path: same structural checks, but a corrupt on-disk board is internal_error.
+  checkBoardStructure(board, SubstrateError.internalError);
+
+  const groupIds = new Set(board.groups.map((g) => g.id));
 
   // transition_guard policies must reference groups that exist (archived OK).
   // '*' is a wildcard ("any group"), not a reference.

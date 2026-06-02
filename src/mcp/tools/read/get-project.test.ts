@@ -6,6 +6,8 @@ import type { Config } from '../../../core/types.js';
 const fixtureConfig: Config = {
   project_id: '00000000-0000-4000-8000-000000000001',
   project_name: 'TestProject',
+  description: '',
+  version: 1,
   schema_version: 2,
   created_at: '2026-05-09T00:00:00.000Z',
 };
@@ -14,6 +16,7 @@ const deps: ToolDeps = {
   client: {} as ToolDeps['client'],
   config: fixtureConfig,
   loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
+  root: '/tmp/substrate-test',
 };
 
 describe('getProjectHandler', () => {
@@ -21,6 +24,8 @@ describe('getProjectHandler', () => {
     expect(getProjectHandler(deps)).toEqual({
       project_id: fixtureConfig.project_id,
       project_name: fixtureConfig.project_name,
+      description: '',
+      version: 1,
       schema_version: fixtureConfig.schema_version,
       created_at: fixtureConfig.created_at,
     });

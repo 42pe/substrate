@@ -19,6 +19,8 @@ import type { Board, Config, Substrate } from '../../../core/types.js';
 const fixtureConfig: Config = {
   project_id: '00000000-0000-4000-8000-000000000001',
   project_name: 'TestProject',
+  description: '',
+  version: 1,
   schema_version: 1,
   created_at: '2026-05-09T00:00:00.000Z',
 };
@@ -117,6 +119,7 @@ describe('createTaskHandler', () => {
       client,
       config: fixtureConfig,
       loadSubstrate: () => Promise.resolve(fixtureSubstrate),
+      root: '/tmp/substrate-test',
     };
   });
 
@@ -317,7 +320,12 @@ describe('createTaskHandler — policy engine', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'substrate-create-policy-'));
     client = await openDatabaseAndMigrate(join(dir, '.substrate', 'data.sqlite'));
-    deps = { client, config: fixtureConfig, loadSubstrate: () => Promise.resolve(policySubstrate) };
+    deps = {
+      client,
+      config: fixtureConfig,
+      loadSubstrate: () => Promise.resolve(policySubstrate),
+      root: '/tmp/substrate-test',
+    };
   });
   afterEach(async () => {
     client.close();
@@ -370,6 +378,7 @@ describe('createTaskHandler — unknown error handling (C3)', () => {
       client: stubClient,
       config: fixtureConfig,
       loadSubstrate: () => Promise.resolve(fixtureSubstrate),
+      root: '/tmp/substrate-test',
     };
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);

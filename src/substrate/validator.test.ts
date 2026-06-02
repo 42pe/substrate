@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { validateSubstrate } from './validator.js';
+import { validateSubstrate, validateBoardStructure } from './validator.js';
 import type { Board, Config, Group, Policy, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
 
 const CONFIG: Config = {
   project_id: '11111111-1111-4111-8111-111111111111',
   project_name: 'test',
+  description: '',
+  version: 1,
   schema_version: 2,
   created_at: '2026-05-09T00:00:00.000Z',
 };
@@ -151,5 +153,35 @@ describe('validateSubstrate', () => {
       policies: [makePolicy({ type: 'agent_responsibility', definition: { to_group: 'ghost' } })],
     });
     expect(() => validateSubstrate(sub([board]))).not.toThrow();
+  });
+});
+
+describe('validateBoardStructure (write-path → schema_violation)', () => {
+  it('accepts a clean board', () => {
+    expect(() => validateBoardStructure(makeBoard())).not.toThrow();
+  });
+
+  it('rejects a duplicate group id with schema_violation', () => {
+    const board = makeBoard({ groups: [makeGroup({ id: 'g1' }), makeGroup({ id: 'g1' })] });
+    let caught: unknown;
+    try {
+      validateBoardStructure(board);
+    } catch (e) {
+      caught = e;
+    }
+    expect(SubstrateError.is(caught)).toBe(true);
+    if (SubstrateError.is(caught)) expect(caught.code).toBe('schema_violation');
+  });
+
+  it('rejects an enum field_schema entry without values (schema_violation)', () => {
+    const board = makeBoard({ field_schema: { task: { sev: { type: 'enum' } }, comments: {} } });
+    let caught: unknown;
+    try {
+      validateBoardStructure(board);
+    } catch (e) {
+      caught = e;
+    }
+    expect(SubstrateError.is(caught)).toBe(true);
+    if (SubstrateError.is(caught)) expect(caught.code).toBe('schema_violation');
   });
 });

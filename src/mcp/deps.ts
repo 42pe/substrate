@@ -18,4 +18,6 @@ export interface ToolDeps {
   config: Config;
   /** Reads the whole substrate (config + boards) fresh from disk. */
   loadSubstrate: () => Promise<Substrate>;
+  /** The `.substrate/` root path — substrate-edit tools (Phase 4) write here. */
+  root: string;
 }

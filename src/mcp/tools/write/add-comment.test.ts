@@ -14,6 +14,8 @@ import type { Board, Config, Substrate, Task } from '../../../core/types.js';
 const fixtureConfig: Config = {
   project_id: '00000000-0000-4000-8000-000000000001',
   project_name: 'TestProject',
+  description: '',
+  version: 1,
   schema_version: 2,
   created_at: '2026-05-09T00:00:00.000Z',
 };
@@ -73,7 +75,12 @@ describe('addCommentHandler', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'substrate-add-comment-'));
     client = await openDatabaseAndMigrate(join(dir, '.substrate', 'data.sqlite'));
-    deps = { client, config: fixtureConfig, loadSubstrate: () => Promise.resolve(substrate) };
+    deps = {
+      client,
+      config: fixtureConfig,
+      loadSubstrate: () => Promise.resolve(substrate),
+      root: '/tmp/substrate-test',
+    };
     await createTask(client, makeTask());
   });
   afterEach(async () => {

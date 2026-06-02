@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readConfig, writeConfig } from './config.js';
@@ -27,6 +27,8 @@ afterEach(async () => {
 const validConfig: Config = {
   project_id: '12345678-1234-4123-8123-123456789012',
   project_name: 'TestProject',
+  description: '',
+  version: 1,
   schema_version: 1,
   created_at: '2026-05-09T00:00:00.000Z',
 };
@@ -49,6 +51,42 @@ describe('writeConfig / readConfig (round-trip)', () => {
     const raw = await readFile(join(root, 'config.json'), 'utf-8');
     expect(raw.endsWith('\n')).toBe(true);
     expect(raw).toContain('  "project_id"');
+  });
+});
+
+describe('Config backward-compat (Phase 4 version/description)', () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await makeTempRoot();
+  });
+
+  it('reads a legacy config (no version/description) with defaults', async () => {
+    // A Phase 1–3 config.json lacks version + description.
+    const legacy = {
+      project_id: '12345678-1234-4123-8123-123456789012',
+      project_name: 'Legacy',
+      schema_version: 2,
+      created_at: '2026-05-09T00:00:00.000Z',
+    };
+    await writeFile(join(root, 'config.json'), `${JSON.stringify(legacy, null, 2)}\n`, 'utf-8');
+    const read = await readConfig(root);
+    expect(read.version).toBe(1);
+    expect(read.description).toBe('');
+  });
+
+  it('round-trips: a read-defaulted legacy config materializes the fields on write', async () => {
+    const legacy = {
+      project_id: '12345678-1234-4123-8123-123456789012',
+      project_name: 'Legacy',
+      schema_version: 2,
+      created_at: '2026-05-09T00:00:00.000Z',
+    };
+    await writeFile(join(root, 'config.json'), `${JSON.stringify(legacy, null, 2)}\n`, 'utf-8');
+    const read = await readConfig(root);
+    await writeConfig(root, read);
+    const raw = await readFile(join(root, 'config.json'), 'utf-8');
+    expect(raw).toContain('"version"');
+    expect(raw).toContain('"description"');
   });
 });
 

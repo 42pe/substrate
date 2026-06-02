@@ -12,6 +12,8 @@ import type { Config, Task } from '../../../core/types.js';
 const fixtureConfig: Config = {
   project_id: '00000000-0000-4000-8000-000000000001',
   project_name: 'TestProject',
+  description: '',
+  version: 1,
   schema_version: 2,
   created_at: '2026-05-09T00:00:00.000Z',
 };
@@ -46,6 +48,7 @@ describe('getTaskToolHandler', () => {
       client,
       config: fixtureConfig,
       loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
+      root: '/tmp/substrate-test',
     };
   });
   afterEach(async () => {

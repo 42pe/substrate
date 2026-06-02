@@ -19,6 +19,10 @@ export interface Config {
   project_id: string;
   /** Defaults to the cwd basename at init; user-editable. */
   project_name: string;
+  /** Free-form project description (Phase 4; `update_project`-editable). */
+  description: string;
+  /** OCC counter for `update_project` (Phase 4). Starts at 1. */
+  version: number;
   /** Matches `BINARY_SCHEMA_VERSION` at init time. */
   schema_version: number;
   /** ISO-8601 UTC. */

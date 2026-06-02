@@ -16,6 +16,8 @@ import type { ToolDeps } from '../../deps.js';
 export interface ProjectResult {
   project_id: string;
   project_name: string;
+  description: string;
+  version: number;
   schema_version: number;
   created_at: string;
 }
@@ -24,6 +26,8 @@ export function getProjectHandler(deps: ToolDeps): ProjectResult {
   return {
     project_id: deps.config.project_id,
     project_name: deps.config.project_name,
+    description: deps.config.description,
+    version: deps.config.version,
     schema_version: deps.config.schema_version,
     created_at: deps.config.created_at,
   };

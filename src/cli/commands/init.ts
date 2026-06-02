@@ -62,6 +62,8 @@ export async function initCommand(cwd: string): Promise<InitResult> {
     const config: Config = {
       project_id: randomUUID(),
       project_name: basename(cwd) || 'unnamed-project',
+      description: '',
+      version: 1,
       schema_version: BINARY_SCHEMA_VERSION,
       created_at: new Date().toISOString(),
     };
