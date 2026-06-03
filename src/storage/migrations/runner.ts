@@ -1,5 +1,7 @@
+import { copyFile } from 'node:fs/promises';
 import type { Client, Transaction } from '@libsql/client';
 import { SubstrateError } from '../../core/errors.js';
+import { logger } from '../../shared/logger.js';
 import { migration001 } from './001-initial.js';
 import { migration002 } from './002-comments-events.js';
 
@@ -66,13 +68,17 @@ export async function getCurrentSchemaVersion(client: Client): Promise<number> {
  * pass a custom list to validate rollback / version-check behavior without
  * mutating the production list.
  *
- * Backup-before-migration is deferred to Phase 4 per the v1 architecture
- * plan; Phase 1's runner has version-check + transactional apply only.
+ * Auto-backup (Phase 4): when `dbPath` is given AND there are pending
+ * migrations, the database file is copied to `data.sqlite.bak-<timestamp>`
+ * before any migration runs. Migrations are transactional, so on failure the
+ * original `data.sqlite` is unchanged and the backup is a redundant safety net.
+ * No backup is taken when nothing is pending. No retention/pruning in v1.
  */
 export async function runMigrations(
   client: Client,
   targetVersion: number,
   migrationList: readonly Migration[] = migrations,
+  dbPath?: string,
 ): Promise<void> {
   const current = await getCurrentSchemaVersion(client);
 
@@ -88,6 +94,22 @@ export async function runMigrations(
   const pending = [...migrationList]
     .filter((m) => m.id > current && m.id <= targetVersion)
     .sort((a, b) => a.id - b.id);
+
+  if (pending.length > 0 && dbPath !== undefined) {
+    // Checkpoint the WAL into the main file so the copy is a consistent
+    // snapshot, then copy. Best-effort: a backup failure must NOT block the
+    // migration (the migration is transactional and self-protecting).
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = `${dbPath}.bak-${stamp}`;
+    try {
+      await client.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+      await copyFile(dbPath, backupPath);
+    } catch (e) {
+      logger.error('Pre-migration backup failed (continuing — migrations are transactional)', {
+        error: (e as Error).message,
+      });
+    }
+  }
 
   for (const migration of pending) {
     const tx = await client.transaction('write');

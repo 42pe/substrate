@@ -64,7 +64,7 @@ export async function openDatabaseAndMigrate(dbPath: string): Promise<Client> {
   const client = await openClient(dbPath);
   await client.execute('PRAGMA journal_mode = WAL');
   await client.execute('PRAGMA synchronous = NORMAL');
-  await runMigrations(client, BINARY_SCHEMA_VERSION);
+  await runMigrations(client, BINARY_SCHEMA_VERSION, undefined, dbPath);
 
   // libsql quirk (verified 2026-05-09 by Phase 1 spike): committing a
   // transaction resets the client's `busy_timeout` to 0. The migration

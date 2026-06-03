@@ -155,3 +155,67 @@ describe('runMigrations', () => {
     expect((cause as Error)?.message).toBe('rollback also failed');
   });
 });
+
+describe('auto-backup before migration (Phase 4)', () => {
+  it('writes a .bak file when migrations are pending, and reaches the target version', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const dir = await mkdtemp(join(tmpdir(), 'substrate-backup-'));
+    const dbPath = join(dir, 'data.sqlite');
+    const client = createClient({ url: `file:${dbPath}` });
+    try {
+      await client.execute('PRAGMA busy_timeout = 5000');
+      await runMigrations(client, 2, undefined, dbPath);
+      expect(await getCurrentSchemaVersion(client)).toBe(2);
+      const baks = (await readdir(dir)).filter((f) => f.includes('data.sqlite.bak-'));
+      expect(baks.length).toBe(1);
+    } finally {
+      client.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('takes NO backup when nothing is pending', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const dir = await mkdtemp(join(tmpdir(), 'substrate-backup-'));
+    const dbPath = join(dir, 'data.sqlite');
+    const client = createClient({ url: `file:${dbPath}` });
+    try {
+      await client.execute('PRAGMA busy_timeout = 5000');
+      await runMigrations(client, 2, undefined, dbPath); // applies 1+2
+      const before = (await readdir(dir)).filter((f) => f.includes('.bak-')).length;
+      await runMigrations(client, 2, undefined, dbPath); // nothing pending
+      const after = (await readdir(dir)).filter((f) => f.includes('.bak-')).length;
+      expect(after).toBe(before); // no new backup
+    } finally {
+      client.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves the original intact + backup present on a mid-migration failure', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const dir = await mkdtemp(join(tmpdir(), 'substrate-backup-'));
+    const dbPath = join(dir, 'data.sqlite');
+    const client = createClient({ url: `file:${dbPath}` });
+    const throwing: Migration = {
+      id: 2,
+      description: 'boom',
+      up: async () => {
+        throw new Error('mid-migration failure');
+      },
+    };
+    try {
+      await client.execute('PRAGMA busy_timeout = 5000');
+      await expect(runMigrations(client, 2, [migration001, throwing], dbPath)).rejects.toThrow(
+        'mid-migration failure',
+      );
+      // 001 committed; the throwing 002 rolled back → version stays at 1.
+      expect(await getCurrentSchemaVersion(client)).toBe(1);
+      const baks = (await readdir(dir)).filter((f) => f.includes('.bak-'));
+      expect(baks.length).toBe(1);
+    } finally {
+      client.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
