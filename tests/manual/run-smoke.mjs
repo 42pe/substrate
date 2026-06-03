@@ -146,8 +146,14 @@ try {
   const toolNames = tools.tools.map((t) => t.name).sort();
   const expected = [
     'add_comment',
+    'archive_board',
     'archive_comment',
+    'archive_group',
+    'archive_policy',
     'archive_task',
+    'create_board',
+    'create_group',
+    'create_policy',
     'create_task',
     'edit_comment',
     'get_board_substrate',
@@ -158,8 +164,14 @@ try {
     'list_boards',
     'list_comments',
     'list_tasks',
+    'reorder_groups',
     'reverse_captcha',
+    'unarchive_board',
     'unarchive_task',
+    'update_board',
+    'update_group',
+    'update_policy',
+    'update_project',
     'update_task',
     'whoami',
   ];
@@ -324,9 +336,49 @@ try {
     pass('reverse_captcha', 'placeholder response');
   }
 
+  // Step 6g — author a board via create_board (Phase 4), add a group, run a task.
+  const boardRes = await client.callTool({
+    name: 'create_board',
+    arguments: { name: 'Smoke Authored', agent_name: 'manual-smoke-runner' },
+  });
+  const boardEnv = JSON.parse(boardRes.content[0].text);
+  if (!boardEnv.ok) {
+    fail('create_board', `envelope ok=false: ${JSON.stringify(boardEnv.error)}`);
+  } else {
+    const authoredBoard = boardEnv.applied.id;
+    const groupRes = await client.callTool({
+      name: 'create_group',
+      arguments: { board_id: authoredBoard, name: 'Todo', agent_name: 'manual-smoke-runner' },
+    });
+    const groupEnv = JSON.parse(groupRes.content[0].text);
+    const taskRes = await client.callTool({
+      name: 'create_task',
+      arguments: {
+        board_id: authoredBoard,
+        group_id: groupEnv.applied.id,
+        title: 'On an MCP-authored board',
+        agent_name: 'manual-smoke-runner',
+      },
+    });
+    const taskEnv = JSON.parse(taskRes.content[0].text);
+    if (!taskEnv.ok) {
+      fail('create_board flow', `task create failed: ${JSON.stringify(taskEnv.error)}`);
+    } else {
+      pass('create_board flow', `board ${authoredBoard.slice(0, 8)}… + task`);
+    }
+  }
+
   // Step 7 — clean shutdown
   await client.close();
   pass('clean shutdown');
+
+  // Step 8 — diagnose against the (healthy) substrate runs and reports no problems.
+  const diag = spawnSync('npx', ['tsx', CLI_ENTRY, 'diagnose'], { cwd, encoding: 'utf-8' });
+  if (diag.status !== 0 || !/No problems found/.test(diag.stdout)) {
+    fail('diagnose', `exit ${diag.status}: ${diag.stdout}\n${diag.stderr}`);
+  } else {
+    pass('diagnose', 'no problems found');
+  }
 } finally {
   await rm(cwd, { recursive: true, force: true });
 }

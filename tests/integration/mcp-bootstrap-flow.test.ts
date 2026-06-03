@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import type { ChildProcess } from 'node:child_process';
 import { initCommand } from '../../src/cli/commands/init.js';
 import { openClient } from '../../src/storage/client.js';
@@ -531,5 +532,91 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       task_id: taskId,
     });
     expect(history.payload.results.map((e) => e.event_type)).toEqual(['created', 'updated']);
+  }, 30_000);
+
+  it('authors substrate via MCP edit tools end-to-end (board → groups → policy → enforce)', async () => {
+    async function callTool<T = Record<string, unknown>>(
+      name: string,
+      args: Record<string, unknown>,
+    ): Promise<{ payload: T; isError: boolean }> {
+      const response = await client.request('tools/call', { name, arguments: args });
+      expect(response.error, `${name} JSON-RPC error`).toBeUndefined();
+      const result = response.result as { content: Array<{ text: string }>; isError?: boolean };
+      return { payload: JSON.parse(result.content[0]!.text) as T, isError: !!result.isError };
+    }
+
+    // create_board → write boards/<uuid>.json
+    const board = await callTool<{ ok: boolean; applied: { id: string } }>('create_board', {
+      name: 'Engineering',
+      agent_name: 'flow',
+    });
+    expect(board.payload.ok).toBe(true);
+    const boardId = board.payload.applied.id;
+    expect(existsSync(join(cwd, '.substrate', 'boards', `${boardId}.json`))).toBe(true);
+
+    // create_group ×2
+    const g1 = await callTool<{ applied: { id: string } }>('create_group', {
+      board_id: boardId,
+      name: 'Todo',
+      agent_name: 'flow',
+    });
+    const g2 = await callTool<{ applied: { id: string } }>('create_group', {
+      board_id: boardId,
+      name: 'Done',
+      agent_name: 'flow',
+    });
+    const todo = g1.payload.applied.id;
+    const done = g2.payload.applied.id;
+
+    // create_policy: a transition_guard todo→done requiring custom_data.approved
+    await callTool('create_policy', {
+      board_id: boardId,
+      name: 'Approval',
+      type: 'transition_guard',
+      definition: {
+        from_group: todo,
+        to_group: done,
+        require: [{ field: 'task.custom_data.approved', op: 'eq', value: true }],
+        on_failure_message: 'Approve before Done.',
+      },
+      agent_name: 'flow',
+    });
+
+    // create_task on the new board/group
+    const task = await callTool<{ ok: boolean; applied: { id: string } }>('create_task', {
+      board_id: boardId,
+      group_id: todo,
+      title: 'Ship it',
+      agent_name: 'flow',
+    });
+    expect(task.payload.ok).toBe(true);
+    const taskId = task.payload.applied.id;
+
+    // update_task to Done is blocked by the just-authored guard
+    const blocked = await callTool<{ ok: boolean; error: { code: string } }>('update_task', {
+      id: taskId,
+      version: 1,
+      group_id: done,
+      agent_name: 'flow',
+    });
+    expect(blocked.payload.ok).toBe(false);
+    expect(blocked.payload.error.code).toBe('transition_blocked');
+
+    // archive_group on Todo is rejected — an active task references it
+    const archiveGroup = await callTool<{ ok: boolean; error: { code: string } }>('archive_group', {
+      id: todo,
+      version: 1,
+      agent_name: 'flow',
+    });
+    expect(archiveGroup.payload.ok).toBe(false);
+    expect(archiveGroup.payload.error.code).toBe('conflict');
+
+    // reorder_groups succeeds and returns the board's new version
+    const reorder = await callTool<{ ok: boolean; applied: { version: number } }>(
+      'reorder_groups',
+      { board_id: boardId, ordered_ids: [done, todo], agent_name: 'flow' },
+    );
+    expect(reorder.payload.ok).toBe(true);
+    expect(typeof reorder.payload.applied.version).toBe('number');
   }, 30_000);
 });
