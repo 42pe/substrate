@@ -11,13 +11,19 @@
  *   substrate init           Initialize .substrate/ in the cwd
  *   substrate serve          Start the HTTP UI server
  *   substrate mcp            Start the stdio MCP server (for agent runtimes)
+ *   substrate backup         Write a timestamped backup into .substrate/backups/
+ *   substrate export <path>  Write a .tar.gz of the substrate to <path>
+ *   substrate import <path>  Restore a substrate archive (--force to overwrite)
+ *   substrate diagnose       Print environment + substrate health
  *   substrate --help         Show help
- *
- * Future subcommands (Phase 4+): backup, export, import, diagnose.
  */
 import { initCommand } from './commands/init.js';
 import { serveCommand } from './commands/serve.js';
 import { mcpCommand } from './commands/mcp.js';
+import { backupCommand } from './commands/backup.js';
+import { exportCommand } from './commands/export.js';
+import { importCommand } from './commands/import.js';
+import { diagnoseCommand } from './commands/diagnose.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
 
@@ -27,6 +33,10 @@ Usage:
   substrate init              Initialize a new .substrate/ in the current directory
   substrate serve             Start the HTTP UI server (default: http://localhost:7475)
   substrate mcp               Start the stdio MCP server (spawned by agent runtimes)
+  substrate backup            Write a timestamped backup into .substrate/backups/
+  substrate export <path>     Write a .tar.gz of the substrate to <path>
+  substrate import <path>     Restore a substrate archive (--force to overwrite)
+  substrate diagnose          Print environment + substrate health
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -50,6 +60,10 @@ const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
   init: new Set(['--no-starter-board']),
   serve: new Set(),
   mcp: new Set(),
+  backup: new Set(),
+  export: new Set(),
+  import: new Set(['--force']),
+  diagnose: new Set(),
 };
 
 function rejectUnknownFlags(cmd: string, argv: string[]): void {
@@ -91,6 +105,27 @@ Next steps:
     case 'mcp':
       rejectUnknownFlags('mcp', rest);
       await mcpCommand(cwd);
+      return;
+    case 'backup':
+      rejectUnknownFlags('backup', rest);
+      await backupCommand(cwd);
+      return;
+    case 'export':
+      await exportCommand(
+        cwd,
+        rest.find((a) => !a.startsWith('-')),
+      );
+      return;
+    case 'import':
+      await importCommand(
+        cwd,
+        rest.find((a) => !a.startsWith('-')),
+        rest.includes('--force'),
+      );
+      return;
+    case 'diagnose':
+      rejectUnknownFlags('diagnose', rest);
+      await diagnoseCommand(cwd);
       return;
     case '--help':
     case '-h':

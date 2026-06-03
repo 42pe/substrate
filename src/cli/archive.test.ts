@@ -1,0 +1,65 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { create as tarCreate } from 'tar';
+import { writeConfig } from '../shared/config.js';
+import { paths } from '../shared/paths.js';
+import { openDatabaseAndMigrate } from '../storage/client.js';
+import { createSubstrateArchive, extractSubstrateArchive, assertArchiveSafe } from './archive.js';
+import type { Config } from '../core/types.js';
+
+const config: Config = {
+  project_id: '11111111-1111-4111-8111-111111111111',
+  project_name: 'Proj',
+  description: '',
+  version: 1,
+  schema_version: 2,
+  created_at: '2026-05-09T00:00:00.000Z',
+};
+
+describe('substrate archive', () => {
+  let dir: string;
+  let root: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'substrate-archive-'));
+    root = join(dir, '.substrate');
+    await writeConfig(root, config);
+    await mkdir(paths(root).boardsDir, { recursive: true });
+    await writeFile(paths(root).boardJson('b1'), '{"id":"b1"}', 'utf-8');
+    const client = await openDatabaseAndMigrate(paths(root).dataSqlite);
+    client.close();
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('creates an archive and round-trips it via extract into a fresh root', async () => {
+    const out = join(dir, 'backup.tar.gz');
+    await createSubstrateArchive(root, out);
+    expect(existsSync(out)).toBe(true);
+
+    const target = join(dir, 'restored', '.substrate');
+    await extractSubstrateArchive(out, target);
+    const restoredConfig = JSON.parse(await readFile(join(target, 'config.json'), 'utf-8'));
+    expect(restoredConfig.project_id).toBe(config.project_id);
+    expect(existsSync(join(target, 'boards', 'b1.json'))).toBe(true);
+    expect(existsSync(join(target, 'data.sqlite'))).toBe(true);
+    // transient files excluded
+    const names = await readdir(target);
+    expect(names).not.toContain('substrate.pid');
+  });
+
+  it('rejects a zip-slip archive (entry escaping the target)', async () => {
+    // Craft a malicious tarball with a `../` entry.
+    const evilSrc = join(dir, 'evilsrc');
+    await mkdir(evilSrc, { recursive: true });
+    await writeFile(join(evilSrc, 'pwn'), 'x', 'utf-8');
+    const evilTar = join(dir, 'evil.tar.gz');
+    await tarCreate({ gzip: true, file: evilTar, cwd: evilSrc }, ['pwn']);
+    // The single entry 'pwn' is not an allowed top-level → rejected.
+    await expect(assertArchiveSafe(evilTar)).rejects.toMatchObject({ code: 'schema_violation' });
+  });
+});
