@@ -1,10 +1,29 @@
 import { readFile, rename, open, unlink } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Board, Config, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
 import { paths } from '../shared/paths.js';
 import { readConfig } from '../shared/config.js';
 import { BoardSchema } from './schemas.js';
+
+/**
+ * A board id becomes a filename (`boards/<id>.json`). Reject anything that
+ * isn't a single safe path component BEFORE it reaches the filesystem — a
+ * caller-supplied id like `../../evil` would otherwise escape `boards/` (B1).
+ * Throw `not_found` rather than confirming the traversal attempt.
+ */
+function assertSafeBoardId(id: string): void {
+  if (
+    id.length === 0 ||
+    id !== basename(id) ||
+    id.includes('/') ||
+    id.includes('\\') ||
+    id.includes('..')
+  ) {
+    throw SubstrateError.notFound(`Board '${id}' not found.`, { entity: 'board', id });
+  }
+}
 
 /**
  * Atomic substrate-file writer (Phase 4).
@@ -29,8 +48,13 @@ async function writeJsonAtomic(targetPath: string, value: unknown): Promise<void
   try {
     await handle.writeFile(body, 'utf-8');
     await handle.sync();
+  } catch (e) {
+    // C1: a write/sync failure (ENOSPC, EIO…) before rename leaks the temp.
+    await handle.close().catch(() => undefined);
+    await unlink(tmpPath).catch(() => undefined);
+    throw e;
   } finally {
-    await handle.close();
+    await handle.close().catch(() => undefined);
   }
   try {
     await rename(tmpPath, targetPath);
@@ -42,6 +66,7 @@ async function writeJsonAtomic(targetPath: string, value: unknown): Promise<void
 
 /** Create a brand-new board file; fails (`conflict`) if one already exists. */
 export async function createBoardFile(root: string, board: Board): Promise<void> {
+  assertSafeBoardId(board.id);
   const target = paths(root).boardJson(board.id);
   const body = `${JSON.stringify(board, null, 2)}\n`;
   try {
@@ -91,12 +116,17 @@ function parseBoardFile(raw: string, boardId: string): Board {
  * throw), and atomically write the result back. The fresh read happens as late
  * as possible — immediately before the mutate + rename — to minimize the
  * cross-process TOCTOU window. `not_found` if the file is missing.
+ *
+ * C2: a `mutate` that returns `next` referentially equal to the board it was
+ * given (an idempotent no-op) skips the write entirely — no needless fsync/
+ * rename, narrower window for a torn write.
  */
 export async function mutateBoardFile<T>(
   root: string,
   boardId: string,
   mutate: (board: Board) => { result: T; next: Board },
 ): Promise<T> {
+  assertSafeBoardId(boardId);
   const target = paths(root).boardJson(boardId);
   let raw: string;
   try {
@@ -112,7 +142,7 @@ export async function mutateBoardFile<T>(
   }
   const board = parseBoardFile(raw, boardId);
   const { result, next } = mutate(board);
-  await writeJsonAtomic(target, next);
+  if (next !== board) await writeJsonAtomic(target, next);
   return result;
 }
 

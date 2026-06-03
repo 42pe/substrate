@@ -33,7 +33,7 @@ export function reorderGroupsHandler(
 ): Promise<SuccessEnvelope<Group[]> | ErrorEnvelope> {
   return runEdit('reorder_groups', input.agent_name, async () => {
     const now = new Date().toISOString();
-    const groups = await mutateBoardFile(deps.root, input.board_id, (board) => {
+    const out = await mutateBoardFile(deps.root, input.board_id, (board) => {
       const currentIds = board.groups.map((g) => g.id).sort();
       const givenIds = [...input.ordered_ids].sort();
       const isPermutation =
@@ -48,16 +48,17 @@ export function reorderGroupsHandler(
       const reordered = board.groups
         .map((g) => ({ ...g, position: posById.get(g.id)! }))
         .sort((a, b) => a.position - b.position);
+      const nextVersion = board.version + 1;
       return {
-        result: reordered,
-        next: { ...board, groups: reordered, version: board.version + 1, updated_at: now },
+        result: { groups: reordered, version: nextVersion },
+        next: { ...board, groups: reordered, version: nextVersion, updated_at: now },
       };
     });
     return successEnvelope<Group[]>({
       entity: 'board',
       id: input.board_id,
-      version: null,
-      state: groups,
+      version: out.version, // the board's new version (C3)
+      state: out.groups,
     });
   });
 }

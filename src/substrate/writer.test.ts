@@ -72,6 +72,26 @@ describe('substrate writer', () => {
     expect(files.filter((f) => f.includes('.tmp-'))).toEqual([]); // temp cleaned
   });
 
+  it('rejects a path-traversal board id (B1) without touching the filesystem', async () => {
+    await expect(
+      mutateBoardFile(root, '../../../../tmp/evil', (b) => ({ result: null, next: b })),
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(createBoardFile(root, makeBoard('../escape'))).rejects.toMatchObject({
+      code: 'not_found',
+    });
+  });
+
+  it('mutateBoardFile skips the write on an idempotent no-op (C2)', async () => {
+    await createBoardFile(root, makeBoard('b1'));
+    const before = await readFile(paths(root).boardJson('b1'), 'utf-8');
+    // returning the same board reference signals no change → no write
+    await mutateBoardFile(root, 'b1', (board) => ({ result: null, next: board }));
+    const after = await readFile(paths(root).boardJson('b1'), 'utf-8');
+    expect(after).toBe(before);
+    const files = await readdir(paths(root).boardsDir);
+    expect(files.filter((f) => f.includes('.tmp-'))).toEqual([]);
+  });
+
   it('mutateBoardFile throws not_found for a missing board', async () => {
     await expect(
       mutateBoardFile(root, 'nope', (b) => ({ result: null, next: b })),

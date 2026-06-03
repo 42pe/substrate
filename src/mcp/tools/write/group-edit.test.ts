@@ -132,6 +132,7 @@ describe('group edit tools', () => {
     if (!ok.ok) throw new Error('expected success');
     expect(ok.applied.state.map((g) => g.id)).toEqual(['g2', 'g1']);
     expect(ok.applied.state.map((g) => g.position)).toEqual([0, 1]);
+    expect(ok.applied.version).toBe(2); // C3: board version returned, not null
 
     const bad = await reorderGroupsHandler(
       { board_id: 'b1', ordered_ids: ['g1'], agent_name: 'a' },
