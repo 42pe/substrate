@@ -62,4 +62,27 @@ describe('substrate archive', () => {
     // The single entry 'pwn' is not an allowed top-level → rejected.
     await expect(assertArchiveSafe(evilTar)).rejects.toMatchObject({ code: 'schema_violation' });
   });
+
+  it('rejects an archive containing a symlink entry (C-1 linkpath escape)', async () => {
+    const { symlink } = await import('node:fs/promises');
+    const src = join(dir, 'linksrc');
+    await mkdir(join(src, 'boards'), { recursive: true });
+    // boards/evil -> ../../../../tmp/escape
+    await symlink('../../../../tmp/escape', join(src, 'boards', 'evil'));
+    const linkTar = join(dir, 'link.tar.gz');
+    await tarCreate({ gzip: true, file: linkTar, cwd: src }, ['boards']);
+    await expect(assertArchiveSafe(linkTar)).rejects.toMatchObject({ code: 'schema_violation' });
+  });
+
+  it('import is a clean replace: a board absent from the archive does not survive (C-2)', async () => {
+    const out = join(dir, 'backup.tar.gz');
+    await createSubstrateArchive(root, out);
+    // Add an extra board AFTER the backup was taken.
+    await writeFile(paths(root).boardJson('extra'), '{"id":"extra"}', 'utf-8');
+    expect(existsSync(paths(root).boardJson('extra'))).toBe(true);
+    // Restore over the same root → the extra board must be gone.
+    await extractSubstrateArchive(out, root);
+    expect(existsSync(paths(root).boardJson('extra'))).toBe(false);
+    expect(existsSync(paths(root).boardJson('b1'))).toBe(true);
+  });
 });

@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { create as tarCreate, extract as tarExtract, list as tarList } from 'tar';
 import { openClient } from '../storage/client.js';
@@ -48,6 +48,13 @@ export async function assertArchiveSafe(archivePath: string): Promise<void> {
       onentry: (entry) => {
         const p = entry.path;
         const top = p.split(/[/\\]/)[0] ?? '';
+        // A substrate archive contains only files + directories. Reject any
+        // symlink/hardlink outright — its `linkpath` is a second escape vector
+        // (`boards/x -> ../../../etc/passwd`) that a path-only check misses (C-1).
+        if (entry.type !== 'File' && entry.type !== 'Directory') {
+          offenders.push(`${p} (${entry.type})`);
+          return;
+        }
         if (
           p.startsWith('/') ||
           p.startsWith('\\') ||
@@ -72,13 +79,29 @@ export async function assertArchiveSafe(archivePath: string): Promise<void> {
   }
 }
 
-/** Extract a validated archive into `targetRoot` (the `.substrate/` dir). */
+/**
+ * Extract a validated archive into `targetRoot` (the `.substrate/` dir),
+ * REPLACING the durable contents. The durable entries (config.json, boards/,
+ * data.sqlite + wal/shm) are removed first so a restore is a true replace, not
+ * a merge — a board file present on disk but absent from the archive does not
+ * survive (C-2). `backups/` and the (already-checked-dead) pid file are kept.
+ */
 export async function extractSubstrateArchive(
   archivePath: string,
   targetRoot: string,
 ): Promise<void> {
   await assertArchiveSafe(archivePath);
   await mkdir(targetRoot, { recursive: true });
+  const tp = paths(targetRoot);
+  for (const victim of [
+    tp.config,
+    tp.boardsDir,
+    tp.dataSqlite,
+    tp.dataSqliteWal,
+    tp.dataSqliteShm,
+  ]) {
+    await rm(victim, { recursive: true, force: true });
+  }
   const targetResolved = resolve(targetRoot);
   await tarExtract({
     file: archivePath,

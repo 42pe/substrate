@@ -111,12 +111,14 @@ Next steps:
       await backupCommand(cwd);
       return;
     case 'export':
+      rejectUnknownFlags('export', rest);
       await exportCommand(
         cwd,
         rest.find((a) => !a.startsWith('-')),
       );
       return;
     case 'import':
+      rejectUnknownFlags('import', rest);
       await importCommand(
         cwd,
         rest.find((a) => !a.startsWith('-')),
