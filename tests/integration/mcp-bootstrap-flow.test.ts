@@ -240,8 +240,10 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'add_comment',
+      'archive_board',
       'archive_comment',
       'archive_task',
+      'create_board',
       'create_task',
       'edit_comment',
       'get_board_substrate',
@@ -253,7 +255,10 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       'list_comments',
       'list_tasks',
       'reverse_captcha',
+      'unarchive_board',
       'unarchive_task',
+      'update_board',
+      'update_project',
       'update_task',
       'whoami',
     ]);

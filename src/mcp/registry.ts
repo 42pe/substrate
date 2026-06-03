@@ -16,6 +16,11 @@ import { registerGetTaskHistory } from './tools/read/get-task-history.js';
 import { registerListComments } from './tools/read/list-comments.js';
 import { registerGetComment } from './tools/read/get-comment.js';
 import { registerReverseCaptcha } from './tools/read/reverse-captcha.js';
+import { registerUpdateProject } from './tools/write/update-project.js';
+import { registerCreateBoard } from './tools/write/create-board.js';
+import { registerUpdateBoard } from './tools/write/update-board.js';
+import { registerArchiveBoard } from './tools/write/archive-board.js';
+import { registerUnarchiveBoard } from './tools/write/unarchive-board.js';
 import type { ToolDeps } from './deps.js';
 
 /**
@@ -48,4 +53,12 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerAddComment(server, deps);
   registerEditComment(server, deps);
   registerArchiveComment(server, deps);
+
+  // Substrate-edit tools (Phase 4): project + board (Step 2), group (Step 3),
+  // policy (Step 4).
+  registerUpdateProject(server, deps);
+  registerCreateBoard(server, deps);
+  registerUpdateBoard(server, deps);
+  registerArchiveBoard(server, deps);
+  registerUnarchiveBoard(server, deps);
 }
