@@ -25,6 +25,9 @@ import { registerCreateGroup } from './tools/write/create-group.js';
 import { registerUpdateGroup } from './tools/write/update-group.js';
 import { registerReorderGroups } from './tools/write/reorder-groups.js';
 import { registerArchiveGroup } from './tools/write/archive-group.js';
+import { registerCreatePolicy } from './tools/write/create-policy.js';
+import { registerUpdatePolicy } from './tools/write/update-policy.js';
+import { registerArchivePolicy } from './tools/write/archive-policy.js';
 import type { ToolDeps } from './deps.js';
 
 /**
@@ -69,4 +72,7 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerUpdateGroup(server, deps);
   registerReorderGroups(server, deps);
   registerArchiveGroup(server, deps);
+  registerCreatePolicy(server, deps);
+  registerUpdatePolicy(server, deps);
+  registerArchivePolicy(server, deps);
 }
