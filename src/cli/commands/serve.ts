@@ -13,6 +13,7 @@ import {
 } from '../../http/server.js';
 import { SubstrateError } from '../../core/errors.js';
 import { logger } from '../../shared/logger.js';
+import { isProcessAlive, identifyPortHolder } from '../../shared/process.js';
 
 /**
  * `npx substrate serve` — start the HTTP UI server.
@@ -92,10 +93,11 @@ export async function serveCommand(cwd: string): Promise<void> {
   } catch (e) {
     client.close();
     if ((e as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      const holder = await identifyPortHolder(port);
       throw SubstrateError.conflict(
-        `Port ${port} is already in use. Another process holds it. ` +
+        `Port ${port} is already in use${holder ? ` by ${holder}` : ''}. ` +
           `Stop that process or change the port.`,
-        { port },
+        { port, ...(holder ? { holder } : {}) },
       );
     }
     throw e;
@@ -163,26 +165,4 @@ export async function serveCommand(cwd: string): Promise<void> {
 
   // Wait forever; the shutdown handler will exit.
   await new Promise<void>(() => undefined);
-}
-
-/**
- * Returns true if a process with the given PID is alive. Uses
- * `process.kill(pid, 0)` which sends no signal but throws if the target
- * doesn't exist (ESRCH) or we lack permission (EPERM — treat as alive,
- * conservative).
- *
- * Cross-platform note: works on POSIX (macOS, Linux). On Windows
- * `process.kill(pid, 0)` returns true for any non-negative pid that's
- * the right shape regardless of whether the process exists; that's a
- * Windows-specific gap to handle when Phase 6 CI starts catching it.
- */
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    const code = (e as NodeJS.ErrnoException).code;
-    if (code === 'EPERM') return true; // exists but we can't signal
-    return false; // ESRCH or anything else: assume dead
-  }
 }

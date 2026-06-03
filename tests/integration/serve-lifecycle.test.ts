@@ -110,6 +110,22 @@ describe('substrate serve — lifecycle (integration)', () => {
     expect(code).not.toBe(0);
     expect(stderr).toMatch(/already running/i);
   });
+
+  it('reclaims a stale PID file (dead process) and starts cleanly', async () => {
+    // Simulate an ungraceful prior exit: a PID file pointing at a dead process.
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const pidFile = join(cwd, '.substrate', 'substrate.pid');
+    await mkdir(join(cwd, '.substrate'), { recursive: true });
+    await writeFile(pidFile, '2147483646', 'utf-8'); // almost-certainly-dead pid
+
+    child = spawnCli(['serve'], { cwd, env: { SUBSTRATE_PORT_OVERRIDE: String(port) } });
+    // If reclaim works, the server comes up and serves health.
+    await waitFor(() => fetchOk(port), { timeoutMs: 15_000 });
+    expect(await fetchOk(port)).toBe(true);
+    // The PID file now holds the live server's pid (reclaimed + rewritten).
+    const pid = parseInt((await readFile(pidFile, 'utf-8')).trim(), 10);
+    expect(pid).not.toBe(2147483646);
+  });
 });
 
 describe('substrate serve — port conflict (integration; B-1 regression test)', () => {
