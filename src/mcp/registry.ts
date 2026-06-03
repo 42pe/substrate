@@ -21,6 +21,10 @@ import { registerCreateBoard } from './tools/write/create-board.js';
 import { registerUpdateBoard } from './tools/write/update-board.js';
 import { registerArchiveBoard } from './tools/write/archive-board.js';
 import { registerUnarchiveBoard } from './tools/write/unarchive-board.js';
+import { registerCreateGroup } from './tools/write/create-group.js';
+import { registerUpdateGroup } from './tools/write/update-group.js';
+import { registerReorderGroups } from './tools/write/reorder-groups.js';
+import { registerArchiveGroup } from './tools/write/archive-group.js';
 import type { ToolDeps } from './deps.js';
 
 /**
@@ -61,4 +65,8 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerUpdateBoard(server, deps);
   registerArchiveBoard(server, deps);
   registerUnarchiveBoard(server, deps);
+  registerCreateGroup(server, deps);
+  registerUpdateGroup(server, deps);
+  registerReorderGroups(server, deps);
+  registerArchiveGroup(server, deps);
 }
