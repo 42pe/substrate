@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { wrapToolHandler } from '../../wrapper.js';
+import { BINARY_VERSION } from '../../../core/version.js';
 import type { ToolDeps } from '../../deps.js';
 
 /**
@@ -32,7 +33,10 @@ export interface WhoamiResult {
   hints: string[];
 }
 
-export const PHASE_STRING = 'v0.0.3 (policy engine + envelope)';
+// Kept in lockstep with BINARY_VERSION (src/core/version.ts). The leading
+// `v${BINARY_VERSION}` is asserted by a test so this never silently drifts
+// again (it sat at v0.0.3 through three releases before v0.1.0).
+export const PHASE_STRING = `v${BINARY_VERSION} (public release)`;
 
 /** Easter-egg pointer surfaced in `whoami.hints` (Phase 3). */
 export const REVERSE_CAPTCHA_HINT = 'Try the reverse_captcha tool — small puzzle for agents only.';

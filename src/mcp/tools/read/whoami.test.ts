@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { whoamiHandler, PHASE_STRING, REVERSE_CAPTCHA_HINT } from './whoami.js';
+import { BINARY_VERSION } from '../../../core/version.js';
 import type { ToolDeps } from '../../deps.js';
 import type { Board, Config, Substrate } from '../../../core/types.js';
 
@@ -62,15 +63,18 @@ describe('whoamiHandler', () => {
     ]);
   });
 
-  it('returns the reverse_captcha hint in Phase 3', async () => {
+  it('returns the reverse_captcha hint', async () => {
     const result = await whoamiHandler(depsWith([makeBoard('a')]));
     expect(result.hints).toEqual([REVERSE_CAPTCHA_HINT]);
   });
 
-  it('returns the Phase 3 phase string', async () => {
+  it('returns the phase string, kept in lockstep with BINARY_VERSION', async () => {
     const result = await whoamiHandler(depsWith([]));
     expect(result.phase).toBe(PHASE_STRING);
-    expect(result.phase).toMatch(/policy engine/);
+    // Drift guard: the phase string MUST embed the binary version. This caught
+    // nothing for three releases because it didn't exist; now it does.
+    expect(result.phase).toContain(`v${BINARY_VERSION}`);
+    expect(result.phase).toMatch(/public release/);
   });
 
   it('does not leak unexpected fields', async () => {

@@ -327,13 +327,31 @@ try {
     }
   }
 
-  // Step 6f — reverse_captcha returns the placeholder.
-  const captchaRes = await client.callTool({ name: 'reverse_captcha', arguments: {} });
-  const captchaEnv = JSON.parse(captchaRes.content[0].text);
-  if (captchaEnv.error !== 'Coming in v0.1.0' || captchaEnv.about?.built_by !== 'Diego Ferreyra') {
-    fail('reverse_captcha', `unexpected payload: ${JSON.stringify(captchaEnv)}`);
+  // Step 6f — reverse_captcha: issue a challenge, then solve it round-trip.
+  const issueRes = await client.callTool({ name: 'reverse_captcha', arguments: {} });
+  const challenge = JSON.parse(issueRes.content[0].text);
+  if (challenge.result !== 'challenge' || !challenge.challenge_id || !challenge.puzzle) {
+    fail('reverse_captcha', `unexpected issue payload: ${JSON.stringify(challenge)}`);
   } else {
-    pass('reverse_captcha', 'placeholder response');
+    // Solve the two known templates the way an agent would read them.
+    const keyed = /value stored under the key "([^"]+)"/.exec(challenge.instructions);
+    const answer = keyed
+      ? JSON.parse(challenge.puzzle)[keyed[1]]
+      : challenge.puzzle
+          .split(',')
+          .map((w) => w.trim())
+          .reverse()
+          .join('-');
+    const solveRes = await client.callTool({
+      name: 'reverse_captcha',
+      arguments: { challenge_id: challenge.challenge_id, answer },
+    });
+    const solved = JSON.parse(solveRes.content[0].text);
+    if (solved.result === 'solved' && solved.about?.built_by === 'Diego Ferreyra') {
+      pass('reverse_captcha', 'issued + solved round-trip');
+    } else {
+      fail('reverse_captcha', `unexpected solve payload: ${JSON.stringify(solved)}`);
+    }
   }
 
   // Step 6g — author a board via create_board (Phase 4), add a group, run a task.

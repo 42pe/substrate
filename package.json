@@ -1,9 +1,8 @@
 {
   "name": "@diegoferreyra/substrate",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "Local-first, per-project agent-collaborative substrate exposed via MCP.",
   "type": "module",
-  "private": true,
   "license": "MIT",
   "author": "Diego Ferreyra <diego@404.pe>",
   "homepage": "https://github.com/diegoferreyra/substrate",
@@ -22,6 +21,10 @@
   ],
   "engines": {
     "node": ">=20"
+  },
+  "packageManager": "pnpm@7.18.2",
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "pnpm build:server && pnpm build:ui",
