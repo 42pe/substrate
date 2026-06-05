@@ -113,6 +113,3 @@ export const getComments = (
   id: string,
   params: { parent_id?: string; cursor?: string; page_size?: number } = {},
 ): Promise<Paginated<Comment>> => apiGet(`/tasks/${encodeURIComponent(id)}/comments${qs(params)}`);
-
-export const getComment = (id: string): Promise<Comment> =>
-  apiGet(`/comments/${encodeURIComponent(id)}`);

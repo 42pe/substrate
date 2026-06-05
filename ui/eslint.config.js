@@ -29,11 +29,6 @@ export default tseslint.config(
     },
   },
   {
-    // Markdown.tsx is the ONE allowed render path — the rule is disabled inline there.
-    files: ['src/components/Markdown.tsx'],
-    rules: { 'no-restricted-syntax': 'off' },
-  },
-  {
     // Data-fetching hooks: setting state inside the effect after an async
     // resolve is the canonical pattern (with an active-token guard), not the
     // anti-pattern this rule targets.
