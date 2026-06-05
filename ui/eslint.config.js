@@ -34,10 +34,10 @@ export default tseslint.config(
     rules: { 'no-restricted-syntax': 'off' },
   },
   {
-    // useResource is a data-fetching hook: setting state inside the effect after
-    // an async resolve is the canonical pattern (with an active-flag guard), not
-    // the anti-pattern this rule targets.
-    files: ['src/lib/useResource.ts'],
+    // Data-fetching hooks: setting state inside the effect after an async
+    // resolve is the canonical pattern (with an active-token guard), not the
+    // anti-pattern this rule targets.
+    files: ['src/lib/use*.ts'],
     rules: { 'react-hooks/set-state-in-effect': 'off' },
   },
   {
