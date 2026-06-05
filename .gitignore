@@ -25,6 +25,9 @@ Thumbs.db
 # Test artifacts
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
+.playwright/
 
 # Claude Code (per-user state; project settings should be committed)
 .claude/local/

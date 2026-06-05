@@ -32,6 +32,7 @@
     "test": "vitest run --project=unit --project=integration",
     "test:smoke": "vitest run --project=smoke",
     "test:smoke:concurrency": "vitest run --project=smoke tests/smoke/concurrency.test.ts",
+    "test:smoke:ui": "pnpm build:ui && playwright test",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format": "prettier --write ."
@@ -45,6 +46,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.60.0",
     "@types/node": "25.9.1",
     "@typescript-eslint/eslint-plugin": "8.59.4",
     "@typescript-eslint/parser": "8.59.4",
