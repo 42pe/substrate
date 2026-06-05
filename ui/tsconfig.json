@@ -16,8 +16,9 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "useDefineForClassFields": true,
-    "allowImportingTsExtensions": false
+    "allowImportingTsExtensions": false,
+    "paths": { "@core/*": ["../src/core/*"] }
   },
-  "include": ["src/**/*", "vite.config.ts"],
+  "include": ["src/**/*", "vite.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

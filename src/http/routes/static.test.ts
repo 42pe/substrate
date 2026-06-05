@@ -37,6 +37,25 @@ describe('registerStaticFallback', () => {
       const res = await app.request('/assets/index-abc.js');
       expect(res.status).toBe(404);
     });
+
+    it('SPA fallback: an unmatched non-/api GET serves the placeholder index.html', async () => {
+      const app = new Hono();
+      registerStaticFallback(app, projectRoot);
+
+      const res = await app.request('/boards/some-id');
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toMatch(/text\/html/);
+      expect(await res.text()).toContain('Substrate is running');
+    });
+
+    it('SPA fallback: an unknown /api/* GET is NOT served the SPA (404, not HTML)', async () => {
+      const app = new Hono();
+      registerStaticFallback(app, projectRoot);
+
+      const res = await app.request('/api/unknown');
+      expect(res.status).toBe(404);
+      expect(res.headers.get('content-type') ?? '').not.toMatch(/text\/html/);
+    });
   });
 
   describe('when dist/ui/ exists', () => {

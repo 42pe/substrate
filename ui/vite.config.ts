@@ -20,6 +20,11 @@ import { resolve } from 'node:path';
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    // `@core` → the server's source-of-truth types. UI imports TYPES ONLY
+    // (`import type`), so nothing is emitted into the bundle.
+    alias: { '@core': resolve(__dirname, '..', 'src', 'core') },
+  },
   build: {
     outDir: resolve(__dirname, '..', 'dist', 'ui'),
     emptyOutDir: true,

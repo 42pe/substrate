@@ -92,6 +92,7 @@ export function registerStaticFallback(app: Hono, projectRoot: string): void {
   const assetMap = new Map<string, Buffer>();
   loadAssetsRecursive(assetsDir, '/assets', assetMap);
 
+  // `/` is also covered by the SPA catch-all below; kept for intent clarity.
   app.get('/', (c) => c.html(indexHtml));
 
   app.get('/assets/*', (c) => {
@@ -101,5 +102,17 @@ export function registerStaticFallback(app: Hono, projectRoot: string): void {
     const ext = extname(requestedPath).toLowerCase();
     const contentType = CONTENT_TYPE_BY_EXT[ext] ?? 'application/octet-stream';
     return c.body(new Uint8Array(body), 200, { 'Content-Type': contentType });
+  });
+
+  // SPA fallback (Phase 5b): serve index.html for any other GET so client-side
+  // deep links (`/boards/:id`, `/tasks/:id`) load the app. Registered LAST, so
+  // it only matches paths no earlier route claimed. CRITICAL: never serve the
+  // SPA for an unknown `/api/*` path — those must 404 (JSON-ish), not HTML, so
+  // a typo'd API call doesn't silently get an HTML 200. The registered `/api`
+  // routes (in createApp, before this) are matched first; this guard catches
+  // the UNKNOWN ones.
+  app.get('*', (c) => {
+    if (c.req.path.startsWith('/api/')) return c.notFound();
+    return c.html(indexHtml);
   });
 }

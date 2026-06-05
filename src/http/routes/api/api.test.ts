@@ -228,4 +228,16 @@ describe('HTTP read API', () => {
     const res = await app.request('/api/project');
     expect(res.headers.get('content-type')).toMatch(/application\/json/);
   });
+
+  it('a client deep-link (/boards/x) falls through to the SPA index.html', async () => {
+    const res = await app.request('/boards/x');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/text\/html/);
+  });
+
+  it('an UNKNOWN /api/* path returns 404, NOT the SPA HTML (catch-all excludes /api)', async () => {
+    const res = await app.request('/api/nope');
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type') ?? '').not.toMatch(/text\/html/);
+  });
 });
