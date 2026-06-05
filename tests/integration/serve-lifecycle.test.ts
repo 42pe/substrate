@@ -111,6 +111,15 @@ describe('substrate serve — lifecycle (integration)', () => {
     expect(stderr).toMatch(/already running/i);
   });
 
+  it('serves the read API over a bound port (GET /api/project)', async () => {
+    child = spawnCli(['serve'], { cwd, env: { SUBSTRATE_PORT_OVERRIDE: String(port) } });
+    await waitFor(() => fetchOk(port), { timeoutMs: 15_000 });
+    const res = await fetch(`http://127.0.0.1:${port}/api/project`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { project_id: string };
+    expect(body.project_id).toMatch(/^[0-9a-f]{8}-/i);
+  });
+
   it('reclaims a stale PID file (dead process) and starts cleanly', async () => {
     // Simulate an ungraceful prior exit: a PID file pointing at a dead process.
     const { writeFile, mkdir } = await import('node:fs/promises');

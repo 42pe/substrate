@@ -56,7 +56,7 @@ All under `/api`, all `GET`, all behind the origin allowlist. JSON responses. `n
 | `GET /api/project` | `get_project` | — | project record (id, name, description, version, schema_version, created_at) |
 | `GET /api/boards` | `list_boards` | `?archived=true\|false`, `?cursor=`, `?page_size=` | `{ results: BoardSummary[], pagination }` |
 | `GET /api/boards/:id` | `get_board_substrate` | path `:id` | `{ board, groups, field_schema, policies }` |
-| `GET /api/tasks` | `list_tasks` | `?board_id=`, `?in_groups=a,b`, `?archived=`, `?text_search=`, `?missing_required_fields=true`, `?parent_id=`, `?cursor=`, `?page_size=`, `?sort=created_at\|updated_at`, `?direction=asc\|desc` | `{ results: Task[], pagination }` |
+| `GET /api/tasks` | `list_tasks` | `?board_id=`, `?in_groups=a,b`, `?not_in_groups=a,b`, `?has_subtasks=`, `?archived=`, `?text_search=`, `?missing_required_fields=true`, `?parent_id=`, `?created_before/after=`, `?updated_before/after=`, `?cursor=`, `?page_size=`, `?sort=created_at\|updated_at`, `?direction=asc\|desc` | `{ results: Task[], pagination }` |
 | `GET /api/tasks/:id` | `get_task` | path `:id` | `Task` |
 | `GET /api/tasks/:id/history` | `get_task_history` | path `:id`, `?event_types=a,b`, `?since=`, `?until=`, `?cursor=`, `?page_size=` | `{ results: TaskEvent[], pagination }` |
 | `GET /api/tasks/:id/comments` | `list_comments` | path `:id`, `?parent_id=`, `?since=`, `?until=`, `?cursor=`, `?page_size=` | `{ results: Comment[], pagination }` |
