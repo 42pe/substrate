@@ -3,6 +3,7 @@ import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { paths, substrateRootFromCwd } from '../../shared/paths.js';
 import { readConfig } from '../../shared/config.js';
 import { openDatabaseAndMigrate } from '../../storage/client.js';
+import { loadSubstrate } from '../../substrate/loader.js';
 import {
   createApp,
   defaultHttpConfig,
@@ -84,6 +85,9 @@ export async function serveCommand(cwd: string): Promise<void> {
     port,
     allowedOrigins: [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
     allowedHosts: [`localhost:${port}`, `127.0.0.1:${port}`],
+    // Read API deps (Phase 5a): reuses the client serve already opened. No
+    // `root` — the HTTP surface is reads-only.
+    apiDeps: { client, config, loadSubstrate: () => loadSubstrate(root) },
   };
   const app = createApp(httpConfig);
 

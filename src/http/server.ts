@@ -4,6 +4,7 @@ import { originAllowlist } from './middleware/origin-allowlist.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerStaticFallback } from './routes/static.js';
+import { registerApiRoutes, type ApiDeps } from './routes/api/index.js';
 
 /**
  * HTTP server configuration. Locked defaults: port 7475, localhost-only.
@@ -18,9 +19,17 @@ export interface HttpConfig {
   allowedHosts: readonly string[];
   /**
    * Repo root — used by the static fallback route to locate dist/ui/.
-   * Typically `process.cwd()` at the CLI invocation time.
+   * Typically `process.cwd()` at the CLI invocation time. Deliberately distinct
+   * from `apiDeps` (which carries no root): this locates UI assets, not the
+   * `.substrate/` dir.
    */
   projectRoot: string;
+  /**
+   * Read-API dependencies (Phase 5a). When present, the `/api` read routes are
+   * mounted. Omitted in health-only / static-only test apps. No `root` — the
+   * HTTP surface is reads-only and structurally can't reach the write path.
+   */
+  apiDeps?: ApiDeps;
 }
 
 export const DEFAULT_PORT = 7475;
@@ -51,8 +60,13 @@ export function createApp(config: HttpConfig): Hono {
     }),
   );
 
-  // Routes
+  // Routes. The read API mounts BEFORE the static fallback so a future
+  // client-side-routing catch-all in the SPA can't shadow `/api` (the static
+  // route is `/` + `/assets/*` only today, so there's no shadowing yet).
   registerHealthRoute(app);
+  if (config.apiDeps) {
+    registerApiRoutes(app, config.apiDeps);
+  }
   registerStaticFallback(app, config.projectRoot);
 
   // Top-level error handler — catches anything thrown from routes/middleware
