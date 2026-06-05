@@ -1,0 +1,69 @@
+name: Auto-close incomplete issues
+
+# Closes bug reports that are missing required template fields, and reopens them
+# once the missing fields are supplied. Maintainers can exempt an issue by adding
+# the `needs-info-exempt` label.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  check-required-fields:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = (issue.labels || []).map((l) => (typeof l === 'string' ? l : l.name));
+
+            // Opt-out + scope: only enforce on bug-report issues, never on exempt ones.
+            if (labels.includes('needs-info-exempt')) return;
+            if (!labels.includes('bug')) return;
+
+            // These headings MUST stay byte-identical to the field `label`s in
+            // .github/ISSUE_TEMPLATE/bug_report.yml (GitHub renders each as
+            // "### <label>"). Keep the two files in sync.
+            const required = [
+              'Node version',
+              'Operating system',
+              '`substrate diagnose` output',
+              'Reproduction steps',
+            ];
+
+            const body = issue.body || '';
+            const missing = required.filter((h) => {
+              const heading = '### ' + h;
+              const idx = body.indexOf(heading);
+              if (idx === -1) return true;
+              // GitHub renders an empty optional field as "_No response_".
+              const after = body.slice(idx + heading.length, idx + heading.length + 200);
+              return /_No response_/.test(after);
+            });
+
+            const marker = '<!-- auto-close-incomplete -->';
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+
+            if (missing.length > 0) {
+              const comments = await github.rest.issues.listComments({ ...repo, issue_number: issue.number });
+              if (!comments.data.some((c) => (c.body || '').includes(marker))) {
+                await github.rest.issues.createComment({
+                  ...repo,
+                  issue_number: issue.number,
+                  body: `${marker}\nThanks for the report! This issue is missing required information: **${missing.join(', ')}**.\n\nPlease edit the issue to complete every field of the bug-report form (Node version, operating system, \`substrate diagnose\` output, and reproduction steps). It will reopen automatically once all fields are filled in.`,
+                });
+              }
+              await github.rest.issues.addLabels({ ...repo, issue_number: issue.number, labels: ['incomplete'] });
+              await github.rest.issues.update({ ...repo, issue_number: issue.number, state: 'closed' });
+              return;
+            }
+
+            // Complete now — reopen if we had previously closed it for missing info.
+            if (issue.state === 'closed' && labels.includes('incomplete')) {
+              await github.rest.issues.removeLabel({ ...repo, issue_number: issue.number, name: 'incomplete' }).catch(() => {});
+              await github.rest.issues.update({ ...repo, issue_number: issue.number, state: 'open' });
+            }

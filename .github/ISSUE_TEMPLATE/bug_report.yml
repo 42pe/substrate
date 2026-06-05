@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible bug in Substrate
+labels: ['bug', 'needs-triage']
+# COUPLING: the field `label`s below render in the issue body as `### <label>`
+# headings. The auto-close workflow (.github/workflows/auto-close-incomplete-issues.yml)
+# greps for these EXACT headings. If you rename a label here, update that
+# workflow's `required` list to match, or incomplete-issue detection breaks.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please complete **every** field below — issues
+        missing required fields are auto-closed by a bot asking for them. Just
+        edit the issue to fill them in and it reopens automatically.
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: Output of `node --version`.
+      placeholder: v20.11.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: OS + version (e.g. macOS 14.5, Ubuntu 24.04, Windows 11 / WSL2).
+      placeholder: macOS 14.5
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: '`substrate diagnose` output'
+      description: Paste the full output of `npx @diegoferreyra/substrate diagnose`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal, deterministic steps. Include what you expected vs. what actually happened.
+      placeholder: |
+        1. npx @diegoferreyra/substrate init
+        2. ...
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true

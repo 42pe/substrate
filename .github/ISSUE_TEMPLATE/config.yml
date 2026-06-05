@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support & platform policy
+    url: https://github.com/diegoferreyra/substrate/blob/main/SUPPORT.md
+    about: Solo project — weekly triage, no SLAs, Windows/WSL best-effort. Read before filing.
