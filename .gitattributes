@@ -1,0 +1,15 @@
+# Normalize line endings: text files are LF in the repo and on checkout on
+# every platform. Without this, a Windows checkout (autocrlf) turns LF into
+# CRLF and `prettier --check` flags every file as unformatted.
+* text=auto eol=lf
+
+# Binary / non-diffable assets — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.tgz binary
+*.sqlite binary

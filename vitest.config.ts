@@ -29,6 +29,11 @@ export default defineConfig({
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
           fileParallelism: false,
+          // Several integration tests spawn the CLI (`npx tsx` → node) and
+          // wait up to 15s for the server to bind. The default 5s per-test
+          // timeout fires before those internal waits on a cold CI runner
+          // (cold tsx compile + process spawn), so raise it well above 15s.
+          testTimeout: 30_000,
         },
       },
       {
