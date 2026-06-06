@@ -40,9 +40,11 @@ const PLACEHOLDER_HTML = `<!doctype html>
 </head>
 <body>
   <h1>Substrate is running</h1>
-  <p>The HTTP server is up. The web UI is not built yet.</p>
-  <p>To build the UI, run <code>pnpm build:ui</code>. Then restart the server.</p>
-  <p class="muted">Phase 1 walking skeleton.</p>
+  <p>The server is up, but the web UI assets weren't found in this install.</p>
+  <p>If you installed Substrate from npm, this shouldn't happen — please
+     <a href="https://github.com/42pe/substrate/issues">file an issue</a> with the output of
+     <code>substrate diagnose</code>.</p>
+  <p class="muted">Developing from source? Run <code>pnpm build:ui</code>, then restart the server.</p>
 </body>
 </html>
 `;
@@ -78,8 +80,31 @@ function loadAssetsRecursive(dir: string, prefix: string, map: Map<string, Buffe
   }
 }
 
-export function registerStaticFallback(app: Hono, projectRoot: string): void {
-  const uiDir = resolve(projectRoot, 'dist', 'ui');
+/**
+ * Locate the built `dist/ui` directory relative to THIS compiled file (i.e. the
+ * binary/install), not the user's cwd — so `serve` finds the UI from any project
+ * directory. Two layouts:
+ *   - installed/built: `dist/server/http/routes/static.js` → `../../../ui` = `dist/ui`
+ *   - dev via tsx:      `src/http/routes/static.ts`        → `../../../dist/ui`
+ * Tests pass an explicit `uiDir` to bypass this search.
+ */
+function defaultUiDir(): string {
+  const here = import.meta.dirname;
+  const candidates = [
+    resolve(here, '..', '..', '..', 'ui'), // built/installed: dist/server/http/routes → dist/ui
+    resolve(here, '..', '..', '..', 'dist', 'ui'), // dev via tsx: src/http/routes → <repo>/dist/ui
+  ];
+  // A BUILT UI has both index.html AND an assets/ dir. The UI *source* dir
+  // (`<repo>/ui`) also has an index.html (referencing /src/main.tsx) but no
+  // assets/ — requiring assets/ rejects it, so dev (tsx) doesn't serve the
+  // unbuilt source index.
+  const built = (d: string): boolean =>
+    existsSync(join(d, 'index.html')) && existsSync(join(d, 'assets'));
+  return candidates.find(built) ?? candidates[0]!;
+}
+
+export function registerStaticFallback(app: Hono, uiDirOverride?: string): void {
+  const uiDir = uiDirOverride ?? defaultUiDir();
   const indexHtmlPath = resolve(uiDir, 'index.html');
   const assetsDir = resolve(uiDir, 'assets');
 

@@ -1,6 +1,6 @@
 import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, rm, cp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
@@ -54,9 +54,9 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
 
 test.beforeAll(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'substrate-ui-smoke-'));
-  // The static route serves <cwd>/dist/ui — copy the real build in so the
-  // smoke exercises the actual app, not the "not built yet" placeholder.
-  await cp(join(REPO_ROOT, 'dist', 'ui'), join(tempDir, 'dist', 'ui'), { recursive: true });
+  // The static route resolves dist/ui relative to the BINARY (here: the repo,
+  // since the fixture runs the CLI via tsx on src), so the smoke serves the
+  // real build with no per-cwd copy. `test:smoke:ui` runs `pnpm build:ui` first.
 
   const port = await freePort();
   baseURL = `http://127.0.0.1:${port}`;

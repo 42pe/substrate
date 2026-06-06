@@ -18,12 +18,13 @@ export interface HttpConfig {
   allowedOrigins: readonly string[];
   allowedHosts: readonly string[];
   /**
-   * Repo root — used by the static fallback route to locate dist/ui/.
-   * Typically `process.cwd()` at the CLI invocation time. Deliberately distinct
-   * from `apiDeps` (which carries no root): this locates UI assets, not the
-   * `.substrate/` dir.
+   * Explicit override for the built-UI directory (`dist/ui`). Normally omitted:
+   * the static route locates `dist/ui` relative to the BINARY (where the package
+   * is installed), NOT the user's cwd — so `serve` works from any project dir.
+   * Tests pass an explicit dir. (Pre-0.2.1 this was `projectRoot` = cwd, which
+   * broke `serve` from any directory other than the Substrate repo root.)
    */
-  projectRoot: string;
+  uiDir?: string;
   /**
    * Read-API dependencies (Phase 5a). When present, the `/api` read routes are
    * mounted. Omitted in health-only / static-only test apps. No `root` — the
@@ -34,12 +35,11 @@ export interface HttpConfig {
 
 export const DEFAULT_PORT = 7475;
 
-export function defaultHttpConfig(projectRoot: string): HttpConfig {
+export function defaultHttpConfig(): HttpConfig {
   return {
     port: DEFAULT_PORT,
     allowedOrigins: [`http://localhost:${DEFAULT_PORT}`, `http://127.0.0.1:${DEFAULT_PORT}`],
     allowedHosts: [`localhost:${DEFAULT_PORT}`, `127.0.0.1:${DEFAULT_PORT}`],
-    projectRoot,
   };
 }
 
@@ -67,7 +67,7 @@ export function createApp(config: HttpConfig): Hono {
   if (config.apiDeps) {
     registerApiRoutes(app, config.apiDeps);
   }
-  registerStaticFallback(app, config.projectRoot);
+  registerStaticFallback(app, config.uiDir);
 
   // Top-level error handler — catches anything thrown from routes/middleware
   // that wasn't already turned into a Response.
@@ -106,13 +106,28 @@ export function startHttpServer(app: Hono, port: number): Promise<ServerType> {
 }
 
 /**
- * Promise-wrap server.close(). Node's `http.Server.close()` is async
- * (stops accepting new connections, then waits for in-flight requests to
- * finish, then calls the callback). Callers must `await` this before
- * `process.exit()` to avoid corrupting in-flight responses. Reviewer C-2 fix.
+ * Promise-wrap server.close(). Node's `http.Server.close()` stops accepting new
+ * connections, then waits for EXISTING connections to finish before its callback
+ * fires. A browser tab keeps an idle keep-alive socket open, so `close()` would
+ * otherwise never complete and `Ctrl+C` hangs at "shutting down".
+ *
+ * Fix: after requesting close, force-drop all open sockets with
+ * `closeAllConnections()` (Node ≥18.2) so the callback can fire promptly. We
+ * also resolve after a short grace timeout as a belt-and-suspenders backstop, so
+ * shutdown can never wedge regardless of socket state.
  */
 export function closeHttpServer(server: ServerType): Promise<void> {
   return new Promise((resolve) => {
-    server.close(() => resolve());
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    server.close(() => finish());
+    // Drop idle/keep-alive sockets (e.g. an open browser tab) so close() fires.
+    (server as { closeAllConnections?: () => void }).closeAllConnections?.();
+    // Backstop: never wedge if a socket refuses to die.
+    setTimeout(finish, 2000).unref();
   });
 }

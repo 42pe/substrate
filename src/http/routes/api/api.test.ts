@@ -103,7 +103,7 @@ describe('HTTP read API', () => {
       occurred_at: '2026-05-09T00:00:00.000Z',
     });
     app = createApp({
-      ...defaultHttpConfig(dir),
+      ...defaultHttpConfig(),
       apiDeps: { client, config, loadSubstrate: () => loadSubstrate(root) },
     });
   });

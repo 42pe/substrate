@@ -4,6 +4,18 @@ All notable user-facing changes are tracked here. This project adheres to
 [Semantic Versioning](https://semver.org/). Per-phase internal build notes live
 in `.agents/audits/phase-{N}-audit.md`.
 
+## [0.2.1]
+
+### Fixed
+
+- **`substrate serve` now serves the web UI from any project directory.** The
+  built UI is located relative to the install, not the current working directory,
+  so the UI no longer shows the "not built yet" placeholder when `serve` is run
+  outside the Substrate repo.
+- **`Ctrl+C` (SIGINT) on `substrate serve` now exits promptly** instead of
+  hanging at "shutting down" when a browser tab holds a keep-alive connection
+  open (open sockets are dropped on shutdown, with a timeout backstop).
+
 ## [0.2.0]
 
 ### Added

@@ -81,7 +81,7 @@ export async function serveCommand(cwd: string): Promise<void> {
   }
 
   const httpConfig: HttpConfig = {
-    ...defaultHttpConfig(cwd),
+    ...defaultHttpConfig(),
     port,
     allowedOrigins: [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
     allowedHosts: [`localhost:${port}`, `127.0.0.1:${port}`],

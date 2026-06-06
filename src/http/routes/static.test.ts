@@ -21,7 +21,7 @@ describe('registerStaticFallback', () => {
   describe('when dist/ui/ is absent', () => {
     it('serves the placeholder HTML at /', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/');
       expect(res.status).toBe(200);
@@ -32,7 +32,7 @@ describe('registerStaticFallback', () => {
 
     it('serves nothing at /assets/* (404)', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/assets/index-abc.js');
       expect(res.status).toBe(404);
@@ -40,7 +40,7 @@ describe('registerStaticFallback', () => {
 
     it('SPA fallback: an unmatched non-/api GET serves the placeholder index.html', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/boards/some-id');
       expect(res.status).toBe(200);
@@ -50,7 +50,7 @@ describe('registerStaticFallback', () => {
 
     it('SPA fallback: an unknown /api/* GET is NOT served the SPA (404, not HTML)', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/api/unknown');
       expect(res.status).toBe(404);
@@ -72,7 +72,7 @@ describe('registerStaticFallback', () => {
 
     it('serves the real index.html at /', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/');
       expect(res.status).toBe(200);
@@ -82,7 +82,7 @@ describe('registerStaticFallback', () => {
 
     it('serves /assets/<file>.js with the file contents (B1 regression test)', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/assets/index-abc.js');
       expect(res.status).toBe(200);
@@ -92,7 +92,7 @@ describe('registerStaticFallback', () => {
 
     it('serves /assets/<file>.css', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       const res = await app.request('/assets/index-def.css');
       expect(res.status).toBe(200);
@@ -102,7 +102,7 @@ describe('registerStaticFallback', () => {
 
     it('rejects traversal attempts via /assets/../ paths with 403', async () => {
       const app = new Hono();
-      registerStaticFallback(app, projectRoot);
+      registerStaticFallback(app, uiDir);
 
       // Hono normalizes most paths; we test the canonicalizer's defense
       // by constructing a URL that resolves outside the assets dir.
