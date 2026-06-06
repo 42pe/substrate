@@ -1,5 +1,4 @@
-import { ANY_NODE_ID, buildFlowModel, type FlowModel, type FlowNode } from './flow.js';
-import type { Board } from '../core/types.js';
+import { ANY_NODE_ID, type FlowModel, type FlowNode } from './flow.js';
 import { escXml, truncate } from './html.js';
 
 /**
@@ -52,11 +51,6 @@ function edgePath(
     ? `<text x="${lx}" y="${ly}" text-anchor="middle">${escXml(truncate(label, 28))}</text>`
     : '';
   return `<g class="edge ${cls}">${title}<path d="${d}" marker-end="url(#arrow)"/>${text}</g>`;
-}
-
-export function boardSvg(board: Board): string {
-  const model: FlowModel = buildFlowModel(board);
-  return renderModel(model);
 }
 
 export function renderModel(model: FlowModel): string {

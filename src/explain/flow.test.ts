@@ -144,4 +144,16 @@ describe('buildFlowModel — edge derivation', () => {
     expect(m.archivedNodes.map((n) => n.id)).toEqual(['x']);
     expect(m.edges.some((e) => e.to === 'x' || e.from === 'x')).toBe(false);
   });
+
+  it('a guard targeting an ARCHIVED group draws no edge (no orphan/drop)', () => {
+    const m = buildFlowModel(
+      board(
+        [group('a', 0), group('done', 1, true)],
+        [guard('w', '*', 'done'), guard('c', 'a', 'done')],
+      ),
+    );
+    expect(m.edges.some((e) => e.to === 'done')).toBe(false);
+    expect(m.hasAny).toBe(false); // no live wildcard target → no synthetic "any" box
+    expect(m.archivedNodes.map((n) => n.id)).toEqual(['done']);
+  });
 });

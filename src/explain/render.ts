@@ -2,7 +2,8 @@ import type { Board, FieldSchemaEntry, Policy, Substrate } from '../core/types.j
 import { parseGuardDefinition } from '../policy/transition-guard.js';
 import { parseResponsibilityDefinition } from '../policy/agent-responsibility.js';
 import { describeConditions } from './conditions.js';
-import { boardSvg } from './svg.js';
+import { buildFlowModel, type FlowModel } from './flow.js';
+import { renderModel } from './svg.js';
 import { escHtml, pageShell } from './html.js';
 
 /** Render the whole substrate as one self-contained HTML page. */
@@ -35,16 +36,34 @@ Condition fields: <code>task.&lt;field&gt;</code> reads the literal task field i
 </p>`;
 
 function renderBoard(board: Board): string {
+  const model = buildFlowModel(board);
   const out: string[] = [`<div class="board">`];
   out.push(`<h2>${escHtml(board.name)}</h2>`);
   out.push(`<p class="mono muted">${escHtml(board.id)}</p>`);
   if (board.description) out.push(`<p>${escHtml(board.description)}</p>`);
-  out.push(`<div class="diagram">${boardSvg(board)}</div>`);
+  out.push(`<div class="diagram">${renderModel(model)}</div>`);
+  out.push(conditionalSuggestions(model));
   out.push(fieldTable('Task fields', board.field_schema.task));
   out.push(fieldTable('Comment fields', board.field_schema.comments));
   out.push(policyList(board.policies));
   out.push(`</div>`);
   return out.join('\n');
+}
+
+/**
+ * Suggestions whose `when` isn't a single-stage condition (so they aren't pinned
+ * to one diagram node) — listed once per board for the at-a-glance view. The
+ * full detail is still in the policy list below.
+ */
+function conditionalSuggestions(model: FlowModel): string {
+  if (model.conditionalSuggestions.length === 0) return '';
+  const items = model.conditionalSuggestions
+    .map(
+      (s) =>
+        `<li><strong>${escHtml(s.policyName)}</strong> — when ${escHtml(s.when)}: ${escHtml(s.message)}</li>`,
+    )
+    .join('');
+  return `<h3>Conditional suggestions</h3><ul>${items}</ul>`;
 }
 
 function fieldTable(label: string, fields: Record<string, FieldSchemaEntry>): string {

@@ -25,4 +25,13 @@ describe('template registry', () => {
     expect(a).not.toBe(b);
     expect(a).toEqual(b);
   });
+
+  it('the parse gate (BoardSchema) rejects a corrupt board', () => {
+    // loadTemplateBoard relies on BoardSchema.parse as the ONLY validation —
+    // createBoardFile writes verbatim. Prove the gate actually rejects garbage.
+    expect(() => BoardSchema.parse({ id: 'x', name: 'x' })).toThrow();
+    expect(() =>
+      BoardSchema.parse({ ...loadTemplateBoard('web-delivery'), groups: 'nope' }),
+    ).toThrow();
+  });
 });
