@@ -41,34 +41,36 @@ Other commands: `substrate backup`, `substrate export <path>`, `substrate import
 ## Using Substrate with a coding agent
 
 Substrate is built to be driven by an AI coding agent (Claude Code or any
-skill-aware, MCP-capable runtime). The repo ships a **skill** that teaches an
-agent to set itself up and use Substrate almost autonomously — so you can open a
-project and say _"track our work in Substrate"_ and it takes over.
+skill-aware, MCP-capable runtime). It can set _itself_ up almost autonomously.
 
-**One-time setup (while Substrate is private/unpublished):**
+**The one-sentence path — point your agent at this repo.** From the project you
+want to track, tell your agent (with a clone checked out locally):
 
-```sh
-# 1. Build + globally link the binary (from the Substrate repo)
-pnpm build && pnpm link --global      # `substrate` is now on your PATH
+> Read `<path-to-substrate-repo>/AGENTS.md` and set up Substrate in this project.
 
-# 2. Install the skill for every project
-mkdir -p ~/.claude/skills && cp -R skills/substrate ~/.claude/skills/substrate
-```
+The agent builds + links the binary, **installs the skill into `~/.claude/skills/`
+so future sessions auto-trigger**, registers the MCP server in this project's
+`.mcp.json`, runs `substrate init`, leaves a `CLAUDE.md` pointer, and confirms
+with `whoami`. See [`AGENTS.md`](AGENTS.md). (The repo is private, so use the
+local clone path — a `gh`-authenticated clone or a raw URL works once it's
+public. Steps that touch global state — `pnpm link --global`, writing to
+`~/.claude/` — the agent will call out before running.)
 
-**Then, in any project**, tell your agent:
+**After that first run**, the skill is installed, so in _any_ project you just
+say:
 
-> Set up Substrate here and start tracking our work in it.
+> Track our work in Substrate.
 
-The skill registers the MCP server in the project's `.mcp.json`, runs
-`substrate init`, leaves a `CLAUDE.md` pointer for future sessions, and from
-then on drives Substrate's 29 MCP tools by a documented set of conventions
-(call `whoami` first, optimistic-concurrency updates, read the policy envelope,
-etc.). See [`skills/`](skills/) and [`skills/substrate/SKILL.md`](skills/substrate/SKILL.md)
-for the full skill, and register the MCP server manually with the config snippet
-in [Quick start](#quick-start) if you prefer not to use the skill.
+and it takes over — driving Substrate's 29 MCP tools by a documented set of
+conventions (`whoami` first, optimistic-concurrency updates, read the policy
+envelope, …). The full guide is [`skills/substrate/SKILL.md`](skills/substrate/SKILL.md).
 
-Once Substrate is published to npm, the global-link step goes away — the MCP
-command becomes `npx @diegoferreyra/substrate mcp`.
+**Prefer to do it by hand?** Build + link once
+(`pnpm build && pnpm link --global`), copy the skill
+(`cp -R skills/substrate ~/.claude/skills/substrate`), and add the MCP server
+with the config snippet in [Quick start](#quick-start). Once Substrate is on npm,
+the link step goes away and the MCP command becomes
+`npx @diegoferreyra/substrate mcp`.
 
 ## Supported platforms
 

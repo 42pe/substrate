@@ -15,24 +15,25 @@ The one skill you need. It encodes both halves of onboarding:
   substrate-as-code model, the task/comment lifecycle, optimistic-concurrency
   updates, and how to read the policy envelope.
 
-### Install it (one time)
+### Install it
 
-Make the skill available in **every** project by copying it into your user
-skills directory:
+**Easiest — let the agent install it.** Point your agent at the repo once and it
+self-installs the skill (and sets everything else up):
+
+> Read `<path-to-substrate-repo>/AGENTS.md` and set up Substrate in this project.
+
+See [`../AGENTS.md`](../AGENTS.md). After that first run the skill lives in
+`~/.claude/skills/` and auto-triggers in every project.
+
+**By hand** — copy it into your user skills directory (available everywhere) or a
+project's `.claude/skills/`:
 
 ```sh
 # from the Substrate repo
-mkdir -p ~/.claude/skills
-cp -R skills/substrate ~/.claude/skills/substrate
+mkdir -p ~/.claude/skills && cp -R skills/substrate ~/.claude/skills/substrate
 ```
 
-Or install it per-project into `<project>/.claude/skills/substrate/`.
-
-Then, in any project, just tell your agent:
-
-> Set up Substrate here and start tracking our work in it.
-
-The skill triggers, performs setup, and from then on uses Substrate's MCP tools
-by the conventions it describes. See [`../README.md`](../README.md#using-substrate-with-a-coding-agent)
-for the full walkthrough, including the one-time global-link install needed
-while Substrate is still private/unpublished.
+Either way, once installed you just tell your agent _"track our work in
+Substrate"_ and it drives the MCP tools by the conventions in `substrate/SKILL.md`.
+See [`../README.md`](../README.md#using-substrate-with-a-coding-agent) for the
+full walkthrough.

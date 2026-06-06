@@ -32,15 +32,25 @@ Do this once per project. Skip straight to Part 2 if `whoami` already works.
    already connected (can you call `whoami`)? If both yes → go to Part 2.
 
 2. **Ensure the binary is available.** Until Substrate is published to npm it is
-   used from a local global link. If the `substrate` command is not on PATH, ask
-   the human to run this once (in the Substrate repo, not this project):
+   used from a local global link. Run `command -v substrate`; if it's missing,
+   build + link it once from the Substrate repo (announce this global action):
 
    ```sh
-   pnpm build && pnpm link --global
+   cd <substrate-repo> && pnpm install && pnpm build && pnpm link --global
    ```
 
    (After Substrate ships to npm this whole step becomes
    `npx @diegoferreyra/substrate`.)
+
+   **Self-install this skill** so setup auto-triggers in future sessions
+   everywhere (idempotent — skip if already present):
+
+   ```sh
+   mkdir -p ~/.claude/skills && cp -R <substrate-repo>/skills/substrate ~/.claude/skills/substrate
+   ```
+
+   (See [`AGENTS.md`](../../AGENTS.md) in the repo for the same flow when a human
+   points you at the repo directly.)
 
 3. **Register the MCP server.** Merge this into the project's `.mcp.json`
    (create the file if absent; do NOT clobber other servers):
