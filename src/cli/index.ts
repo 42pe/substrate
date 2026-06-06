@@ -24,6 +24,7 @@ import { backupCommand } from './commands/backup.js';
 import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { diagnoseCommand } from './commands/diagnose.js';
+import { explainCommand } from './commands/explain.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -40,6 +41,9 @@ Usage:
   substrate export <path>     Write a .tar.gz of the substrate to <path>
   substrate import <path>     Restore a substrate archive (--force to overwrite)
   substrate diagnose          Print environment + substrate health
+  substrate explain [--out <file>]
+                              Write a self-contained HTML map of the substrate
+                              (default: ./substrate-explain.html)
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -110,6 +114,12 @@ Next steps:
       rejectUnknownFlags('diagnose', rest);
       await diagnoseCommand(cwd);
       return;
+    case 'explain': {
+      const { value: out, rest: explainRest } = extractFlagValue(rest, '--out');
+      rejectUnknownFlags('explain', explainRest);
+      await explainCommand(cwd, out !== undefined ? { out } : {});
+      return;
+    }
     case '--help':
     case '-h':
     case 'help':

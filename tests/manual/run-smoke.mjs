@@ -26,6 +26,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { mkdtemp, rm, readFile, mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -396,6 +397,20 @@ try {
     fail('diagnose', `exit ${diag.status}: ${diag.stdout}\n${diag.stderr}`);
   } else {
     pass('diagnose', 'no problems found');
+  }
+
+  // Step 9 — explain writes a self-contained HTML map (with an <svg>, no scripts).
+  const exp = spawnSync('npx', ['tsx', CLI_ENTRY, 'explain', '--out', 'explain.html'], {
+    cwd,
+    encoding: 'utf-8',
+  });
+  const explainHtml = existsSync(join(cwd, 'explain.html'))
+    ? await readFile(join(cwd, 'explain.html'), 'utf-8')
+    : '';
+  if (exp.status !== 0 || !explainHtml.includes('<svg') || explainHtml.includes('<script')) {
+    fail('explain', `exit ${exp.status}: ${exp.stderr || 'no <svg> / has <script>'}`);
+  } else {
+    pass('explain', 'wrote self-contained HTML map');
   }
 } finally {
   await rm(cwd, { recursive: true, force: true });
