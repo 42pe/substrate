@@ -5,10 +5,10 @@
   "type": "module",
   "license": "MIT",
   "author": "Diego Ferreyra <diego@404.pe>",
-  "homepage": "https://github.com/diegoferreyra/substrate",
+  "homepage": "https://github.com/42pe/substrate",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/diegoferreyra/substrate.git"
+    "url": "git+https://github.com/42pe/substrate.git"
   },
   "bin": {
     "substrate": "./dist/server/cli/index.js"
