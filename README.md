@@ -5,13 +5,17 @@
 ## Quick start
 
 ```sh
-# 1. Initialize a .substrate/ in your project
+# 1. Initialize a .substrate/ in your project (blank, or seed a starter board)
 npx @diegoferreyra/substrate init
+npx @diegoferreyra/substrate init --template web-delivery   # opt-in starter board
 
 # 2. Inspect it in your browser (http://localhost:7475)
 npx @diegoferreyra/substrate serve
 
 # 3. Let your agent drive it — add the MCP server to your agent runtime's config
+
+# (optional) Write a self-contained HTML map of the substrate:
+npx @diegoferreyra/substrate explain   # → ./substrate-explain.html
 ```
 
 MCP config (e.g. Claude Code / any MCP-compatible runtime):

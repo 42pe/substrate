@@ -4,6 +4,17 @@ All notable user-facing changes are tracked here. This project adheres to
 [Semantic Versioning](https://semver.org/). Per-phase internal build notes live
 in `.agents/audits/phase-{N}-audit.md`.
 
+## [0.2.0]
+
+### Added
+
+- **`substrate init --template <name>`** — initialize with a starter board.
+  `web-delivery` ships a stack-agnostic Spec → Plan → Build → Review → QA → Done
+  workflow with policy gates. Bare `substrate init` stays blank.
+- **`substrate explain [--out <file>]`** — write a self-contained, offline HTML
+  map of the substrate: per board an inline-SVG flow diagram (hover for detail)
+  plus the field-schema and policy tables. No external assets.
+
 ## [0.1.0] — first public release
 
 The initial public release of Substrate: a local-first, per-project,
