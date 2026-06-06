@@ -24,13 +24,16 @@ import { backupCommand } from './commands/backup.js';
 import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { diagnoseCommand } from './commands/diagnose.js';
+import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
 
 const HELP = `Substrate v${BINARY_VERSION} — local-first agent-collaborative substrate
 
 Usage:
-  substrate init              Initialize a new .substrate/ in the current directory
+  substrate init              Initialize a new (blank) .substrate/ in the current directory
+  substrate init --template <name>
+                              Initialize with a starter board (templates: web-delivery)
   substrate serve             Start the HTTP UI server (default: http://localhost:7475)
   substrate mcp               Start the stdio MCP server (spawned by agent runtimes)
   substrate backup            Write a timestamped backup into .substrate/backups/
@@ -50,36 +53,6 @@ After running 'init', add Substrate to your agent runtime's MCP config:
   }
 `;
 
-/**
- * Allowed flags per subcommand. Phase 1 has no flags that actually do
- * anything — `--no-starter-board` is reserved per spec §3.2 and accepted
- * as a no-op so users can experiment with the eventual API shape without
- * a surprise rejection. Unknown flags are rejected loudly. Reviewer S-2 fix.
- */
-const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
-  init: new Set(['--no-starter-board']),
-  serve: new Set(),
-  mcp: new Set(),
-  backup: new Set(),
-  export: new Set(),
-  import: new Set(['--force']),
-  diagnose: new Set(),
-};
-
-function rejectUnknownFlags(cmd: string, argv: string[]): void {
-  const allowed = ALLOWED_FLAGS_BY_COMMAND[cmd];
-  if (!allowed) return; // commands with no allowlist defined are validated elsewhere
-  for (const arg of argv) {
-    if (!arg.startsWith('-')) continue; // positional, not a flag
-    if (!allowed.has(arg)) {
-      const supportedLabel =
-        allowed.size === 0 ? '(no flags supported)' : `[${[...allowed].join(', ')}]`;
-      process.stderr.write(`Unknown flag for '${cmd}': ${arg}\nSupported: ${supportedLabel}\n`);
-      process.exit(1);
-    }
-  }
-}
-
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   const rest = process.argv.slice(3);
@@ -91,17 +64,25 @@ async function main(): Promise<void> {
       rejectUnknownFlags('serve', rest);
       await serveCommand(cwd);
       return;
-    case 'init':
-      rejectUnknownFlags('init', rest);
-      await initCommand(cwd);
-      process.stdout.write(`Substrate initialized in ${cwd}/.substrate
+    case 'init': {
+      const { value: template, rest: initRest } = extractFlagValue(rest, '--template');
+      rejectUnknownFlags('init', initRest);
+      await initCommand(cwd, template !== undefined ? { template } : {});
+      const boardLine =
+        template !== undefined ? `\nStarter board 'delivery' added (template: ${template}).` : '';
+      const firstStep =
+        template !== undefined
+          ? 'Review the starter board: .substrate/boards/delivery.json'
+          : 'Add a board: edit .substrate/boards/<your-board>.json (or ask an agent via MCP)';
+      process.stdout.write(`Substrate initialized in ${cwd}/.substrate${boardLine}
 
 Next steps:
-  1. Add a board: edit .substrate/boards/<your-board>.json (or ask an agent via MCP)
+  1. ${firstStep}
   2. Start the substrate UI:  npx @diegoferreyra/substrate serve
   3. Configure your agent runtime to spawn:  npx @diegoferreyra/substrate mcp
 `);
       return;
+    }
     case 'mcp':
       rejectUnknownFlags('mcp', rest);
       await mcpCommand(cwd);

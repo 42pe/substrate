@@ -7,6 +7,8 @@ import { writeConfig } from '../../shared/config.js';
 import { openDatabaseAndMigrate } from '../../storage/client.js';
 import { BINARY_SCHEMA_VERSION } from '../../core/version.js';
 import { SubstrateError } from '../../core/errors.js';
+import { createBoardFile } from '../../substrate/writer.js';
+import { isTemplateName, loadTemplateBoard, templateNames } from '../templates/index.js';
 import type { Config } from '../../core/types.js';
 
 /**
@@ -41,8 +43,22 @@ export interface InitResult {
  * directory was created, attempts a best-effort rollback by removing the
  * partial `.substrate/` so the user can retry cleanly. Reviewer C-1 fix.
  */
-export async function initCommand(cwd: string): Promise<InitResult> {
+export async function initCommand(
+  cwd: string,
+  opts: { template?: string } = {},
+): Promise<InitResult> {
   const root = substrateRootFromCwd(cwd);
+
+  // Error ordering is LOCKED (Phase 7): (1) validate the template name FIRST —
+  // a pure argument error, fs-independent and cheapest, so `--template bogus`
+  // fails BEFORE `.substrate/` is created and wins over the conflict below;
+  // (2) the existing `.substrate/` conflict; (3) create + write.
+  if (opts.template !== undefined && !isTemplateName(opts.template)) {
+    throw SubstrateError.schemaViolation(
+      `Unknown template '${opts.template}'. Available templates: ${templateNames().join(', ')}.`,
+      { template: opts.template, available: templateNames() },
+    );
+  }
 
   if (existsSync(root)) {
     throw SubstrateError.conflict(
@@ -73,6 +89,14 @@ export async function initCommand(cwd: string): Promise<InitResult> {
     // migration 001, stamps user_version, re-applies busy_timeout)
     const client = await openDatabaseAndMigrate(p.dataSqlite);
     client.close();
+
+    // Opt-in starter board (Phase 7). The name was already validated above;
+    // `loadTemplateBoard` re-parses the bundled board with BoardSchema (the
+    // only validation gate — createBoardFile writes verbatim). A write failure
+    // here triggers the rollback below.
+    if (opts.template !== undefined && isTemplateName(opts.template)) {
+      await createBoardFile(root, loadTemplateBoard(opts.template));
+    }
 
     // Update .gitignore — create or append. Lives outside the try/rollback
     // window because the .gitignore is user-owned (we don't want to roll

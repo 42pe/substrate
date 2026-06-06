@@ -1,9 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { loadSubstrate } from '../../src/substrate/loader.js';
 import { runTransitionGuards, runAgentResponsibilities } from '../../src/policy/engine.js';
+import { WEB_DELIVERY_BOARD } from '../../src/cli/templates/web-delivery.board.js';
 import type { Board } from '../../src/core/types.js';
 import type { EvalContext } from '../../src/policy/types.js';
+
+/** Order-independent canonicalization for parse-equality. */
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, val]) => [k, canonical(val)]),
+    );
+  }
+  return v;
+}
 
 /**
  * Validates the shipped example substrate in `examples/web-delivery/`: it must
@@ -20,6 +35,11 @@ describe('example substrate — web-delivery', () => {
   it('loads cleanly (schema + integrity)', async () => {
     const substrate = await loadSubstrate(ROOT);
     expect(substrate.boards.map((b) => b.id)).toContain('delivery');
+  });
+
+  it('the bundled .ts template is parse-equal to the example JSON (no drift)', () => {
+    const json = JSON.parse(readFileSync(resolve(ROOT, 'boards', 'delivery.json'), 'utf-8'));
+    expect(JSON.stringify(canonical(WEB_DELIVERY_BOARD))).toBe(JSON.stringify(canonical(json)));
   });
 
   async function board(): Promise<Board> {
