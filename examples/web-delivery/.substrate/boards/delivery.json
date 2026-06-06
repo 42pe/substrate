@@ -1,0 +1,259 @@
+{
+  "id": "delivery",
+  "name": "Delivery",
+  "description": "Stack-agnostic web-development delivery process. Work moves left to right through the stages; the **policy gates** below enforce that each stage's exit criteria are met before a task advances, and the **suggestion policies** remind you of the conventions. Set the boolean fields (`spec_approved`, `plan_approved`, `tests_passing`, `review_cleared`, `audited`) as each gate is satisfied.",
+  "field_schema": {
+    "task": {
+      "type": {
+        "type": "enum",
+        "values": ["feature", "bug", "chore", "infra", "docs"],
+        "required": false
+      },
+      "scope": {
+        "type": "enum",
+        "values": ["small", "medium", "large", "infra", "user_facing"]
+      },
+      "priority": {
+        "type": "enum",
+        "values": ["low", "medium", "high", "urgent"]
+      },
+      "acceptance_criteria": { "type": "markdown" },
+      "spec_doc": { "type": "string" },
+      "plan_doc": { "type": "string" },
+      "audit_doc": { "type": "string" },
+      "branch": { "type": "string" },
+      "spec_approved": { "type": "boolean" },
+      "plan_approved": { "type": "boolean" },
+      "tests_passing": { "type": "boolean" },
+      "review_cleared": { "type": "boolean" },
+      "audited": { "type": "boolean" }
+    },
+    "comments": {
+      "kind": {
+        "type": "enum",
+        "values": ["note", "decision", "blocker", "review"]
+      }
+    }
+  },
+  "groups": [
+    {
+      "id": "backlog",
+      "name": "Backlog",
+      "description": "Ideas and not-yet-started work.",
+      "position": 0,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "spec",
+      "name": "Spec",
+      "description": "Defining behavior, data, edge cases, and acceptance criteria.",
+      "position": 1,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "plan",
+      "name": "Plan",
+      "description": "Implementation approach, task breakdown, and test strategy.",
+      "position": 2,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "in_progress",
+      "name": "In Progress",
+      "description": "Building the change with tests, on a feature branch.",
+      "position": 3,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "review",
+      "name": "Code Review",
+      "description": "A reviewer is checking correctness, security, and conventions.",
+      "position": 4,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "qa",
+      "name": "QA",
+      "description": "Manual / browser verification plus the full automated suite on a clean database.",
+      "position": 5,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "done",
+      "name": "Done",
+      "description": "Merged. Tested, reviewed, audited, docs in sync.",
+      "position": 6,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    }
+  ],
+  "policies": [
+    {
+      "id": "gate-spec-approved",
+      "name": "Spec approved before planning",
+      "description": "A task cannot move from Spec to Plan until its spec is approved.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "spec",
+        "to_group": "plan",
+        "require": [{ "field": "task.spec_approved", "op": "eq", "value": true }],
+        "on_failure_message": "Move blocked: the spec must be approved before planning. Set custom_data.spec_approved = true once the spec is signed off."
+      },
+      "priority": 10,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "gate-plan-approved",
+      "name": "Plan approved before building",
+      "description": "A task cannot move from Plan to In Progress until its plan is approved.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "plan",
+        "to_group": "in_progress",
+        "require": [{ "field": "task.plan_approved", "op": "eq", "value": true }],
+        "on_failure_message": "Move blocked: the plan must be approved before building. Set custom_data.plan_approved = true once the plan is signed off."
+      },
+      "priority": 10,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "gate-tests-before-review",
+      "name": "Tests pass before review",
+      "description": "A task cannot move from In Progress to Code Review until its tests pass.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "in_progress",
+        "to_group": "review",
+        "require": [{ "field": "task.tests_passing", "op": "eq", "value": true }],
+        "on_failure_message": "Move blocked: the automated suite must be green (zero failures) before review. Set custom_data.tests_passing = true."
+      },
+      "priority": 20,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "gate-review-before-qa",
+      "name": "Review cleared before QA",
+      "description": "A task cannot move from Code Review to QA until the review is cleared.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "review",
+        "to_group": "qa",
+        "require": [{ "field": "task.review_cleared", "op": "eq", "value": true }],
+        "on_failure_message": "Move blocked: the reviewer must clear all blockers before QA. Set custom_data.review_cleared = true."
+      },
+      "priority": 20,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "gate-done",
+      "name": "Done requires tests + review + audit",
+      "description": "Nothing reaches Done from any stage without a green suite, a cleared review, and a recorded audit.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "*",
+        "to_group": "done",
+        "require": [
+          { "field": "task.tests_passing", "op": "eq", "value": true },
+          { "field": "task.review_cleared", "op": "eq", "value": true },
+          { "field": "task.audited", "op": "eq", "value": true }
+        ],
+        "on_failure_message": "Move blocked: Done requires a green suite (tests_passing), a cleared review (review_cleared), and a recorded audit (audited). Set all three to true."
+      },
+      "priority": 30,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "note-tests-during-dev",
+      "name": "Write tests during development",
+      "description": "Reminds the agent of build-time conventions while a task is In Progress.",
+      "type": "agent_responsibility",
+      "definition": {
+        "when": [{ "field": "task.group_id", "op": "eq", "value": "in_progress" }],
+        "message": "Write/update tests alongside the code — during development, not after. Keep lint, format, type-check, and the build clean, and use small logical commits that explain *why*."
+      },
+      "priority": 50,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "note-docs-in-sync",
+      "name": "Keep docs in sync for user-facing work",
+      "description": "Fires on any write to a user-facing task.",
+      "type": "agent_responsibility",
+      "definition": {
+        "when": [{ "field": "task.scope", "op": "eq", "value": "user_facing" }],
+        "message": "User-facing change: update the spec and the user-facing docs before Done. Treat doc drift as a blocker."
+      },
+      "priority": 50,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "note-definition-of-done",
+      "name": "Definition of done",
+      "description": "Surfaces the full done checklist while a task is in QA.",
+      "type": "agent_responsibility",
+      "definition": {
+        "when": [{ "field": "task.group_id", "op": "eq", "value": "qa" }],
+        "message": "Definition of done before moving to Done: full suite green (zero failures); lint/format/type-check/build clean; review cleared; acceptance criteria met; docs in sync; no secrets committed; audit recorded (set audited = true)."
+      },
+      "priority": 60,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "substrate-template",
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "updated_at": "2026-06-06T00:00:00.000Z",
+      "archived_at": null
+    }
+  ],
+  "version": 1,
+  "created_at": "2026-06-06T00:00:00.000Z",
+  "updated_at": "2026-06-06T00:00:00.000Z",
+  "archived_at": null
+}
