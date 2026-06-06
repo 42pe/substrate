@@ -1,13 +1,27 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
-const CLI_ENTRY = resolve(REPO_ROOT, 'src', 'cli', 'index.ts');
+const CLI_ENTRY_TS = resolve(REPO_ROOT, 'src', 'cli', 'index.ts');
+const CLI_ENTRY_JS = resolve(REPO_ROOT, 'dist', 'server', 'cli', 'index.js');
 
 /**
- * Spawn `tsx src/cli/index.ts <args>` as a child process. Returns the child.
- * The caller is responsible for killing it.
+ * Spawn the Substrate CLI as a child process. Returns the child; the caller
+ * kills it.
+ *
+ * In CI we run the BUILT binary directly (`node dist/.../index.js`) rather than
+ * `npx tsx src/cli/index.ts`. Two reasons the wrapper chain breaks under CI:
+ *   1. Signals. `npx → tsx → node` means a SIGINT sent to the child hits the
+ *      `npx` wrapper, not the node server, so it never shuts down (the lifecycle
+ *      tests saw a null exit code + an afterEach kill timeout on Linux).
+ *   2. Speed. A cold `npx tsx` compile per spawn blows the per-test timeout on a
+ *      cold runner.
+ * Running `node` on the prebuilt JS delivers signals straight to the process and
+ * starts instantly — and exercises the actual shipped artifact. CI runs
+ * `pnpm build` before `pnpm test`, so `dist/` is present. Locally (no `CI`, or
+ * no build) we fall back to tsx-on-source so it's always current.
  *
  * Env vars on the child are inherited unless overridden via `env`.
  */
@@ -17,7 +31,11 @@ export function spawnCli(
     cwd: process.cwd(),
   },
 ): ChildProcess {
-  return spawn('npx', ['tsx', CLI_ENTRY, ...args], {
+  const useBuilt = !!process.env['CI'] && existsSync(CLI_ENTRY_JS);
+  const [cmd, cmdArgs] = useBuilt
+    ? ['node', [CLI_ENTRY_JS, ...args]]
+    : ['npx', ['tsx', CLI_ENTRY_TS, ...args]];
+  return spawn(cmd, cmdArgs, {
     cwd: opts.cwd,
     env: { ...process.env, ...opts.env },
     stdio: opts.stdio ?? 'pipe',
