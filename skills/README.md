@@ -14,6 +14,10 @@ The one skill you need. It encodes both halves of onboarding:
 - **Usage** — the workflow and conventions: call `whoami` first, the
   substrate-as-code model, the task/comment lifecycle, optimistic-concurrency
   updates, and how to read the policy envelope.
+- **Authoring** ([`substrate/AUTHORING.md`](substrate/AUTHORING.md)) — how to
+  build a substrate that mirrors a development process: the policy DSL (which the
+  MCP tool schemas don't document) and the process→substrate mapping recipe, so
+  an agent can turn a team's workflow into enforceable gates.
 
 ### Install it
 

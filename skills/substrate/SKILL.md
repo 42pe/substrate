@@ -4,9 +4,11 @@ description: >-
   Set up and use Substrate — a local-first, agent-collaborative project/task
   manager exposed over MCP — inside a project. Use when the user wants to track
   work, tasks, boards, status, or project state in Substrate; when they ask to
-  "set up Substrate" or "track this in Substrate"; or whenever the current
-  project contains a `.substrate/` directory (that means Substrate is the
-  project's source of truth for work tracking — read it before planning work).
+  "set up Substrate", "track this in Substrate", or to model/mirror their
+  development process ("set up a substrate for how we work", "build boards from
+  our process docs"); or whenever the current project contains a `.substrate/`
+  directory (that means Substrate is the project's source of truth for work
+  tracking — read it before planning work).
 ---
 
 # Substrate
@@ -63,17 +65,28 @@ Do this once per project. Skip straight to Part 2 if `whoami` already works.
    }
    ```
 
-4. **Initialize the substrate** (creates `.substrate/`, a starter board, and a
-   `.gitignore` block):
+4. **Initialize the substrate** — creates `.substrate/` + a `.gitignore` block.
+   It does **not** create any board (a fresh substrate is empty):
 
    ```sh
    substrate init
    ```
 
-5. **Tell the human to reload** so the MCP server connects (in Claude Code:
+5. **Seed a board — ask the human: start blank, or from the default?**
+   - **Blank** — leave it empty; author boards later (see Part 3), e.g. from
+     their existing process docs or how they describe their workflow.
+   - **Default (`web-delivery`)** — drop in the bundled example: a stack-agnostic
+     Spec → Plan → Build → Review → QA → Done board with working gates. Adapt it
+     afterward (see Part 3):
+
+     ```sh
+     cp <substrate-repo>/examples/web-delivery/.substrate/boards/delivery.json .substrate/boards/
+     ```
+
+6. **Tell the human to reload** so the MCP server connects (in Claude Code:
    restart the session or re-run MCP discovery). Then confirm with `whoami`.
 
-6. **Leave a guide for future sessions.** Append a short pointer to the
+7. **Leave a guide for future sessions.** Append a short pointer to the
    project's `CLAUDE.md` (create if absent) so every future agent session knows
    to use Substrate:
 
@@ -86,7 +99,7 @@ Do this once per project. Skip straight to Part 2 if `whoami` already works.
    `substrate` skill for conventions.
    ```
 
-7. Optional: tell the human they can watch progress at
+8. Optional: tell the human they can watch progress at
    `http://localhost:7475` via `substrate serve` (separate terminal).
 
 ---
@@ -150,6 +163,33 @@ before any other call. Then `get_board_substrate` for the board you'll work in
 - Don't duplicate a board/group that already fits; extend the existing substrate.
 - Don't treat a `transition_guard` block or an `agent_responsibility` suggestion
   as noise — they are the point of the system.
+
+---
+
+## Part 3 — Authoring a substrate from a process
+
+When the human wants the substrate to **mirror their development process** —
+from their process/README docs, your knowledge of the project, or a conversation
+— don't freehand it. Follow **[`AUTHORING.md`](AUTHORING.md)** (next to this
+file): it has the policy DSL (which the MCP tool schemas do **not** document) and
+the process→substrate mapping recipe.
+
+The short version:
+
+1. **Gather the process** — read their docs (or ask): the stages work moves
+   through, what each work item tracks, the gates / definition-of-done, and the
+   conventions.
+2. **Map it** — stages → groups (ordered); per-item metadata + gate booleans →
+   `field_schema.task`; hard gates → `transition_guard` policies; conventions →
+   `agent_responsibility` policies. See the recipe table in `AUTHORING.md`.
+3. **Author it** — via `create_board`/`create_group`/`create_policy` or by
+   writing the board JSON. Start from `examples/web-delivery` and adapt.
+4. **Validate the gates actually fire** — policies fail *silently* if malformed.
+   Create a probe task, attempt a gated move (expect `transition_blocked`), set
+   the gate field, retry (expect success), then archive the probe. Do not declare
+   done until a gate has demonstrably blocked and then passed.
+5. **Summarize** for the human: the stages, the gates, and the fields they set to
+   move work along.
 
 ---
 
