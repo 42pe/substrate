@@ -38,8 +38,8 @@ Other commands: `substrate backup`, `substrate export <path>`, `substrate import
 
 ## Supported platforms
 
-- **macOS and Linux** — primary, CI-tested.
-- **Windows / WSL** — best-effort. CI runs the Windows matrix leg (visible, non-blocking); WSL is the recommended path on Windows. See [SUPPORT.md](SUPPORT.md).
+- **macOS and Linux** — primary. Developed and tested here; the CI matrix covers them on every push.
+- **Windows / WSL** — best-effort. The CI matrix includes a Windows leg (visible, non-blocking); WSL is the recommended path on Windows. See [SUPPORT.md](SUPPORT.md).
 
 Requires **Node.js ≥ 20**.
 

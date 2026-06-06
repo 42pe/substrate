@@ -503,7 +503,7 @@ v1 release is complete when:
 - All Phase 0–6 acceptance criteria are met.
 - All PRD §6 functional requirements implemented.
 - All PRD §6.16 OSS artifacts in place.
-- Repo public on GitHub (`diegoferreyra/substrate`).
+- Repo on GitHub (`42pe/substrate`) — **private** until dogfooded on ≥1 project, then public (revised from "public day one").
 - v0.1.0 published to npm under `@diegoferreyra/substrate`.
 - `npx @diegoferreyra/substrate init` works on a fresh macOS + Linux install.
 - CI green on macOS + Linux; Windows visible (passing or with documented issues).

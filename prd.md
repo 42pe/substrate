@@ -272,7 +272,7 @@ Stack locked 2026-05-09:
 - **Markdown rendering:** **`marked`** for parse → **`DOMPurify`** (`isomorphic-dompurify` for cross-env) for sanitize → React via `dangerouslySetInnerHTML`.
 - **Process architecture:** independent processes. `npx substrate` runs the long-lived HTTP UI server; `npx substrate mcp` is spawned per-agent-session by the agent runtime via `.mcp.json`. All processes share state via SQLite WAL. User runs at most one command (`npx substrate`); the HTTP UI is optional for agent operation (agents work without it).
 - **npm package name:** **`@diegoferreyra/substrate`** (scoped). Product name displayed everywhere is "Substrate." CLI binary is `substrate`.
-- **GitHub repo:** `diegoferreyra/substrate` (public, day one).
+- **GitHub repo:** `42pe/substrate`. (Originally planned public day one; revised — kept **private** until dogfooded on at least one real project, then made public + published to npm.)
 - **License:** MIT.
 - **Packaging:** npm package, runnable via `npx @diegoferreyra/substrate <command>`. Postinstall scripts kept minimal.
 - **Capacity:** solo, 8–20 hrs/week, no ship date.
