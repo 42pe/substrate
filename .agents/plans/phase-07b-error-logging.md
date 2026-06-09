@@ -1,6 +1,6 @@
 # Phase 7b Plan — Error logging & reporting → v0.4.0
 
-**Status:** Reviewed v1.1 (Architect Reviewer APPROVE-WITH-CHANGES; B1 + C1–C2 incorporated) — ready for development.
+**Status:** COMPLETE — shipped as `phase-07b-complete` (v0.4.0). Code Reviewer APPROVE (no blockers/concerns); audit PASS. (Reviewed v1.1: B1 + C1–C2 incorporated.)
 **Author:** Architect
 **Last updated:** 2026-06-09
 **Spec:** [`specs/phase-07b-error-logging-spec.md`](specs/phase-07b-error-logging-spec.md) (APPROVED — CONCERN-1/2/3 + R1–R7 folded in)

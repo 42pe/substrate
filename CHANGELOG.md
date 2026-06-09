@@ -4,6 +4,25 @@ All notable user-facing changes are tracked here. This project adheres to
 [Semantic Versioning](https://semver.org/). Per-phase internal build notes live
 in `.agents/audits/phase-{N}-audit.md`.
 
+## [0.4.0]
+
+### Added
+
+- **Substrate now keeps a persistent error log.** The long-lived `mcp` and
+  `serve` processes record warnings and errors (with stack traces for
+  unexpected failures) to `.substrate/logs/substrate.log` — so when something
+  goes wrong it's diagnosable after the fact, even if your agent runtime
+  swallowed the server's stderr. The file is gitignored and never transmitted;
+  the agent/client still only ever receives the generic scrubbed error envelope
+  (the full detail stays local).
+- **`substrate logs [-n <N>] [--errors]`** — print recent log lines (default
+  last 50; `--errors` filters to errors and shows their stack traces). Reads
+  across a rotation so `-n` is honored.
+- **`substrate diagnose`** gains a "recent errors" section (the last few error
+  headers + a pointer to the full log), so a bug report is often just
+  `diagnose` + the log.
+- Size-bounded by single-generation 5 MiB rotation (`substrate.log.1`).
+
 ## [0.3.0]
 
 ### Added

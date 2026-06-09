@@ -98,11 +98,9 @@ describe('logsCommand', () => {
 
   it('--errors prints "no errors in the log" when only WARN/INFO exist', () => {
     seed(
-      [
-        '2026-06-09T10:00:00.000Z INFO up',
-        '2026-06-09T10:00:01.000Z WARN odd {"x":1}',
-        '',
-      ].join('\n'),
+      ['2026-06-09T10:00:00.000Z INFO up', '2026-06-09T10:00:01.000Z WARN odd {"x":1}', ''].join(
+        '\n',
+      ),
     );
     logsCommand(cwd, { errors: true });
     expect(output()).toContain('no errors in the log');
