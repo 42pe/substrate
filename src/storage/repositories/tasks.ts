@@ -280,6 +280,57 @@ export async function unarchiveTask(
   };
 }
 
+// --- board columns (kanban aggregate, Phase 9) -----------------------------
+
+/**
+ * Count ACTIVE tasks per group for one board, in a single GROUP BY.
+ *
+ * Returns a `Map<group_id, count>`. The project's first aggregate query —
+ * parameterized like everything else here. Used by the kanban columns endpoint
+ * to show a true per-column total independent of the capped card preview.
+ * Archived tasks are excluded (kanban shows live work only); a `group_id` that
+ * the caller's board doesn't define is simply a key the caller ignores (the
+ * caller drives iteration off the board's active group list, not these keys).
+ */
+export async function countActiveTasksByGroup(
+  exec: Executor,
+  boardId: string,
+): Promise<Map<string, number>> {
+  const result = await exec.execute({
+    sql: `SELECT group_id, COUNT(*) AS n FROM tasks
+          WHERE board_id = ? AND archived_at IS NULL
+          GROUP BY group_id`,
+    args: [boardId],
+  });
+  const counts = new Map<string, number>();
+  for (const row of result.rows as unknown as Array<{ group_id: string; n: number | bigint }>) {
+    counts.set(row.group_id, typeof row.n === 'bigint' ? Number(row.n) : row.n);
+  }
+  return counts;
+}
+
+/**
+ * The capped, ordered preview of ACTIVE tasks in one group of one board:
+ * `updated_at DESC` (most-recently-touched first, so a just-moved task surfaces
+ * at the top), tie-broken by `id` for determinism. `limit` is the per-column
+ * cap; the true total comes from {@link countActiveTasksByGroup}.
+ */
+export async function listActiveGroupPreview(
+  exec: Executor,
+  boardId: string,
+  groupId: string,
+  limit: number,
+): Promise<Task[]> {
+  const result = await exec.execute({
+    sql: `SELECT * FROM tasks
+          WHERE board_id = ? AND group_id = ? AND archived_at IS NULL
+          ORDER BY updated_at DESC, id DESC
+          LIMIT ?`,
+    args: [boardId, groupId, limit],
+  });
+  return (result.rows as unknown as TaskRow[]).map(rowToTask);
+}
+
 // --- list_tasks ------------------------------------------------------------
 
 export type CustomFieldOp =
