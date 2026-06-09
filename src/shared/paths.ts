@@ -13,6 +13,8 @@ export interface SubstratePaths {
   readonly pid: string;
   readonly boardsDir: string;
   readonly attachmentsDir: string;
+  readonly logsDir: string;
+  readonly logFile: string;
   boardJson: (boardId: string) => string;
   attachmentTaskDir: (taskId: string) => string;
 }
@@ -28,6 +30,8 @@ export function paths(root: string): SubstratePaths {
     pid: join(root, 'substrate.pid'),
     boardsDir: join(root, 'boards'),
     attachmentsDir: join(root, 'attachments'),
+    logsDir: join(root, 'logs'),
+    logFile: join(root, 'logs', 'substrate.log'),
     boardJson: (boardId: string) => join(root, 'boards', `${boardId}.json`),
     attachmentTaskDir: (taskId: string) => join(root, 'attachments', taskId),
   };

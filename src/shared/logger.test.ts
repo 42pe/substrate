@@ -1,5 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { logger, sanitizeAgentName } from './logger.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync, readFileSync, existsSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  logger,
+  sanitizeAgentName,
+  configureFileSink,
+  resetFileSink,
+  LOG_MAX_BYTES,
+} from './logger.js';
+
+const HEADER_RE = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z (INFO|WARN|ERROR) /;
 
 describe('sanitizeAgentName', () => {
   it('wraps a clean name in brackets', () => {
@@ -71,5 +82,94 @@ describe('logger', () => {
     logger.error('e');
     expect(warnSpy).toHaveBeenCalledOnce();
     expect(errSpy).toHaveBeenCalledOnce();
+  });
+});
+
+describe('logger file sink', () => {
+  let dir: string;
+  let logFile: string;
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    dir = mkdtempSync(join(tmpdir(), 'substrate-log-'));
+    logFile = join(dir, 'logs', 'substrate.log');
+  });
+  afterEach(() => {
+    resetFileSink(); // MANDATED: no test leaves sinkPath set (CONCERN-1)
+    vi.restoreAllMocks();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('writes nothing when the sink is unconfigured', () => {
+    resetFileSink();
+    logger.error('boom', { error: 'x' });
+    expect(existsSync(logFile)).toBe(false);
+  });
+
+  it('appends error/warn but NOT info once configured', () => {
+    configureFileSink(logFile);
+    logger.error('an error');
+    logger.warn('a warning');
+    logger.info('chatter');
+    const contents = readFileSync(logFile, 'utf-8');
+    expect(contents).toContain('ERROR an error');
+    expect(contents).toContain('WARN a warning');
+    expect(contents).not.toContain('chatter'); // info never hits the file
+  });
+
+  it('captures the stack in the file but excludes `err` from every serialized context', () => {
+    configureFileSink(logFile);
+    const errSpy = vi.spyOn(console, 'error');
+    const e = new Error('kaboom');
+    logger.error('failed', { error: e.message, err: e, agent_name: 'bad\nname' });
+
+    // Console line: err deleted, agent_name sanitized, NO stack.
+    const consoleLine = errSpy.mock.calls.at(-1)?.[0] as string;
+    expect(consoleLine).toContain('"error":"kaboom"');
+    expect(consoleLine).toContain('[badname]');
+    expect(consoleLine).not.toContain('"err"');
+    expect(consoleLine).not.toContain('at '); // no stack frame on the console line
+
+    // File: header JSON excludes `err`, but a rendered stack block is present.
+    const contents = readFileSync(logFile, 'utf-8');
+    const headerLine = contents.split('\n')[0]!;
+    expect(headerLine).toContain('"error":"kaboom"');
+    expect(headerLine).toContain('[badname]');
+    expect(headerLine).not.toContain('"err"');
+    expect(contents).toContain('Error: kaboom'); // stack block present
+    expect(contents).toMatch(/\n {4,}at /); // stack frames indented (won't match HEADER_RE)
+  });
+
+  it('writes one contiguous event (header + indented stack + trailing newline)', () => {
+    configureFileSink(logFile);
+    logger.error('one', { err: new Error('boom') });
+    const contents = readFileSync(logFile, 'utf-8');
+    // Exactly one header line; the rest is the indented stack block.
+    const headerLines = contents.split('\n').filter((l) => HEADER_RE.test(l));
+    expect(headerLines.length).toBe(1);
+    expect(contents.endsWith('\n')).toBe(true);
+    expect(contents).toMatch(/^[^\n]+\n {4}Error: boom/);
+  });
+
+  it('never crashes the caller when the sink path is un-writable', () => {
+    // A regular file where a directory is expected → mkdir/append throw ENOTDIR.
+    const blocker = join(dir, 'blocker');
+    writeFileSync(blocker, 'i am a file');
+    configureFileSink(join(blocker, 'logs', 'substrate.log'));
+    const errSpy = vi.spyOn(console, 'error');
+    expect(() => logger.error('still works')).not.toThrow();
+    expect(errSpy).toHaveBeenCalled(); // console line still emitted
+  });
+
+  it('rotates to substrate.log.1 when an append would exceed the cap', () => {
+    configureFileSink(logFile);
+    const big = 'x'.repeat(3 * 1024 * 1024); // ~3 MiB; two of these exceed 5 MiB
+    logger.error(big);
+    logger.error(big);
+    expect(existsSync(`${logFile}.1`)).toBe(true);
+    expect(statSync(logFile).size).toBeLessThan(LOG_MAX_BYTES);
+    expect(statSync(`${logFile}.1`).size).toBeLessThan(LOG_MAX_BYTES);
   });
 });
