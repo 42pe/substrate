@@ -10,6 +10,12 @@ accordingly:
   `npx @diegoferreyra/substrate diagnose`, and reproduction steps. Issues missing
   these are likely to be auto-closed asking for them — just add the details and
   it can be reopened.
+  - **For MCP-server or running-UI bugs**, also include the output of
+    `npx @diegoferreyra/substrate logs --errors` (or attach
+    `.substrate/logs/substrate.log`). The long-lived `mcp`/`serve` processes
+    record warnings + errors there, with stack traces for unexpected failures.
+    The log is **local and gitignored** — it never leaves your machine until you
+    paste it, so review it first.
 - **Feature requests:** open an issue to discuss. Substrate's v1 scope is
   intentionally narrow (see `.agents/plans/v1-architecture.md`); most new-feature
   requests will be parked rather than declined.

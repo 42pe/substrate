@@ -39,4 +39,5 @@ playwright-report/
 .substrate/data.sqlite-shm
 .substrate/substrate.pid
 .substrate/attachments/
+.substrate/logs/
 *.tgz

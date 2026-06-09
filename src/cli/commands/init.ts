@@ -28,6 +28,7 @@ ${GITIGNORE_MARKER}
 .substrate/data.sqlite-shm
 .substrate/substrate.pid
 .substrate/attachments/
+.substrate/logs/
 `;
 
 export interface InitResult {

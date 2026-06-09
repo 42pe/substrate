@@ -31,7 +31,9 @@ MCP config (e.g. Claude Code / any MCP-compatible runtime):
 }
 ```
 
-Other commands: `substrate backup`, `substrate export <path>`, `substrate import <path>`, `substrate diagnose` (prints environment + substrate health — include its output in bug reports). Run `npx @diegoferreyra/substrate --help` for the full list.
+Other commands: `substrate backup`, `substrate export <path>`, `substrate import <path>`, `substrate diagnose` (prints environment + substrate health — include its output in bug reports), `substrate logs [--errors]` (prints recent error-log lines — useful for bug reports). Run `npx @diegoferreyra/substrate --help` for the full list.
+
+The long-lived `mcp`/`serve` processes record warnings and errors to `.substrate/logs/substrate.log` (gitignored, local-only) so a problem is diagnosable after the fact.
 
 > **Pre-release note.** Substrate isn't published to npm yet, so `npx @diegoferreyra/substrate` won't resolve. Until it ships, use a local global link (see [Using Substrate with a coding agent](#using-substrate-with-a-coding-agent) below) — the `substrate` command then works the same everywhere.
 

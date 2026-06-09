@@ -9,6 +9,7 @@ import { getCurrentSchemaVersion } from '../../storage/migrations/runner.js';
 import { isPortInUse } from '../../shared/process.js';
 import { DEFAULT_PORT } from '../../http/server.js';
 import { BINARY_VERSION, BINARY_SCHEMA_VERSION } from '../../core/version.js';
+import { readCurrentLines, parseEvents } from '../../shared/log-read.js';
 
 /**
  * `substrate diagnose` — print environment + substrate health. Built to run
@@ -93,6 +94,29 @@ export async function diagnoseCommand(cwd: string): Promise<void> {
       ok('backups/', `${count} backup(s)`);
     } catch {
       ok('backups/', '0 backup(s)');
+    }
+
+    // Recent errors (Phase 7b): the last 5 ERROR header lines, stacks excluded
+    // (the full stacks would bloat a diagnose dump). Historical — never counted
+    // as a current-health problem, so the exit code is unaffected.
+    try {
+      const errs = parseEvents(readCurrentLines(p.logFile)).filter((e) => e.level === 'ERROR');
+      if (errs.length === 0) {
+        ok('logs/', 'no recent errors');
+      } else {
+        const recent = errs.slice(-5);
+        ok('logs/', `${errs.length} error(s) logged — showing last ${recent.length}`);
+        process.stdout.write('  Recent errors:\n');
+        for (const e of recent) {
+          const h = e.header.length > 200 ? `${e.header.slice(0, 200)}…` : e.header;
+          process.stdout.write(`    ${h}\n`);
+        }
+        process.stdout.write(
+          `    Full log: ${p.logFile} — run 'substrate logs --errors' for more.\n`,
+        );
+      }
+    } catch {
+      ok('logs/', 'no recent errors');
     }
   }
 
