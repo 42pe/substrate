@@ -27,6 +27,22 @@ export interface Paginated<T> {
   pagination: { next_cursor: string | null; has_more: boolean; page_size: number };
 }
 
+/** One kanban column: an active group + its true active-task count + a capped,
+ *  `updated_at DESC` preview. Mirrors the server `BoardColumn` (Phase 9). */
+export interface BoardColumn {
+  group_id: string;
+  group_name: string;
+  position: number;
+  color: string | null;
+  total: number;
+  tasks: Task[];
+}
+
+export interface BoardColumnsResult {
+  board_id: string;
+  columns: BoardColumn[];
+}
+
 export interface ProjectRecord {
   project_id: string;
   project_name: string;
@@ -88,6 +104,12 @@ export const getBoards = (params: { archived?: boolean } = {}): Promise<Paginate
 
 export const getBoard = (id: string): Promise<BoardSubstrate> =>
   apiGet(`/boards/${encodeURIComponent(id)}`);
+
+export const getBoardColumns = (
+  id: string,
+  params: { limit?: number } = {},
+): Promise<BoardColumnsResult> =>
+  apiGet(`/boards/${encodeURIComponent(id)}/columns${qs(params)}`);
 
 export const getTasks = (
   params: {
