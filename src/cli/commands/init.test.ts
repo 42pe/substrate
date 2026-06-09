@@ -65,6 +65,7 @@ describe('initCommand', () => {
     expect(gi).toContain('# substrate:v1:gitignore-block (managed by `substrate init`)');
     expect(gi).toContain('.substrate/data.sqlite');
     expect(gi).toContain('.substrate/attachments/');
+    expect(gi).toContain('.substrate/logs/'); // covers substrate.log AND .log.1
   });
 
   it('appends to an existing .gitignore that has no Substrate block', async () => {

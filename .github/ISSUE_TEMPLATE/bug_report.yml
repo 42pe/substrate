@@ -37,6 +37,19 @@ body:
     validations:
       required: true
   - type: textarea
+    id: error-log
+    attributes:
+      label: '`substrate logs --errors` output (if any)'
+      description: >-
+        For bugs involving the MCP server or the running UI, paste the output of
+        `npx @diegoferreyra/substrate logs --errors` (or attach
+        `.substrate/logs/substrate.log`). Optional — it's empty for bugs that
+        don't go through a long-lived `mcp`/`serve` process. The log is local and
+        gitignored; review it before sharing.
+      render: text
+    validations:
+      required: false
+  - type: textarea
     id: repro
     attributes:
       label: Reproduction steps
