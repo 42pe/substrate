@@ -4,6 +4,28 @@ All notable user-facing changes are tracked here. This project adheres to
 [Semantic Versioning](https://semver.org/). Per-phase internal build notes live
 in `.agents/audits/phase-{N}-audit.md`.
 
+## [0.3.0]
+
+### Added
+
+- **The board view is now a kanban.** The web inspector renders each board as
+  columns (one per workflow group, in order) instead of a flat task table —
+  cards sit under the group they're in, with a live per-column count. A
+  **List** toggle switches back to the searchable/filterable table, and the
+  long tail of a busy column opens there via "+N more". Board description,
+  field schema, and policies are tucked into a collapsible "Board details"
+  panel so the columns lead.
+- **The Overview is now a multi-board wall.** Every board shows as a horizontal
+  strip of columns with a capped card preview, so you can see where work sits
+  across all boards on one page.
+- **The inspector updates itself.** It polls a few times a minute (pausing when
+  the tab is hidden), so when an agent moves a task between groups over MCP the
+  board reflects it within seconds — the moved card briefly highlights. The UI
+  stays strictly read-only: it observes moves, it doesn't make them (no
+  drag-and-drop).
+- New read endpoint `GET /api/boards/:id/columns` backing the kanban (counts +
+  capped, ordered per-column preview). No MCP tool-surface change.
+
 ## [0.2.1]
 
 ### Fixed
