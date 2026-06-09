@@ -75,7 +75,13 @@ function makeTask(
 
 interface ColumnsBody {
   board_id: string;
-  columns: Array<{ group_id: string; group_name: string; position: number; total: number; tasks: Array<{ id: string }> }>;
+  columns: Array<{
+    group_id: string;
+    group_name: string;
+    position: number;
+    total: number;
+    tasks: Array<{ id: string }>;
+  }>;
 }
 
 describe('GET /api/boards/:id/columns', () => {
@@ -155,7 +161,9 @@ describe('GET /api/boards/:id/columns', () => {
   });
 
   it('limit caps tasks but NOT total', async () => {
-    const body = (await (await app.request('/api/boards/b1/columns?limit=1')).json()) as ColumnsBody;
+    const body = (await (
+      await app.request('/api/boards/b1/columns?limit=1')
+    ).json()) as ColumnsBody;
     const g1 = body.columns.find((c) => c.group_id === 'g1')!;
     expect(g1.total).toBe(2);
     expect(g1.tasks.map((t) => t.id)).toEqual(['t2']); // newest only

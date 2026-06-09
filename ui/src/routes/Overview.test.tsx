@@ -50,7 +50,14 @@ function colsFor(boardId: string): BoardColumnsResult {
   return {
     board_id: boardId,
     columns: [
-      { group_id: 'g1', group_name: 'Todo', position: 0, color: null, total: 7, tasks: [task('t1')] },
+      {
+        group_id: 'g1',
+        group_name: 'Todo',
+        position: 0,
+        color: null,
+        total: 7,
+        tasks: [task('t1')],
+      },
     ],
   };
 }
@@ -90,9 +97,7 @@ describe('Overview', () => {
     vi.mocked(api.getBoards).mockResolvedValue(
       boardsPage([summary('b1', 'Planning'), summary('b2', 'Execution')]),
     );
-    vi.mocked(api.getBoardColumns).mockImplementation((id: string) =>
-      Promise.resolve(colsFor(id)),
-    );
+    vi.mocked(api.getBoardColumns).mockImplementation((id: string) => Promise.resolve(colsFor(id)));
     render(
       <MemoryRouter>
         <Overview />
