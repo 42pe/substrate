@@ -412,6 +412,32 @@ try {
   } else {
     pass('explain', 'wrote self-contained HTML map');
   }
+
+  // Step 10 — logs: a fresh init has no log file yet (the sink only runs under
+  // a long-lived mcp/serve), so `logs` exits 0 with the distinct empty-state.
+  const logsEmpty = spawnSync('npx', ['tsx', CLI_ENTRY, 'logs'], { cwd, encoding: 'utf-8' });
+  if (logsEmpty.status !== 0 || !logsEmpty.stdout.includes('No log file yet')) {
+    fail('logs (no log yet)', `exit ${logsEmpty.status}: ${logsEmpty.stdout}\n${logsEmpty.stderr}`);
+  } else {
+    pass('logs', 'distinct "No log file yet" empty-state');
+  }
+
+  // Step 11 — seed an ERROR event, then `logs --errors` surfaces it.
+  const seeded =
+    '2026-06-09T10:00:00.000Z ERROR Unhandled error in create_task {"error":"boom"}\n' +
+    '    Error: boom\n        at smoke (/x.js:1:1)\n';
+  const logsDir = join(cwd, '.substrate', 'logs');
+  await mkdir(logsDir, { recursive: true });
+  await writeFile(join(logsDir, 'substrate.log'), seeded);
+  const logsErr = spawnSync('npx', ['tsx', CLI_ENTRY, 'logs', '--errors'], {
+    cwd,
+    encoding: 'utf-8',
+  });
+  if (logsErr.status !== 0 || !logsErr.stdout.includes('Unhandled error in create_task')) {
+    fail('logs --errors', `exit ${logsErr.status}: ${logsErr.stdout}\n${logsErr.stderr}`);
+  } else {
+    pass('logs --errors', 'surfaced the seeded ERROR + stack');
+  }
 } finally {
   await rm(cwd, { recursive: true, force: true });
 }
