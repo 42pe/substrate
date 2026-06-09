@@ -17,8 +17,10 @@ import {
   listCommentsShape,
 } from '../../../mcp/tools/read/list-comments.js';
 import { getCommentToolHandler, getCommentShape } from '../../../mcp/tools/read/get-comment.js';
+import { getBoardColumnsHandler, boardColumnsShape } from './board-columns.js';
 import {
   boolParam,
+  intParam,
   listParam,
   strParam,
   parentIdParam,
@@ -56,6 +58,17 @@ export function registerApiRoutes(app: Hono, deps: ApiDeps): void {
   app.get('/api/boards/:id', async (c) => {
     const input = validateInput(getBoardSubstrateShape, { board_id: c.req.param('id') });
     return c.json(await getBoardSubstrateHandler(input, td));
+  });
+
+  // Kanban columns aggregate (Phase 9). HTTP-only — no MCP twin (like /api/health).
+  // `intParam` 400s a non-integer `limit`; the Zod shape then rejects <=0 and
+  // clamps a too-large value to KANBAN_COLUMN_LIMIT.
+  app.get('/api/boards/:id/columns', async (c) => {
+    const input = validateInput(boardColumnsShape, {
+      board_id: c.req.param('id'),
+      limit: intParam(c.req.query('limit'), 'limit'),
+    });
+    return c.json(await getBoardColumnsHandler(input, td));
   });
 
   app.get('/api/tasks', async (c) => {
