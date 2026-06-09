@@ -1,18 +1,28 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ApiError, getBoard, getTasks } from '../lib/api.js';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ApiError, getBoard, getBoardColumns, getTasks } from '../lib/api.js';
 import { useResource } from '../lib/useResource.js';
 import { usePaginated } from '../lib/usePaginated.js';
+import { usePolling } from '../lib/usePolling.js';
 import { Markdown } from '../components/Markdown.js';
 import { Badge } from '../components/ui/Badge.js';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card.js';
 import { Table, TBody, TD, TH, THead, TR } from '../components/ui/Table.js';
+import { KanbanBoard, useMovedTasks } from '../components/Kanban.js';
+import { LiveIndicator } from '../components/LiveIndicator.js';
 import { EmptyState, ErrorCard, Loading, NotFound } from '../components/States.js';
+import { cn } from '../lib/cn.js';
 import { formatDate } from '../lib/format.js';
+import type { BoardSubstrate } from '../lib/api.js';
 import type { Group } from '@core/types';
+
+type View = 'kanban' | 'list';
 
 export function BoardDetail() {
   const { id = '' } = useParams();
+  const [params] = useSearchParams();
+  const view: View = params.get('view') === 'list' ? 'list' : 'kanban';
+  const groupParam = params.get('group') ?? '';
   const { data, error, loading } = useResource(() => getBoard(id), [id]);
 
   if (loading) return <Loading label="Loading board…" />;
@@ -21,83 +31,145 @@ export function BoardDetail() {
   if (error) return <ErrorCard error={error} />;
   if (!data) return <ErrorCard error={new Error('Empty board response')} />;
 
-  const { board, groups, field_schema, policies } = data;
-  const taskFields = Object.entries(field_schema.task);
-  const commentFields = Object.entries(field_schema.comments);
+  const { board, groups } = data;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{board.name}</h1>
-          {board.archived_at ? <Badge variant="muted">archived</Badge> : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{board.name}</h1>
+            {board.archived_at ? <Badge variant="muted">archived</Badge> : null}
+          </div>
+          <ViewToggle view={view} />
         </div>
+        <BoardDetailsDisclosure data={data} />
+      </section>
+
+      {view === 'list' ? (
+        <TaskTable
+          key={`list-${groupParam}`}
+          boardId={board.id}
+          groups={groups}
+          initialGroupId={groupParam}
+        />
+      ) : (
+        <KanbanView boardId={board.id} />
+      )}
+    </div>
+  );
+}
+
+function ViewToggle({ view }: { view: View }) {
+  const base = 'rounded px-3 py-1 text-sm transition';
+  return (
+    <div className="inline-flex rounded-md border border-neutral-300 p-0.5">
+      <Link
+        to="?view=kanban"
+        className={cn(
+          base,
+          view === 'kanban' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100',
+        )}
+      >
+        Board
+      </Link>
+      <Link
+        to="?view=list"
+        className={cn(
+          base,
+          view === 'list' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100',
+        )}
+      >
+        List
+      </Link>
+    </div>
+  );
+}
+
+/** Description + field schema + policies, demoted into a collapsed disclosure so
+ *  the columns lead. `<details>` is native + accessible; collapsed by default. */
+function BoardDetailsDisclosure({ data }: { data: BoardSubstrate }) {
+  const { board, field_schema, policies } = data;
+  const taskFields = Object.entries(field_schema.task);
+  const commentFields = Object.entries(field_schema.comments);
+  return (
+    <details className="group mt-3 rounded-lg border border-neutral-200 bg-white">
+      <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium text-neutral-600 hover:text-neutral-900">
+        <span className="inline-flex items-center gap-2">
+          <span className="text-neutral-400 transition group-open:rotate-90">▸</span>
+          Board details — description, field schema, policies
+        </span>
+      </summary>
+      <div className="space-y-6 border-t border-neutral-100 px-4 py-4">
         {board.description ? (
-          <div className="prose prose-sm mt-3 max-w-none text-neutral-700">
+          <div className="prose prose-sm max-w-none text-neutral-700">
             <Markdown source={board.description} />
           </div>
         ) : null}
-        <p className="mt-3 font-mono text-xs text-neutral-400">{board.id}</p>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">
-          Groups
-        </h2>
-        {groups.length === 0 ? (
-          <p className="text-sm text-neutral-500">No groups.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {[...groups]
-              .sort((a, b) => a.position - b.position)
-              .map((g) => (
-                <Badge key={g.id} variant={g.archived_at ? 'muted' : 'secondary'}>
-                  {g.name}
-                </Badge>
-              ))}
-          </div>
-        )}
-      </section>
-
-      <section className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Field schema</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <FieldList label="Task fields" entries={taskFields} />
-            <FieldList label="Comment fields" entries={commentFields} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Policies ({policies.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {policies.length === 0 ? (
-              <p className="text-neutral-500">No policies.</p>
-            ) : (
-              policies.map((pol) => (
-                <div key={pol.id} className="border-b border-neutral-100 pb-2 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{pol.name}</span>
-                    <Badge variant="outline">{pol.type}</Badge>
-                    {pol.enabled ? null : <Badge variant="muted">disabled</Badge>}
-                  </div>
-                  {pol.description ? (
-                    <div className="prose prose-sm mt-1 max-w-none text-neutral-600">
-                      <Markdown source={pol.description} />
+        <p className="font-mono text-xs text-neutral-400">{board.id}</p>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Field schema</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <FieldList label="Task fields" entries={taskFields} />
+              <FieldList label="Comment fields" entries={commentFields} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Policies ({policies.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {policies.length === 0 ? (
+                <p className="text-neutral-500">No policies.</p>
+              ) : (
+                policies.map((pol) => (
+                  <div key={pol.id} className="border-b border-neutral-100 pb-2 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{pol.name}</span>
+                      <Badge variant="outline">{pol.type}</Badge>
+                      {pol.enabled ? null : <Badge variant="muted">disabled</Badge>}
                     </div>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </section>
+                    {pol.description ? (
+                      <div className="prose prose-sm mt-1 max-w-none text-neutral-600">
+                        <Markdown source={pol.description} />
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </details>
+  );
+}
 
-      <TaskTable boardId={board.id} groups={groups} />
-    </div>
+function KanbanView({ boardId }: { boardId: string }) {
+  // No `limit` → server default cap; the long tail lives in List view.
+  const { data, error, loading, paused, reconnecting, lastUpdated } = usePolling(
+    () => getBoardColumns(boardId),
+    [boardId],
+  );
+  const movedIds = useMovedTasks(data?.columns);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Board</h2>
+        <LiveIndicator paused={paused} reconnecting={reconnecting} lastUpdated={lastUpdated} />
+      </div>
+      {loading ? (
+        <Loading label="Loading board…" />
+      ) : error ? (
+        <ErrorCard error={error} />
+      ) : data ? (
+        <KanbanBoard columns={data.columns} movedIds={movedIds} />
+      ) : null}
+    </section>
   );
 }
 
@@ -128,8 +200,16 @@ function FieldList({
   );
 }
 
-function TaskTable({ boardId, groups }: { boardId: string; groups: Group[] }) {
-  const [groupId, setGroupId] = useState('');
+function TaskTable({
+  boardId,
+  groups,
+  initialGroupId = '',
+}: {
+  boardId: string;
+  groups: Group[];
+  initialGroupId?: string;
+}) {
+  const [groupId, setGroupId] = useState(initialGroupId);
   const [archived, setArchived] = useState(false);
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');

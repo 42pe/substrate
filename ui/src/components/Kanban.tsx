@@ -1,0 +1,115 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import type { BoardColumn } from '../lib/api.js';
+import type { Task } from '@core/types';
+import { cn } from '../lib/cn.js';
+import { Badge } from './ui/Badge.js';
+import { EmptyState } from './States.js';
+import { timeAgo } from '../lib/format.js';
+
+/**
+ * Read-only kanban primitives (Phase 9). Columns reflect the board's workflow;
+ * there is NO drag-and-drop — moving a task is an agent action over MCP, and
+ * the inspector observes it via polling. A card that changed column since the
+ * last poll gets a one-shot highlight (`animate-card-pulse`).
+ */
+
+/**
+ * Diff successive column snapshots and return the set of task ids that changed
+ * column (or newly appeared) since the previous snapshot. Consumer-side on
+ * purpose — the polling hook stays type-agnostic. Returns an empty set on the
+ * first snapshot (so the board doesn't pulse every card on initial paint).
+ */
+export function useMovedTasks(columns: BoardColumn[] | null | undefined): Set<string> {
+  const prevRef = useRef<Map<string, string> | null>(null);
+  const [moved, setMoved] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!columns) return;
+    const next = new Map<string, string>();
+    for (const col of columns) {
+      for (const t of col.tasks) next.set(t.id, col.group_id);
+    }
+    const prev = prevRef.current;
+    if (prev) {
+      const changed = new Set<string>();
+      for (const [id, gid] of next) {
+        const before = prev.get(id);
+        if (before === undefined || before !== gid) changed.add(id);
+      }
+      setMoved(changed);
+    }
+    prevRef.current = next;
+  }, [columns]);
+
+  return moved;
+}
+
+function KanbanCard({ task, moved }: { task: Task; moved: boolean }) {
+  return (
+    <Link
+      to={`/tasks/${encodeURIComponent(task.id)}`}
+      className={cn(
+        'block rounded-lg border border-neutral-200 bg-white p-3 shadow-sm transition hover:border-neutral-300 hover:shadow',
+        moved && 'animate-card-pulse',
+      )}
+    >
+      <p className="text-sm font-medium text-neutral-900">{task.title}</p>
+      <p className="mt-1 text-xs text-neutral-400">updated {timeAgo(task.updated_at)} ago</p>
+    </Link>
+  );
+}
+
+function KanbanColumn({ column, movedIds }: { column: BoardColumn; movedIds: Set<string> }) {
+  const overflow = column.total - column.tasks.length;
+  return (
+    <div className="flex w-72 shrink-0 flex-col">
+      <div
+        className="mb-3 flex items-center gap-2 border-b-2 border-neutral-200 pb-1.5"
+        style={column.color ? { borderBottomColor: column.color } : undefined}
+      >
+        <h3 className="text-sm font-semibold text-neutral-800">{column.group_name}</h3>
+        <Badge variant="secondary">{column.total}</Badge>
+      </div>
+      <div className="flex max-h-[calc(100vh-18rem)] flex-col gap-2 overflow-y-auto pr-1">
+        {column.tasks.length === 0 ? (
+          <p className="px-1 py-2 text-xs text-neutral-400">No tasks</p>
+        ) : (
+          column.tasks.map((t) => <KanbanCard key={t.id} task={t} moved={movedIds.has(t.id)} />)
+        )}
+        {overflow > 0 ? (
+          <Link
+            to={`?view=list&group=${encodeURIComponent(column.group_id)}`}
+            className="px-1 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-800 hover:underline"
+          >
+            +{overflow} more — open List
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function KanbanBoard({
+  columns,
+  movedIds,
+}: {
+  columns: BoardColumn[];
+  movedIds: Set<string>;
+}) {
+  if (columns.length === 0) {
+    return (
+      <EmptyState
+        title="No groups yet"
+        hint="This board has no active groups to show as columns."
+      />
+    );
+  }
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {columns.map((col) => (
+        <KanbanColumn key={col.group_id} column={col} movedIds={movedIds} />
+      ))}
+    </div>
+  );
+}

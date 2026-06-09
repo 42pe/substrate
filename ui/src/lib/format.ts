@@ -7,6 +7,21 @@ export function formatDate(iso: string | null | undefined): string {
   return d.toLocaleString();
 }
 
+/** Compact "time since" for the live indicator + kanban cards, e.g. `3s`,
+ *  `4m`, `2h`, `5d`. Takes an ISO string or an epoch-ms number. */
+export function timeAgo(input: string | number | null | undefined): string {
+  if (input === null || input === undefined) return '—';
+  const then = typeof input === 'number' ? input : new Date(input).getTime();
+  if (Number.isNaN(then)) return typeof input === 'string' ? input : '—';
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
 /** Render an arbitrary custom_data / changes value compactly for display. */
 export function formatValue(v: unknown): string {
   if (v === null || v === undefined) return '—';

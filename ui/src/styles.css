@@ -8,3 +8,24 @@
  * Dark mode (configured for Phase 5 when the inspector lands):
  *   @custom-variant dark (&:where(.dark, .dark *));
  */
+
+/*
+ * Phase 9: a one-shot highlight for a kanban card that just changed column
+ * (the inspector polls; an agent's MCP move surfaces here within a few
+ * seconds). Registered as an `animate-card-pulse` utility via the theme token —
+ * no Tailwind utility covers a 1.5s one-shot background+ring fade.
+ */
+@theme {
+  --animate-card-pulse: card-pulse 1.5s ease-out 1;
+}
+
+@keyframes card-pulse {
+  0% {
+    background-color: rgb(254 249 195); /* amber-100 */
+    box-shadow: 0 0 0 2px rgb(252 211 77); /* amber-300 ring */
+  }
+  100% {
+    background-color: rgb(255 255 255);
+    box-shadow: 0 0 0 0 rgb(255 255 255 / 0);
+  }
+}
