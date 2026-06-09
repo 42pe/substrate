@@ -79,7 +79,7 @@ export function wrapToolHandler<S extends z.ZodTypeAny>(
       return jsonResult(result, isErrorEnvelope(result));
     } catch (e) {
       if (SubstrateError.is(e)) return jsonResult(errorEnvelope(e), true);
-      logger.error(`Unhandled error in ${toolName}`, { error: (e as Error).message });
+      logger.error(`Unhandled error in ${toolName}`, { error: (e as Error).message, err: e });
       return jsonResult(errorEnvelope(SubstrateError.internalError('Internal error')), true);
     }
   };

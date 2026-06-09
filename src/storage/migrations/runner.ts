@@ -107,6 +107,7 @@ export async function runMigrations(
     } catch (e) {
       logger.error('Pre-migration backup failed (continuing — migrations are transactional)', {
         error: (e as Error).message,
+        err: e,
       });
     }
   }

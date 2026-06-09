@@ -13,7 +13,7 @@ import {
   type HttpConfig,
 } from '../../http/server.js';
 import { SubstrateError } from '../../core/errors.js';
-import { logger } from '../../shared/logger.js';
+import { logger, configureFileSink } from '../../shared/logger.js';
 import { isProcessAlive, identifyPortHolder } from '../../shared/process.js';
 
 /**
@@ -42,6 +42,9 @@ export async function serveCommand(cwd: string): Promise<void> {
   }
 
   const p = paths(root);
+  // Persist warn/error to .substrate/logs/substrate.log for this long-lived
+  // process (Phase 7b). info stays console-only.
+  configureFileSink(p.logFile);
   const config = await readConfig(root);
 
   // PID file check + reclaim. There's a TOCTOU window between this check
@@ -143,7 +146,7 @@ export async function serveCommand(cwd: string): Promise<void> {
       await unlink(p.pid).catch(() => undefined);
       process.exit(0);
     } catch (err) {
-      logger.error('Error during shutdown', { error: (err as Error).message });
+      logger.error('Error during shutdown', { error: (err as Error).message, err });
       process.exit(1);
     }
   };

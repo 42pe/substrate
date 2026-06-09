@@ -5,6 +5,7 @@ import { openDatabaseAndMigrate } from '../../storage/client.js';
 import { startStdioServer } from '../../mcp/server.js';
 import { loadSubstrate } from '../../substrate/loader.js';
 import { SubstrateError } from '../../core/errors.js';
+import { configureFileSink } from '../../shared/logger.js';
 
 /**
  * `npx substrate mcp` — start the stdio MCP server.
@@ -34,6 +35,9 @@ export async function mcpCommand(cwd: string): Promise<void> {
   }
 
   const p = paths(root);
+  // Persist warn/error to .substrate/logs/substrate.log for this long-lived
+  // session (the agent runtime can swallow our stderr). Phase 7b.
+  configureFileSink(p.logFile);
   const config = await readConfig(root);
   const client = await openDatabaseAndMigrate(p.dataSqlite);
 

@@ -19,6 +19,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
   }
   logger.error('Unhandled error in HTTP route', {
     error: (err as Error).message,
+    err,
     path: c.req.path,
     method: c.req.method,
   });
