@@ -118,6 +118,7 @@ export async function editCommentHandler(
     if (SubstrateError.is(e)) return errorEnvelope(e);
     logger.error('Unhandled error in edit_comment handler', {
       error: (e as Error).message,
+      err: e,
       agent_name: input.agent_name,
     });
     return errorEnvelope(SubstrateError.internalError('Internal error'));

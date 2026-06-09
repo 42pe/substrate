@@ -35,6 +35,7 @@ export async function runEdit<T>(
     if (SubstrateError.is(e)) return errorEnvelope(e);
     logger.error(`Unhandled error in ${toolName} handler`, {
       error: (e as Error).message,
+      err: e,
       agent_name: agentName,
     });
     return errorEnvelope(SubstrateError.internalError('Internal error'));

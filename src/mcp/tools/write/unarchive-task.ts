@@ -61,6 +61,7 @@ export async function unarchiveTaskHandler(
     if (SubstrateError.is(e)) return errorEnvelope(e);
     logger.error('Unhandled error in unarchive_task handler', {
       error: (e as Error).message,
+      err: e,
       agent_name: input.agent_name,
     });
     return errorEnvelope(SubstrateError.internalError('Internal error'));
