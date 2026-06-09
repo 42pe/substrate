@@ -22,8 +22,24 @@ const substrate: BoardSubstrate = {
     archived_at: null,
   },
   groups: [
-    { id: 'g1', name: 'Todo', description: '', position: 0, color: null, version: 1, archived_at: null },
-    { id: 'g2', name: 'Doing', description: '', position: 1, color: null, version: 1, archived_at: null },
+    {
+      id: 'g1',
+      name: 'Todo',
+      description: '',
+      position: 0,
+      color: null,
+      version: 1,
+      archived_at: null,
+    },
+    {
+      id: 'g2',
+      name: 'Doing',
+      description: '',
+      position: 1,
+      color: null,
+      version: 1,
+      archived_at: null,
+    },
   ],
   field_schema: { task: {}, comments: {} },
   policies: [],
@@ -50,8 +66,22 @@ function task(id: string, groupId: string): Task {
 const columns: BoardColumnsResult = {
   board_id: 'b1',
   columns: [
-    { group_id: 'g1', group_name: 'Todo', position: 0, color: null, total: 5, tasks: [task('t1', 'g1'), task('t2', 'g1')] },
-    { group_id: 'g2', group_name: 'Doing', position: 1, color: null, total: 1, tasks: [task('t3', 'g2')] },
+    {
+      group_id: 'g1',
+      group_name: 'Todo',
+      position: 0,
+      color: null,
+      total: 5,
+      tasks: [task('t1', 'g1'), task('t2', 'g1')],
+    },
+    {
+      group_id: 'g2',
+      group_name: 'Doing',
+      position: 1,
+      color: null,
+      total: 1,
+      tasks: [task('t3', 'g2')],
+    },
   ],
 };
 

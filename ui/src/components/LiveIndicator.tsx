@@ -38,7 +38,9 @@ export function LiveIndicator({
 
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-neutral-500" aria-live="polite">
-      <span className={cn('h-2 w-2 rounded-full', dot, !paused && !reconnecting && 'animate-pulse')} />
+      <span
+        className={cn('h-2 w-2 rounded-full', dot, !paused && !reconnecting && 'animate-pulse')}
+      />
       {label}
     </span>
   );

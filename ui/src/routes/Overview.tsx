@@ -61,18 +61,17 @@ function BoardWall({ boards }: { boards: BoardSummary[] }) {
   // accepted cost of not building a single /api/overview aggregate).
   // Promise.allSettled isolates a failing board so the rest still render.
   const idsKey = boards.map((b) => b.id).join(',');
-  const { data, loading, error, paused, reconnecting, lastUpdated } = usePolling<WallEntry[]>(
-    async () => {
-      const settled = await Promise.allSettled(
-        boards.map((b) => getBoardColumns(b.id, { limit: OVERVIEW_PREVIEW_LIMIT })),
-      );
-      return settled.map((s, i) => ({
-        board: boards[i]!,
-        columns: s.status === 'fulfilled' ? s.value.columns : null,
-      }));
-    },
-    [idsKey],
-  );
+  const { data, loading, error, paused, reconnecting, lastUpdated } = usePolling<
+    WallEntry[]
+  >(async () => {
+    const settled = await Promise.allSettled(
+      boards.map((b) => getBoardColumns(b.id, { limit: OVERVIEW_PREVIEW_LIMIT })),
+    );
+    return settled.map((s, i) => ({
+      board: boards[i]!,
+      columns: s.status === 'fulfilled' ? s.value.columns : null,
+    }));
+  }, [idsKey]);
 
   return (
     <section className="space-y-6">

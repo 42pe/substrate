@@ -108,8 +108,7 @@ export const getBoard = (id: string): Promise<BoardSubstrate> =>
 export const getBoardColumns = (
   id: string,
   params: { limit?: number } = {},
-): Promise<BoardColumnsResult> =>
-  apiGet(`/boards/${encodeURIComponent(id)}/columns${qs(params)}`);
+): Promise<BoardColumnsResult> => apiGet(`/boards/${encodeURIComponent(id)}/columns${qs(params)}`);
 
 export const getTasks = (
   params: {
