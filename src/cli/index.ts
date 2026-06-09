@@ -25,6 +25,7 @@ import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { diagnoseCommand } from './commands/diagnose.js';
 import { explainCommand } from './commands/explain.js';
+import { logsCommand } from './commands/logs.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -44,6 +45,9 @@ Usage:
   substrate explain [--out <file>]
                               Write a self-contained HTML map of the substrate
                               (default: ./substrate-explain.html)
+  substrate logs [-n <N>] [--errors]
+                              Print recent log lines (default last 50;
+                              --errors filters to errors) — useful for bug reports
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -118,6 +122,13 @@ Next steps:
       const { value: out, rest: explainRest } = extractFlagValue(rest, '--out');
       rejectUnknownFlags('explain', explainRest);
       await explainCommand(cwd, out !== undefined ? { out } : {});
+      return;
+    }
+    case 'logs': {
+      const { value: n, rest: logsRest } = extractFlagValue(rest, '-n');
+      const errors = logsRest.includes('--errors');
+      rejectUnknownFlags('logs', logsRest);
+      logsCommand(cwd, { ...(n !== undefined ? { n } : {}), errors });
       return;
     }
     case '--help':
