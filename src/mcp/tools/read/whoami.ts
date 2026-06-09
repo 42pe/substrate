@@ -36,7 +36,7 @@ export interface WhoamiResult {
 // Kept in lockstep with BINARY_VERSION (src/core/version.ts). The leading
 // `v${BINARY_VERSION}` is asserted by a test so this never silently drifts
 // again (it sat at v0.0.3 through three releases before v0.1.0).
-export const PHASE_STRING = `v${BINARY_VERSION} (init templates + explain)`;
+export const PHASE_STRING = `v${BINARY_VERSION} (kanban inspector)`;
 
 /** Easter-egg pointer surfaced in `whoami.hints` (Phase 3). */
 export const REVERSE_CAPTCHA_HINT = 'Try the reverse_captcha tool — small puzzle for agents only.';

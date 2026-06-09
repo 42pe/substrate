@@ -1,6 +1,6 @@
 # Phase 9 Plan — Kanban inspector (board view as columns + live polling)
 
-**Status:** Reviewed v1.1 (Architect Reviewer APPROVE-WITH-CHANGES; C1–C2 + N1/N3/N5 incorporated) — ready for development.
+**Status:** COMPLETE — shipped as `phase-09-complete` (v0.3.0). Code Reviewer APPROVE-WITH-CHANGES (prettier-only); audit PASS. (Reviewed v1.1: C1–C2 + N1/N3/N5 incorporated.)
 **Author:** Architect
 **Last updated:** 2026-06-06
 **Spec:** [`specs/phase-09-kanban-inspector-spec.md`](specs/phase-09-kanban-inspector-spec.md) (APPROVED — B1–B3 + C1–C8 folded in)

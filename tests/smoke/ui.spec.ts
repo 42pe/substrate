@@ -96,13 +96,17 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
-test('overview (/) renders the project and its boards', async ({ page }) => {
+test('overview (/) renders a live multi-board wall', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto(`${baseURL}/`);
-  // The project name (h1) is derived from the init dir; assert structure +
-  // that the seeded board loaded from the API as a card link.
+  // The project name (h1) is derived from the init dir. The seeded board shows
+  // as a strip: its name links to the board, with a column and a task card
+  // loaded from the new /columns endpoint, plus the live-polling indicator.
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Roadmap' })).toBeVisible();
+  await expect(page.getByText('To do').first()).toBeVisible(); // a column
+  await expect(page.getByRole('link', { name: 'Design' })).toBeVisible(); // a card
+  await expect(page.locator('[aria-live="polite"]').first()).toBeVisible(); // live indicator
   expect(errors).toEqual([]);
 });
 
@@ -114,12 +118,23 @@ test('boards (/boards) lists boards', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('board detail (/boards/:id) shows groups, policies, and tasks', async ({ page }) => {
+test('board detail (/boards/:id) renders a kanban with a working List toggle', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto(`${baseURL}/boards/main`);
   await expect(page.getByRole('heading', { name: 'Roadmap', level: 1 })).toBeVisible();
-  await expect(page.getByText('To do').first()).toBeVisible();
+  // Kanban (default): a column per group (heading) + a task card link; live on.
+  await expect(page.getByRole('heading', { name: 'To do' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Done' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Design' })).toBeVisible();
+  await expect(page.locator('[aria-live="polite"]').first()).toBeVisible();
+  // Kanban has no <table>; the demoted policy lives in a collapsed disclosure.
+  await expect(page.getByRole('table')).toHaveCount(0);
+  // The policy is reachable by expanding "Board details".
+  await page.getByText(/Board details/).click();
   await expect(page.getByText('No skipping review')).toBeVisible();
+  // Toggle to List → the task table renders.
+  await page.getByRole('link', { name: 'List' }).click();
+  await expect(page.getByRole('table')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Design' })).toBeVisible();
   expect(errors).toEqual([]);
 });

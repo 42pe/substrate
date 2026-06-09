@@ -40,7 +40,7 @@ Other commands: `substrate backup`, `substrate export <path>`, `substrate import
 - **Substrate-as-code.** `.substrate/boards/*.json` define boards, groups, custom `field_schema`, and policies. They are read fresh on every call — edit the JSON (or use the substrate-edit MCP tools) and the change takes effect immediately. No migration, no cascade.
 - **Runtime state in SQLite.** Tasks, comments, and the append-only event log live in `.substrate/data.sqlite` (libsql, WAL mode — safe for concurrent agents).
 - **Two policy classes (v1).** `transition_guard` (block disallowed group transitions) and `agent_responsibility` (attach suggestions to matching writes). Every write returns an envelope listing the policies that fired.
-- **One read-only web UI.** `substrate serve` hosts a localhost-only inspector (project → boards → board detail → task detail with comments and history). Author-supplied markdown is rendered through a single sanitized path.
+- **One read-only web UI.** `substrate serve` hosts a localhost-only inspector. Boards render as a **live kanban** — columns by workflow group, with a List view a click away — and the Overview shows every board as a wall you can scan at once. It **auto-refreshes**, so when an agent moves a task between groups the board reflects it within seconds (the UI only observes — it never writes; there's no drag-and-drop). Author-supplied markdown is rendered through a single sanitized path.
 
 ## Using Substrate with a coding agent
 
