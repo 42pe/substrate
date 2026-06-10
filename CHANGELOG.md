@@ -4,6 +4,28 @@ All notable user-facing changes are tracked here. This project adheres to
 [Semantic Versioning](https://semver.org/). Per-phase internal build notes live
 in `.agents/audits/phase-{N}-audit.md`.
 
+## [0.5.0]
+
+### Added
+
+- **Share a substrate's workflow as a template.** Publish your boards (with their
+  groups / fields / policies — never tasks or data) in a Git repo or folder, and
+  let someone apply them to their project.
+  - **`substrate add <path> [--yes] [--as <id>]`** — merge a template's boards
+    into an existing `.substrate/`. **Dry-run by default**: with no `--yes` it
+    validates and previews, writing nothing; `--yes` applies (transactionally,
+    rolling back on any mid-apply failure). Board-id collisions refuse by default;
+    `--as <id>` renames a single-board template on apply.
+  - **`substrate init --template <path>`** — the `--template` flag now accepts a
+    local template directory (not just the bundled `web-delivery` name), writing
+    all of its boards into a fresh project.
+  - A **`substrate-template.json`** manifest describes a template (name,
+    description, version, board list); a folder also resolves by convention from
+    `.substrate/boards/` or `boards/`. The CLI is **network-free** — it takes a
+    local path; your agent does the clone.
+- The bundled `examples/web-delivery` now ships a manifest, so it doubles as a
+  working shareable template you can `substrate add`.
+
 ## [0.4.0]
 
 ### Added

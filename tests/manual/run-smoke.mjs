@@ -438,6 +438,49 @@ try {
   } else {
     pass('logs --errors', 'surfaced the seeded ERROR + stack');
   }
+
+  // Step 12 — apply a shared template (Phase 8). Fresh project; point `add` at
+  // the bundled examples/web-delivery. Dry-run writes nothing; --as ... --yes
+  // applies under a new id.
+  const applyCwd = await mkdtemp(join(tmpdir(), 'substrate-apply-'));
+  try {
+    spawnSync('npx', ['tsx', CLI_ENTRY, 'init'], { cwd: applyCwd, encoding: 'utf-8' });
+    const tmpl = join(REPO_ROOT, 'examples', 'web-delivery');
+    const dry = spawnSync('npx', ['tsx', CLI_ENTRY, 'add', tmpl], {
+      cwd: applyCwd,
+      encoding: 'utf-8',
+    });
+    const boardsDir = join(applyCwd, '.substrate', 'boards');
+    const wroteNothing = !existsSync(join(boardsDir, 'delivery.json'));
+    if (dry.status !== 0 || !dry.stdout.includes('delivery') || !wroteNothing) {
+      fail(
+        'add (dry-run)',
+        `exit ${dry.status}: wroteNothing=${wroteNothing}\n${dry.stdout}\n${dry.stderr}`,
+      );
+    } else {
+      pass('add (dry-run)', 'previewed delivery, wrote nothing');
+    }
+    const apply = spawnSync('npx', ['tsx', CLI_ENTRY, 'add', tmpl, '--as', 'delivery2', '--yes'], {
+      cwd: applyCwd,
+      encoding: 'utf-8',
+    });
+    if (apply.status !== 0 || !existsSync(join(boardsDir, 'delivery2.json'))) {
+      fail('add --yes', `exit ${apply.status}: ${apply.stdout}\n${apply.stderr}`);
+    } else {
+      // diagnose loads the merged substrate; non-zero means it didn't validate.
+      const diag2 = spawnSync('npx', ['tsx', CLI_ENTRY, 'diagnose'], {
+        cwd: applyCwd,
+        encoding: 'utf-8',
+      });
+      if (diag2.status !== 0) {
+        fail('add --yes (load)', `merged substrate failed to load: ${diag2.stdout}`);
+      } else {
+        pass('add --as --yes', 'applied delivery2; merged substrate loads');
+      }
+    }
+  } finally {
+    await rm(applyCwd, { recursive: true, force: true });
+  }
 } finally {
   await rm(cwd, { recursive: true, force: true });
 }
