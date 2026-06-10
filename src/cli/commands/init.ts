@@ -9,7 +9,8 @@ import { BINARY_SCHEMA_VERSION } from '../../core/version.js';
 import { SubstrateError } from '../../core/errors.js';
 import { createBoardFile } from '../../substrate/writer.js';
 import { isTemplateName, loadTemplateBoard, templateNames } from '../templates/index.js';
-import type { Config } from '../../core/types.js';
+import { loadExternalTemplate } from '../templates/external.js';
+import type { Board, Config } from '../../core/types.js';
 
 /**
  * Distinctive marker for our gitignore block. Phrased so it's unlikely to
@@ -34,6 +35,8 @@ ${GITIGNORE_MARKER}
 export interface InitResult {
   config: Config;
   root: string;
+  /** Ids of the boards written from a `--template` (bare init → `[]`). */
+  boardIds: string[];
 }
 
 /**
@@ -50,15 +53,25 @@ export async function initCommand(
 ): Promise<InitResult> {
   const root = substrateRootFromCwd(cwd);
 
-  // Error ordering is LOCKED (Phase 7): (1) validate the template name FIRST —
-  // a pure argument error, fs-independent and cheapest, so `--template bogus`
-  // fails BEFORE `.substrate/` is created and wins over the conflict below;
-  // (2) the existing `.substrate/` conflict; (3) create + write.
-  if (opts.template !== undefined && !isTemplateName(opts.template)) {
-    throw SubstrateError.schemaViolation(
-      `Unknown template '${opts.template}'. Available templates: ${templateNames().join(', ')}.`,
-      { template: opts.template, available: templateNames() },
-    );
+  // Error ordering is LOCKED (Phase 7, EXTENDED Phase 8 O5): resolve + validate
+  // the template FIRST — before the `.substrate/` conflict — so `--template
+  // ./bogus` fails before `.substrate/` is created and wins over the conflict.
+  // Disambiguation (O4): a bundled name resolves bundled; else an existing path
+  // is resolved by the (network-free) external loader; else the dual-failure
+  // error. Resolution reads ONLY the template dir, never creates `.substrate/`.
+  let templateBoards: Board[] | null = null;
+  if (opts.template !== undefined) {
+    if (isTemplateName(opts.template)) {
+      templateBoards = [loadTemplateBoard(opts.template)];
+    } else if (existsSync(opts.template)) {
+      templateBoards = (await loadExternalTemplate(opts.template)).boards;
+    } else {
+      throw SubstrateError.schemaViolation(
+        `Unknown template '${opts.template}': not a bundled template ` +
+          `(available: ${templateNames().join(', ')}) and not a readable path.`,
+        { template: opts.template, available: templateNames() },
+      );
+    }
   }
 
   if (existsSync(root)) {
@@ -91,12 +104,15 @@ export async function initCommand(
     const client = await openDatabaseAndMigrate(p.dataSqlite);
     client.close();
 
-    // Opt-in starter board (Phase 7). The name was already validated above;
-    // `loadTemplateBoard` re-parses the bundled board with BoardSchema (the
-    // only validation gate — createBoardFile writes verbatim). A write failure
-    // here triggers the rollback below.
-    if (opts.template !== undefined && isTemplateName(opts.template)) {
-      await createBoardFile(root, loadTemplateBoard(opts.template));
+    // Opt-in starter board(s) — the bundled board (Phase 7) OR all boards of a
+    // local template (Phase 8). Already resolved + validated above. A write
+    // failure here triggers the rollback below (rm of the whole partial dir).
+    const boardIds: string[] = [];
+    if (templateBoards !== null) {
+      for (const board of templateBoards) {
+        await createBoardFile(root, board);
+        boardIds.push(board.id);
+      }
     }
 
     // Update .gitignore — create or append. Lives outside the try/rollback
@@ -106,7 +122,7 @@ export async function initCommand(
     // doesn't leave gitignore-only changes behind.
     await updateGitignore(cwd);
 
-    return { config, root };
+    return { config, root, boardIds };
   } catch (err) {
     // Best-effort rollback of our partial .substrate/. Swallow rollback
     // errors — the original failure is the actionable signal.

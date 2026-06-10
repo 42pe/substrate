@@ -81,12 +81,14 @@ async function main(): Promise<void> {
     case 'init': {
       const { value: template, rest: initRest } = extractFlagValue(rest, '--template');
       rejectUnknownFlags('init', initRest);
-      await initCommand(cwd, template !== undefined ? { template } : {});
+      const { boardIds } = await initCommand(cwd, template !== undefined ? { template } : {});
+      // Unified id-list message for BOTH bundled and path templates (C6); bare
+      // init prints no board line.
       const boardLine =
-        template !== undefined ? `\nStarter board 'delivery' added (template: ${template}).` : '';
+        boardIds.length > 0 ? `\nStarter boards added (${template}): ${boardIds.join(', ')}.` : '';
       const firstStep =
-        template !== undefined
-          ? 'Review the starter board: .substrate/boards/delivery.json'
+        boardIds.length > 0
+          ? `Review the starter board(s): ${boardIds.map((id) => `.substrate/boards/${id}.json`).join(', ')}`
           : 'Add a board: edit .substrate/boards/<your-board>.json (or ask an agent via MCP)';
       process.stdout.write(`Substrate initialized in ${cwd}/.substrate${boardLine}
 
