@@ -15,6 +15,11 @@ export default [
       'ui/**',
       'coverage/**',
       '.substrate/**',
+      // Local-only Claude Code worktrees/settings (gitignored; never part of the
+      // tsconfig project). Without this, a local `eslint .` parse-errors on a
+      // checked-out worktree's sources. CI checks out a clean tree, so it's
+      // unaffected, but excluding keeps local `eslint .` clean too.
+      '.claude/**',
     ],
   },
   {
