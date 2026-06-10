@@ -13,6 +13,7 @@ const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
   diagnose: new Set(),
   explain: new Set(['--out']),
   logs: new Set(['-n', '--errors']),
+  add: new Set(['--yes', '--as']),
 };
 
 /**
