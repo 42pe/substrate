@@ -8,8 +8,9 @@ explore with `substrate serve`.
 
 A stack-agnostic web-development delivery process: a Spec → Plan → Build →
 Review → QA → Done board with **policy gates** that block a task from advancing
-until each stage's exit criteria are met. Copy its `boards/delivery.json` into
-your own project, or explore it with `substrate serve` from that directory. See
+until each stage's gate field is set (the fields are self-attested by the agent —
+the gate records the claim, it doesn't verify it). Copy its `boards/delivery.json`
+into your own project, or explore it with `substrate serve` from that directory. See
 [`web-delivery/README.md`](web-delivery/README.md).
 
 ## Build your own

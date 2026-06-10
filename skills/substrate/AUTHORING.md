@@ -130,6 +130,12 @@ the board. Prefer reusing/extending an existing board over inventing new ones.
 
 ## 5. Validate the gates actually fire
 
+A guard enforces the **transition** — it blocks the move when the gate field is
+unset and returns `transition_blocked`. It does **not** verify the field is
+_true_: the agent self-attests `tests_passing` etc.; nothing here runs the tests.
+"Enforceable" means the rail fires on demand, not that the work was checked — so
+"validate" below means _prove the rail fires_, not _prove the work happened_.
+
 Policies fail **silently** if malformed, so prove them before declaring done:
 
 1. `create_task` on the new board in the stage before a gate, with the gate field
