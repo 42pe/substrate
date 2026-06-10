@@ -1,6 +1,6 @@
 # Phase 8 Plan — Shareable substrate templates (`substrate add` + `init --template <path>`) → v0.3.0
 
-**Status:** Reviewed v1.1 (Architect Reviewer APPROVE-WITH-CHANGES; B1–B2 + C1–C5 + N1–N2 incorporated) — ready for development.
+**Status:** COMPLETE — shipped as `phase-08-complete` (**v0.5.0**, not the plan's 0.3.0 — renumbered behind Phase 9/7b). Code Reviewer APPROVE-WITH-CHANGES (C1 fixed, no blockers); audit PASS. (Reviewed v1.1: B1–B2 + C1–C5 + N1–N2 incorporated.)
 **Author:** Architect
 **Last updated:** 2026-06-06
 **Spec:** [`specs/phase-08-shareable-templates-spec.md`](specs/phase-08-shareable-templates-spec.md) (APPROVED — B1–B3 + C1–C6 + O1–O7 folded in)
