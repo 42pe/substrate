@@ -16,7 +16,7 @@ export const WEB_DELIVERY_BOARD = {
   id: 'delivery',
   name: 'Delivery',
   description:
-    "Stack-agnostic web-development delivery process. Work moves left to right through the stages; the **policy gates** below enforce that each stage's exit criteria are met before a task advances, and the **suggestion policies** remind you of the conventions. Set the boolean fields (`spec_approved`, `plan_approved`, `tests_passing`, `review_cleared`, `audited`) as each gate is satisfied.",
+    "Stack-agnostic web-development delivery process. Work moves left to right through the stages; the **policy gates** below block a task from advancing until its gate field is set, and the **suggestion policies** remind you of the conventions. Set the boolean fields (`spec_approved`, `plan_approved`, `tests_passing`, `review_cleared`, `audited`) as each stage's exit criteria are actually met — these are self-attested (the gate records your claim, it does not verify it), so set them honestly.",
   field_schema: {
     task: {
       type: {

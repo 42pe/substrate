@@ -76,7 +76,7 @@ Secondary domains (PM, researcher) served by the same primitives as long as the 
 | Distinct policy patterns Diego has authored across all boards | ≥ 3 by week 8 | ≥ 10 by month 12 |
 | Diego's productization decision made (OSS-only / OSS + sync / shelve) | — | decided |
 
-**Load-bearing metric:** `agent_responsibility` engagement. Diego has flagged this as the class he expects to use most. If it greens, the paradigm bet pays off. If it stays low while transition_guard greens, Substrate is a worse Linear with extra JSON.
+**Load-bearing metric:** `agent_responsibility` engagement. Diego has flagged this as the class he expects to use most. If it greens, the *full* paradigm bet pays off. If it stays low while transition_guard greens, the suggestion-class bet was wrong — but the tool is **not** therefore "a worse Linear with extra JSON": durable cross-session/cross-agent state + working write-time guards remain independently load-bearing (see §9 kill-criterion 3 — reduce scope to guards + state, don't shelve). "Worse Linear" is the outcome only if the durable-state value *also* fails to show up in the dogfood journal.
 
 Engagement metrics are measured against Diego's own usage during dogfood — no telemetry from OSS users in v1 (deferred). Diego's projects are the canary.
 
@@ -292,6 +292,7 @@ Stack locked 2026-05-09:
 - **R6: Schema migration robustness.** Forward-only, transactional, with auto-backup — but the first breaking migration must be done with care.
 - **R7: OSS support burden.** Solo dev + public repo. Triage cadence + issue template + SUPPORT.md are the mitigations.
 - **R8 (structural, new): the dogfood may validate the wrong thing.** Adversarial reviewer's point: Substrate is infrastructure for an agent-fleet workflow Diego may not actually run daily. If Diego's actual working pattern is one agent on one project at a time, the 8-week dogfood tests Substrate against a workflow he doesn't have. The qualitative criterion in §9 partly catches this, but worth confronting before build: **do you actually run multiple concurrent agents on one repo, or are you building for a future workflow that hasn't materialized?**
+  - **Resolution (2026-06-09):** Diego runs **one agent team at a time** today, and is **moving toward multiple concurrent teams**. Implication: the *current* daily value is **durable cross-session state** (a new session reads `.substrate/` and knows where work stands) — which applies to the solo-team workflow and is therefore the lead value prop in the README; concurrent-team coordination is the **trajectory**, framed as the second-order benefit, not the headline. This de-risks R8: the dogfood validates the everyday-state value first (which he has now), and the multi-team coordination value as it materializes — rather than betting the whole 8 weeks on a fleet workflow that isn't here yet.
 
 ### Open questions
 - Primary dogfooding scenario for the 8-week window — AgentPost is the leading candidate; concrete substrate shape and policies for it to be sketched separately.
@@ -315,6 +316,8 @@ Diego runs Substrate on ≥2 real projects for ≥8 consecutive weeks. Maintains
 - Policies authored (new patterns, not just instances)
 - Friction points
 - Times he silently bailed back to markdown
+- Moments where I worked around a *missing* policy class (not just where the present features helped) — see R1/R-`automation` notes
+- **Moments the board went stale / diverged from reality, and how long until anyone noticed.** Substrate can't observe work — it only sees what agents self-report; if writes don't happen at the right moments the board silently diverges and the "visibility" is fiction. This is the failure mode to watch hardest — more than agents-ignoring-suggestions.
 
 ### Paradigm-failure kill criteria (added v0.3)
 
@@ -327,7 +330,7 @@ If by week 8 of dogfood **any** of the following is true, the paradigm bet has n
 
 **If 1 or 2 fires:** paradigm failed. Stop adding features. Freeze v1 as-is; do not invest in `automation` or v1.x policy expansion.
 
-**If 3 or 4 fires:** engagement failed even if paradigm sound. Reduce engine to what got used; do not pre-build for hypothetical patterns.
+**If 3 or 4 fires:** engagement failed even if paradigm sound. Reduce engine to what got used; do not pre-build for hypothetical patterns. **This kills the `agent_responsibility` *class*, NOT the tool** — durable cross-session/cross-agent state + working `transition_guard`s are independently load-bearing (§1) and justify a lean guards-plus-state work-tracker even if the suggestion class flops. "A worse Linear with extra JSON" (§1, R1) is the outcome only if *both* the suggestion class AND the durable-state value fail to show up in the journal — not if the suggestion class alone underperforms. So: reduce scope to guards + state, don't shelve. *(Resolved 2026-06-09 — see [decisions.md](decisions.md).)*
 
 These are pre-commitments. The act of writing them down is the forcing function.
 

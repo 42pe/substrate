@@ -2,10 +2,16 @@
 
 A **stack-agnostic web-development delivery process** expressed as a Substrate
 board. It encodes a Spec → Plan → Build → Review → QA → Done workflow with
-**policy gates** that block a task from advancing until each stage's exit
-criteria are met, plus **suggestion policies** that surface conventions at the
-right moment. Nothing here is tied to a specific framework — adapt the fields
-and gates to your stack.
+**policy gates** that block a task from advancing until each stage's gate field
+is set, plus **suggestion policies** that surface conventions at the right
+moment. Nothing here is tied to a specific framework — adapt the fields and
+gates to your stack.
+
+> **What the gates do:** a gate blocks the _transition_ when its field is unset
+> and tells the agent so at write time. The fields (`tests_passing`, etc.) are
+> **self-attested** — the agent sets them; nothing here runs your tests or CI. A
+> gate is a confession step, not a verifier: it makes the agent commit to a
+> claim before advancing, it doesn't check the claim is true.
 
 It's a single board (`boards/delivery.json`) with no runtime data, so you can
 drop it into any project.
