@@ -1,26 +1,22 @@
 import { readFile, rename, open, unlink } from 'node:fs/promises';
-import { basename } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Board, Config, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
 import { paths } from '../shared/paths.js';
 import { readConfig } from '../shared/config.js';
 import { BoardSchema } from './schemas.js';
+import { isSafeBoardId } from './board-id.js';
 
 /**
  * A board id becomes a filename (`boards/<id>.json`). Reject anything that
  * isn't a single safe path component BEFORE it reaches the filesystem — a
  * caller-supplied id like `../../evil` would otherwise escape `boards/` (B1).
- * Throw `not_found` rather than confirming the traversal attempt.
+ * Throw `not_found` (rather than confirming the traversal attempt) — this is
+ * the deliberately-misleading read-path framing; `add`'s `--as` path uses the
+ * shared `isSafeBoardId` predicate with a clearer rename-specific message.
  */
 function assertSafeBoardId(id: string): void {
-  if (
-    id.length === 0 ||
-    id !== basename(id) ||
-    id.includes('/') ||
-    id.includes('\\') ||
-    id.includes('..')
-  ) {
+  if (!isSafeBoardId(id)) {
     throw SubstrateError.notFound(`Board '${id}' not found.`, { entity: 'board', id });
   }
 }
