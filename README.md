@@ -44,6 +44,16 @@ MCP config (e.g. Claude Code / any MCP-compatible runtime):
 }
 ```
 
+Apply a **shared substrate** (someone's published workflow) — your agent clones the repo, then:
+
+```sh
+npx @diegoferreyra/substrate add <clone-dir>          # preview — writes nothing
+npx @diegoferreyra/substrate add <clone-dir> --yes    # apply into the existing .substrate/
+# …or into a fresh project: substrate init --template <clone-dir>
+```
+
+The CLI is network-free (it never fetches); the agent does the clone. Applying forks the workflow in — you own the copy. See [`examples/web-delivery`](examples/) for a template you can apply today.
+
 Other commands: `substrate backup`, `substrate export <path>`, `substrate import <path>`, `substrate diagnose` (prints environment + substrate health — include its output in bug reports), `substrate logs [--errors]` (prints recent error-log lines — useful for bug reports). Run `npx @diegoferreyra/substrate --help` for the full list.
 
 The long-lived `mcp`/`serve` processes record warnings and errors to `.substrate/logs/substrate.log` (gitignored, local-only) so a problem is diagnosable after the fact.

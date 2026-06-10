@@ -13,6 +13,14 @@ the gate records the claim, it doesn't verify it). Copy its `boards/delivery.jso
 into your own project, or explore it with `substrate serve` from that directory. See
 [`web-delivery/README.md`](web-delivery/README.md).
 
+It also ships a `substrate-template.json`, so it doubles as a working **shareable
+template** — apply it into an existing project (dry-run first, then `--yes`):
+
+```sh
+npx @diegoferreyra/substrate add examples/web-delivery          # preview, writes nothing
+npx @diegoferreyra/substrate add examples/web-delivery --yes    # apply
+```
+
 ## Build your own
 
 ```sh

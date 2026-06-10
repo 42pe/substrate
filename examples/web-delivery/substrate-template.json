@@ -1,0 +1,8 @@
+{
+  "name": "Web Delivery",
+  "description": "A stack-agnostic web-development delivery process expressed as a Substrate board: Spec → Plan → Build → Review → QA → Done, with policy gates and convention reminders. Adapt the fields and gates to your stack.",
+  "version": "1.0.0",
+  "boards": [".substrate/boards/delivery.json"],
+  "author": "Diego Ferreyra",
+  "source": "https://github.com/42pe/substrate"
+}
