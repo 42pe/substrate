@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { initCommand } from './init.js';
+import { substrateRootFromCwd } from '../../shared/paths.js';
 import { loadSubstrate } from '../../substrate/loader.js';
 import { readConfig } from '../../shared/config.js';
 import { openClient } from '../../storage/client.js';
@@ -153,6 +154,124 @@ describe('initCommand', () => {
         caught = e;
       }
       expect(SubstrateError.is(caught) && caught.code).toBe('conflict');
+    });
+  });
+
+  describe('--template <path> (Phase 8) + boardIds', () => {
+    function board(id: string): Record<string, unknown> {
+      return {
+        id,
+        name: id,
+        description: '',
+        field_schema: { task: {}, comments: {} },
+        groups: [
+          {
+            id: 'g1',
+            name: 'Todo',
+            description: '',
+            position: 0,
+            color: null,
+            version: 1,
+            archived_at: null,
+          },
+        ],
+        policies: [],
+        version: 1,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+        archived_at: null,
+      };
+    }
+    async function makeTemplate(ids: string[]): Promise<string> {
+      const tdir = await mkdtemp(join(tmpdir(), 'substrate-itmpl-'));
+      const bdir = join(tdir, 'boards');
+      await mkdir(bdir, { recursive: true });
+      for (const id of ids)
+        await writeFile(join(bdir, `${id}.json`), JSON.stringify(board(id)), 'utf-8');
+      return tdir;
+    }
+
+    it('returns boardIds: [] for bare init, [delivery] for the bundled template', async () => {
+      const fresh1 = await mkdtemp(join(tmpdir(), 'substrate-bi-'));
+      const fresh2 = await mkdtemp(join(tmpdir(), 'substrate-bi-'));
+      try {
+        expect((await initCommand(fresh1)).boardIds).toEqual([]);
+        expect((await initCommand(fresh2, { template: 'web-delivery' })).boardIds).toEqual([
+          'delivery',
+        ]);
+      } finally {
+        await rm(fresh1, { recursive: true, force: true });
+        await rm(fresh2, { recursive: true, force: true });
+      }
+    });
+
+    it('a single-board path template writes the board and lists it in boardIds', async () => {
+      const t = await makeTemplate(['alpha']);
+      try {
+        const { root, boardIds } = await initCommand(cwd, { template: t });
+        expect(boardIds).toEqual(['alpha']);
+        expect(existsSync(join(root, 'boards', 'alpha.json'))).toBe(true);
+        const sub = await loadSubstrate(root);
+        expect(sub.boards.map((b) => b.id)).toContain('alpha');
+      } finally {
+        await rm(t, { recursive: true, force: true });
+      }
+    });
+
+    it('a multi-board path template writes ALL boards', async () => {
+      const t = await makeTemplate(['one', 'two', 'three']);
+      try {
+        const { boardIds } = await initCommand(cwd, { template: t });
+        expect(boardIds.sort()).toEqual(['one', 'three', 'two']);
+        const sub = await loadSubstrate(substrateRootFromCwd(cwd));
+        expect(sub.boards.map((b) => b.id).sort()).toEqual(['one', 'three', 'two']);
+      } finally {
+        await rm(t, { recursive: true, force: true });
+      }
+    });
+
+    it('not-bundled-not-a-path → the dual-failure error, no .substrate/ created (O4/O5)', async () => {
+      let caught: unknown;
+      try {
+        await initCommand(cwd, { template: 'definitely-not-real' });
+      } catch (e) {
+        caught = e;
+      }
+      expect(SubstrateError.is(caught) && caught.code).toBe('schema_violation');
+      expect((caught as Error).message).toMatch(/not a bundled template.*not a readable path/s);
+      expect(existsSync(join(cwd, '.substrate'))).toBe(false);
+    });
+
+    it('a path template that fails to resolve leaves NO .substrate/ (resolve-first, O5)', async () => {
+      const empty = await mkdtemp(join(tmpdir(), 'substrate-noboards-')); // exists but not a template
+      try {
+        let caught: unknown;
+        try {
+          await initCommand(cwd, { template: empty });
+        } catch (e) {
+          caught = e;
+        }
+        expect(SubstrateError.is(caught)).toBe(true);
+        expect(existsSync(join(cwd, '.substrate'))).toBe(false);
+      } finally {
+        await rm(empty, { recursive: true, force: true });
+      }
+    });
+
+    it('init --template <path> into an existing .substrate/ → template resolves first, then conflict', async () => {
+      await initCommand(cwd); // .substrate/ exists
+      const t = await makeTemplate(['x']);
+      try {
+        let caught: unknown;
+        try {
+          await initCommand(cwd, { template: t });
+        } catch (e) {
+          caught = e;
+        }
+        expect(SubstrateError.is(caught) && caught.code).toBe('conflict');
+      } finally {
+        await rm(t, { recursive: true, force: true });
+      }
     });
   });
 });
