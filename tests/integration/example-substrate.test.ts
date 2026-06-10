@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { loadSubstrate } from '../../src/substrate/loader.js';
+import { loadExternalTemplate } from '../../src/cli/templates/external.js';
 import { runTransitionGuards, runAgentResponsibilities } from '../../src/policy/engine.js';
 import { WEB_DELIVERY_BOARD } from '../../src/cli/templates/web-delivery.board.js';
 import type { Board } from '../../src/core/types.js';
@@ -40,6 +42,35 @@ describe('example substrate — web-delivery', () => {
   it('the bundled .ts template is parse-equal to the example JSON (no drift)', () => {
     const json = JSON.parse(readFileSync(resolve(ROOT, 'boards', 'delivery.json'), 'utf-8'));
     expect(JSON.stringify(canonical(WEB_DELIVERY_BOARD))).toBe(JSON.stringify(canonical(json)));
+  });
+
+  // Phase 8: the example is a working shareable template. With its committed
+  // substrate-template.json it resolves in MANIFEST mode; the same boards
+  // resolve in CONVENTION mode from a manifest-less copy (N1 — don't rename the
+  // committed example in place). Both yield the authoritative delivery board.
+  const EXAMPLE_DIR = resolve(import.meta.dirname, '..', '..', 'examples', 'web-delivery');
+  const authoritative = JSON.parse(readFileSync(resolve(ROOT, 'boards', 'delivery.json'), 'utf-8'));
+
+  it('resolves as a shareable template in MANIFEST mode (committed manifest)', async () => {
+    const t = await loadExternalTemplate(EXAMPLE_DIR);
+    expect(t.source).toBe('manifest');
+    expect(t.manifest?.name).toBe('Web Delivery');
+    expect(t.boards.map((b) => b.id)).toEqual(['delivery']);
+    expect(JSON.stringify(canonical(t.boards[0]))).toBe(JSON.stringify(canonical(authoritative)));
+  });
+
+  it('resolves the same board in CONVENTION mode from a manifest-less copy', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'wd-convention-'));
+    try {
+      const bdir = join(tmp, '.substrate', 'boards');
+      mkdirSync(bdir, { recursive: true });
+      writeFileSync(join(bdir, 'delivery.json'), JSON.stringify(authoritative));
+      const t = await loadExternalTemplate(tmp);
+      expect(t.source).toBe('convention');
+      expect(JSON.stringify(canonical(t.boards[0]))).toBe(JSON.stringify(canonical(authoritative)));
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   async function board(): Promise<Board> {

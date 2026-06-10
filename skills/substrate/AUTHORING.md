@@ -158,3 +158,31 @@ If a guard didn't block when it should have, the `definition` is wrong (check
 - `enabled: false` keeps a policy as documentation without enforcing it.
 - Archive a stage you don't use (set `archived_at`) and drop its gate.
 - Start from `examples/web-delivery` and adapt rather than authoring from scratch.
+
+## Publish your substrate as a template
+
+To share a substrate's **workflow** (boards + their groups/fields/policies, never
+tasks/comments/DB) so others can apply it with `substrate add` /
+`init --template`:
+
+1. **Copy your board JSON(s)** out of `.substrate/boards/*.json` into a repo (or a
+   folder). They're already pure substrate-as-code.
+2. **Add a `substrate-template.json` manifest** at the repo root:
+   ```json
+   {
+     "name": "Your Workflow",
+     "description": "What this workflow is and who it's for.",
+     "version": "1.0.0",
+     "boards": ["boards/your-board.json"]
+   }
+   ```
+   `name`/`description`/`version`/`boards` are required (`version` is your own
+   author metadata — never enforced). Unknown keys are rejected. Without a
+   manifest, a folder still resolves by **convention** if its boards live under
+   `.substrate/boards/` or `boards/`.
+3. Share the repo URL. Consumers' agents clone it and run `substrate add
+   <clone-dir>` (see SKILL Part 4). See `examples/web-delivery/` for a complete,
+   working example template (manifest + board).
+
+A first-party `substrate template export` to scaffold this for you is a planned
+fast-follow; for now it's the hand-write-a-manifest path above.
