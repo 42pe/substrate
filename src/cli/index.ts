@@ -26,6 +26,7 @@ import { importCommand } from './commands/import.js';
 import { diagnoseCommand } from './commands/diagnose.js';
 import { explainCommand } from './commands/explain.js';
 import { logsCommand } from './commands/logs.js';
+import { addCommand } from './commands/add.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -34,8 +35,13 @@ const HELP = `Substrate v${BINARY_VERSION} — local-first agent-collaborative s
 
 Usage:
   substrate init              Initialize a new (blank) .substrate/ in the current directory
-  substrate init --template <name>
-                              Initialize with a starter board (templates: web-delivery)
+  substrate init --template <name-or-path>
+                              Initialize with a starter board: a bundled template
+                              (web-delivery) OR a local template directory
+  substrate add <path> [--yes] [--as <id>]
+                              Apply a shared substrate template into an existing
+                              .substrate/ (dry-run unless --yes). <path> is a local
+                              dir — your agent clones the repo first.
   substrate serve             Start the HTTP UI server (default: http://localhost:7475)
   substrate mcp               Start the stdio MCP server (spawned by agent runtimes)
   substrate backup            Write a timestamped backup into .substrate/backups/
@@ -129,6 +135,22 @@ Next steps:
       const errors = logsRest.includes('--errors');
       rejectUnknownFlags('logs', logsRest);
       logsCommand(cwd, { ...(n !== undefined ? { n } : {}), errors });
+      return;
+    }
+    case 'add': {
+      // C5 arg order: extract --as FIRST (its value can't be mistaken for the
+      // positional), then take the positional from the residual, then reject.
+      const { value: as, rest: addRest } = extractFlagValue(rest, '--as');
+      const path = addRest.find((a) => !a.startsWith('-'));
+      if (path === undefined) {
+        process.stderr.write('Usage: substrate add <path> [--yes] [--as <id>]\n');
+        process.exit(1);
+      }
+      rejectUnknownFlags('add', addRest);
+      await addCommand(cwd, path, {
+        yes: addRest.includes('--yes'),
+        ...(as !== undefined ? { as } : {}),
+      });
       return;
     }
     case '--help':
