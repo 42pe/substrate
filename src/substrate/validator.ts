@@ -1,5 +1,6 @@
 import type { Board, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
+import { validatePolicyDefinition } from '../policy/definition-schema.js';
 
 /**
  * Cross-board structural validation, run once after every board file parses
@@ -85,9 +86,19 @@ function validateBoard(board: Board): void {
 
   const groupIds = new Set(board.groups.map((g) => g.id));
 
-  // transition_guard policies must reference groups that exist (archived OK).
-  // '*' is a wildcard ("any group"), not a reference.
   for (const policy of board.policies) {
+    // Shape: a malformed definition must fail the load loudly (internal_error)
+    // rather than load fine and silently never engage. Carries board+policy id.
+    validatePolicyDefinition(policy.type, policy.definition, (message, details) =>
+      SubstrateError.internalError(`Board '${board.id}' policy '${policy.id}': ${message}`, {
+        board_id: board.id,
+        policy_id: policy.id,
+        ...details,
+      }),
+    );
+
+    // transition_guard policies must reference groups that exist (archived OK).
+    // '*' is a wildcard ("any group"), not a reference.
     if (policy.type !== 'transition_guard') continue;
     for (const key of ['from_group', 'to_group'] as const) {
       const ref = policy.definition[key];

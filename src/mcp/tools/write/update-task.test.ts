@@ -44,6 +44,15 @@ const board: Board = {
       version: 1,
       archived_at: null,
     },
+    {
+      id: 'g3',
+      name: 'Retired',
+      description: '',
+      position: 2,
+      color: null,
+      version: 1,
+      archived_at: '2026-05-10T00:00:00.000Z',
+    },
   ],
   policies: [],
   version: 1,
@@ -170,6 +179,26 @@ describe('updateTaskHandler', () => {
     if (env.ok) throw new Error('expected error');
     expect(env.error.code).toBe('not_found');
     expect(env.error.details).toMatchObject({ entity: 'board', id: 'gone' });
+  });
+
+  it('rejects a move to an unknown group with not_found', async () => {
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, group_id: 'ghost', agent_name: 'a' },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('not_found');
+    expect(env.error.details).toMatchObject({ entity: 'group', id: 'ghost' });
+  });
+
+  it('rejects a move into an archived group with conflict', async () => {
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, group_id: 'g3', agent_name: 'a' },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('conflict');
+    expect(env.error.details).toMatchObject({ entity: 'group', id: 'g3' });
   });
 
   it('does not bump version or emit an event when validation fails', async () => {

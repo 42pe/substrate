@@ -42,6 +42,15 @@ const fixtureBoard: Board = {
       version: 1,
       archived_at: null,
     },
+    {
+      id: 'g-archived',
+      name: 'Archived Group',
+      description: '',
+      position: 1,
+      color: null,
+      version: 1,
+      archived_at: '2026-05-10T00:00:00.000Z',
+    },
   ],
   policies: [],
   version: 1,
@@ -50,7 +59,34 @@ const fixtureBoard: Board = {
   archived_at: null,
 };
 
-const fixtureSubstrate: Substrate = { config: fixtureConfig, boards: [fixtureBoard] };
+// An archived board (with an active group) for the archived-target tests.
+const archivedBoard: Board = {
+  id: 'b-arch',
+  name: 'Archived Board',
+  description: '',
+  field_schema: { task: {}, comments: {} },
+  groups: [
+    {
+      id: 'g',
+      name: 'Group',
+      description: '',
+      position: 0,
+      color: null,
+      version: 1,
+      archived_at: null,
+    },
+  ],
+  policies: [],
+  version: 1,
+  created_at: '2026-05-09T00:00:00.000Z',
+  updated_at: '2026-05-09T00:00:00.000Z',
+  archived_at: '2026-05-10T00:00:00.000Z',
+};
+
+const fixtureSubstrate: Substrate = {
+  config: fixtureConfig,
+  boards: [fixtureBoard, archivedBoard],
+};
 
 describe('createTaskSchema (input validation)', () => {
   it('accepts a minimal valid payload', () => {
@@ -242,6 +278,20 @@ describe('createTaskHandler', () => {
     if (env.ok) throw new Error('expected error');
     expect(env.error.code).toBe('not_found');
     expect(env.error.details).toMatchObject({ entity: 'board', id: 'ghost' });
+  });
+
+  it('rejects creating a task on an archived board with conflict', async () => {
+    const env = await call({ board_id: 'b-arch', group_id: 'g', title: 'x', agent_name: 'a' });
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('conflict');
+    expect(env.error.details).toMatchObject({ entity: 'board', id: 'b-arch' });
+  });
+
+  it('rejects creating a task in an archived group with conflict', async () => {
+    const env = await call({ board_id: 'b', group_id: 'g-archived', title: 'x', agent_name: 'a' });
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('conflict');
+    expect(env.error.details).toMatchObject({ entity: 'group', id: 'g-archived' });
   });
 
   it('rejects an unknown group with not_found', async () => {

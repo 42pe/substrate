@@ -62,7 +62,12 @@ const board: Board = {
       name: 'No skipping review',
       description: 'Tasks must pass through _review_ before Done.',
       type: 'transition_guard',
-      definition: {},
+      definition: {
+        from_group: '*',
+        to_group: 'done',
+        require: [{ field: 'task.reviewed', op: 'eq', value: true }],
+        on_failure_message: 'Set reviewed=true before moving a task to Done.',
+      },
       priority: 0,
       enabled: true,
       version: 1,

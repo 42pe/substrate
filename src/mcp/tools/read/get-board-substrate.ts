@@ -66,7 +66,11 @@ export async function getBoardSubstrateHandler(
 export function registerGetBoardSubstrate(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'get_board_substrate',
-    "Fetch a board's complete operating context in one payload: groups, field_schema, and policies. Call this once per board before doing any work on it, then cache.",
+    [
+      "Fetch a board's complete operating context in one payload: groups, field_schema, and policies. Call this once per board before doing any work on it, then cache.",
+      'field_schema.{task,comments} maps a field name → { type: string|number|boolean|enum|markdown|string_list, required?: boolean, values?: string[] (required when type=enum) }. Boolean "gate" fields are the inputs transition_guard policies check.',
+      'Each policy has { type, definition, enabled, priority, ... }. transition_guard.definition = { from_group, to_group, require?, on_failure_message? } (BLOCKS a move); agent_responsibility.definition = { when?, message } (suggestion only). See `create_policy` for the Condition/operator grammar.',
+    ].join('\n'),
     getBoardSubstrateShape,
     wrapToolHandler('get_board_substrate', getBoardSubstrateSchema, (input) =>
       getBoardSubstrateHandler(input, deps),

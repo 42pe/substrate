@@ -31,7 +31,7 @@ function makePolicy(overrides: Partial<Policy> = {}): Policy {
     name: 'Policy 1',
     description: '',
     type: 'transition_guard',
-    definition: {},
+    definition: { from_group: '*', to_group: '*' },
     priority: 0,
     enabled: true,
     version: 1,
@@ -148,11 +148,35 @@ describe('validateSubstrate', () => {
     expect(() => validateSubstrate(sub([board]))).not.toThrow();
   });
 
-  it('ignores group refs on non-transition_guard policies', () => {
+  it('does not group-ref-check non-transition_guard policies', () => {
     const board = makeBoard({
-      policies: [makePolicy({ type: 'agent_responsibility', definition: { to_group: 'ghost' } })],
+      policies: [makePolicy({ type: 'agent_responsibility', definition: { message: 'note' } })],
     });
     expect(() => validateSubstrate(sub([board]))).not.toThrow();
+  });
+
+  it('rejects a malformed guard definition on load (internal_error)', () => {
+    const board = makeBoard({
+      policies: [makePolicy({ definition: { from_group: 'g1' } })], // missing to_group
+    });
+    try {
+      validateSubstrate(sub([board]));
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(SubstrateError.is(e) && e.code).toBe('internal_error');
+    }
+  });
+
+  it('rejects an agent_responsibility with no message on load (internal_error)', () => {
+    const board = makeBoard({
+      policies: [makePolicy({ type: 'agent_responsibility', definition: {} })],
+    });
+    try {
+      validateSubstrate(sub([board]));
+      throw new Error('expected throw');
+    } catch (e) {
+      expect(SubstrateError.is(e) && e.code).toBe('internal_error');
+    }
   });
 });
 

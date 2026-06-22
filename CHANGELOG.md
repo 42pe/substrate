@@ -4,6 +4,37 @@ All notable user-facing changes are tracked here. This project adheres to
 [Semantic Versioning](https://semver.org/). Per-phase internal build notes live
 in `.agents/audits/phase-{N}-audit.md`.
 
+## [Unreleased]
+
+### Added
+
+- **Policy definitions are now validated.** `create_policy` and `update_policy`
+  check the `definition` against the policy `type` and reject a malformed one
+  with `schema_violation` (naming the offending field) instead of storing a
+  policy that loads fine but silently never engages. A `transition_guard` needs
+  `from_group`/`to_group`; an `agent_responsibility` needs a non-empty `message`;
+  every condition's `field`/`op` and compound (`all_of`/`any_of`/`none_of`)
+  shape is checked, and unknown keys (e.g. a typo'd operator or `valeu`) are
+  rejected.
+- **The `create_policy` / `update_policy` / `get_board_substrate` tool
+  descriptions now document the policy DSL and field-schema shapes inline**, so
+  an agent can author a correct gate from the MCP tool surface alone (without
+  the bundled skill).
+
+### Changed
+
+- **Archival is now consistent across boards and groups.** `archive_board` is
+  rejected with `conflict` if the board still has active tasks (it previously
+  archived regardless), mirroring `archive_group`. `create_task` refuses to add
+  a task to an archived board or group, and `update_task` refuses to move a task
+  into an archived (or non-existent) group — all with a clear `conflict` /
+  `not_found`.
+- **A malformed policy definition in a hand-edited board file now fails the
+  load loudly** (`internal_error`, naming the board + policy) rather than
+  loading and silently never engaging. If you have parked a half-written policy
+  on disk, fix its shape or remove it. (Whole-substrate load behavior is
+  otherwise unchanged; per-board degradation is tracked separately.)
+
 ## [0.5.0]
 
 ### Added

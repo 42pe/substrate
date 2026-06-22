@@ -6,15 +6,20 @@ import {
   type ErrorEnvelope,
 } from '../../../core/envelope.js';
 import type { Board } from '../../../core/types.js';
+import { SubstrateError } from '../../../core/errors.js';
 import { mutateBoardFile } from '../../../substrate/writer.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 import { assertVersion, runEdit } from './substrate-edit.js';
 
 /**
- * MCP tool: archive_board — soft-delete a board. Idempotent: an already-archived
- * board returns the current state with no version bump (no OCC needed for a
- * no-op, mirroring task archive).
+ * MCP tool: archive_board — soft-delete a board. Rejected with `conflict` if any
+ * active (non-archived) task is still on it (archive or move them first),
+ * mirroring `archive_group`. Idempotent: an already-archived board returns the
+ * current state with no version bump and no conflict check (no-op).
+ *
+ * Like `archive_group`, the active-task DB check is not atomic with the board-
+ * file write (R7 accepted residual) — fine for single-user v1.
  */
 
 export const archiveBoardShape = {
@@ -30,6 +35,23 @@ export function archiveBoardHandler(
   deps: ToolDeps,
 ): Promise<SuccessEnvelope<Board> | ErrorEnvelope> {
   return runEdit('archive_board', input.agent_name, async () => {
+    // Conflict if the board still holds active tasks. Skip for an already-
+    // archived board so re-archiving stays an idempotent no-op below.
+    const substrate = await deps.loadSubstrate();
+    const current = substrate.boards.find((b) => b.id === input.id);
+    if (current && current.archived_at === null) {
+      const active = await deps.client.execute({
+        sql: 'SELECT 1 FROM tasks WHERE board_id = ? AND archived_at IS NULL LIMIT 1',
+        args: [input.id],
+      });
+      if (active.rows.length > 0) {
+        throw SubstrateError.conflict(
+          `Board '${input.id}' has active tasks. Archive or move them before archiving the board.`,
+          { entity: 'board', id: input.id },
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const next = await mutateBoardFile(deps.root, input.id, (board) => {
       if (board.archived_at !== null) return { result: board, next: board }; // idempotent no-op
