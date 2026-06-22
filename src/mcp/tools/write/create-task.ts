@@ -62,6 +62,19 @@ export async function createTaskHandler(
         { entity: 'group', id: input.group_id },
       );
     }
+    // No new work on archived containers (mirrors the archival guards elsewhere).
+    if (board.archived_at !== null) {
+      throw SubstrateError.conflict(
+        `Board '${input.board_id}' is archived. Unarchive it before adding tasks.`,
+        { entity: 'board', id: input.board_id },
+      );
+    }
+    if (group.archived_at !== null) {
+      throw SubstrateError.conflict(
+        `Group '${input.group_id}' in board '${input.board_id}' is archived. Create the task in an active group.`,
+        { entity: 'group', id: input.group_id },
+      );
+    }
 
     const customData = input.custom_data ?? {};
     validateFieldSchema({

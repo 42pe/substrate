@@ -7,15 +7,18 @@ import {
   type ErrorEnvelope,
 } from '../../../core/envelope.js';
 import type { Policy } from '../../../core/types.js';
+import { SubstrateError } from '../../../core/errors.js';
 import { mutateBoardFile } from '../../../substrate/writer.js';
+import { validatePolicyDefinition } from '../../../policy/definition-schema.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 import { runEdit } from './substrate-edit.js';
 
 /**
- * MCP tool: create_policy — append a policy to a board. `definition` is stored
- * as-is (unstructured — the Phase 3 engine tolerates malformed definitions). No
- * version param (LWW). `not_found` if the board doesn't exist.
+ * MCP tool: create_policy — append a policy to a board. `definition` is
+ * validated against `type` (a malformed guard/responsibility is rejected with
+ * `schema_violation` rather than silently never engaging). No version param
+ * (LWW). `not_found` if the board doesn't exist.
  */
 
 export const createPolicyShape = {
@@ -36,6 +39,7 @@ export function createPolicyHandler(
   deps: ToolDeps,
 ): Promise<SuccessEnvelope<Policy> | ErrorEnvelope> {
   return runEdit('create_policy', input.agent_name, async () => {
+    validatePolicyDefinition(input.type, input.definition, SubstrateError.schemaViolation);
     const now = new Date().toISOString();
     const policy = await mutateBoardFile(deps.root, input.board_id, (board) => {
       const p: Policy = {
@@ -74,7 +78,13 @@ export function createPolicyHandler(
 export function registerCreatePolicy(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'create_policy',
-    'Add a policy to a board (`transition_guard` or `agent_responsibility`). `definition` carries the rule. Requires `agent_name`.',
+    [
+      'Add a policy to a board. `definition` is validated against `type`:',
+      '• transition_guard → { from_group, to_group, require?: Condition[], on_failure_message?: string } — BLOCKS a matching group move unless every `require` condition passes. from_group/to_group are group ids, or "*" for any.',
+      '• agent_responsibility → { when?: Condition[], message: string } — never blocks; attaches `message` as a suggestion in the write envelope when `when` matches (empty `when` = always).',
+      'Condition = { field, op, value?, values? } or { all_of | any_of | none_of: Condition[] }. op ∈ exists, not_exists, is_empty, not_empty, eq, neq, in, not_in, gt, gte, lt, lte, contains, not_contains, starts_with, ends_with, matches_regex, matches_any_keyword, has_any, has_all (value for scalars, values for set/array ops).',
+      'Fields resolve literal-then-custom_data, so a gate field is `task.<name>` (e.g. task.tests_passing). Requires `agent_name`.',
+    ].join('\n'),
     createPolicyShape,
     wrapToolHandler('create_policy', createPolicySchema, (input) =>
       createPolicyHandler(input, deps),

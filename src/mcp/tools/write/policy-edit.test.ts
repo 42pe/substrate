@@ -99,9 +99,78 @@ describe('policy edit tools', () => {
     expect(env.applied.version).toBe(1);
   });
 
+  it('create_policy rejects a malformed guard definition with schema_violation', async () => {
+    const env = await createPolicyHandler(
+      {
+        board_id: 'b1',
+        name: 'P',
+        type: 'transition_guard',
+        definition: { from_group: 'todo' },
+        agent_name: 'a',
+      },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('schema_violation');
+  });
+
+  it('create_policy rejects an agent_responsibility with no message', async () => {
+    const env = await createPolicyHandler(
+      { board_id: 'b1', name: 'P', type: 'agent_responsibility', definition: {}, agent_name: 'a' },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('schema_violation');
+  });
+
+  it('create_policy rejects an unknown key in a leaf condition', async () => {
+    const env = await createPolicyHandler(
+      {
+        board_id: 'b1',
+        name: 'P',
+        type: 'transition_guard',
+        definition: {
+          from_group: 'todo',
+          to_group: 'done',
+          require: [{ field: 'task.x', op: 'eq', valeu: 1 }],
+        },
+        agent_name: 'a',
+      },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('schema_violation');
+  });
+
+  it('update_policy rejects replacing a definition with a malformed one', async () => {
+    const created = await createPolicyHandler(
+      {
+        board_id: 'b1',
+        name: 'P',
+        type: 'transition_guard',
+        definition: { from_group: 'todo', to_group: 'done' },
+        agent_name: 'a',
+      },
+      deps,
+    );
+    if (!created.ok) throw new Error('expected success');
+    const env = await updatePolicyHandler(
+      { id: created.applied.id, version: 1, definition: { to_group: 'done' }, agent_name: 'a' },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('schema_violation');
+  });
+
   it('update_policy rejects a type change with schema_violation', async () => {
     const created = await createPolicyHandler(
-      { board_id: 'b1', name: 'P', type: 'transition_guard', definition: {}, agent_name: 'a' },
+      {
+        board_id: 'b1',
+        name: 'P',
+        type: 'transition_guard',
+        definition: { from_group: 'todo', to_group: 'done' },
+        agent_name: 'a',
+      },
       deps,
     );
     if (!created.ok) throw new Error('expected success');
@@ -115,7 +184,13 @@ describe('policy edit tools', () => {
 
   it('update_policy patches definition + bumps version', async () => {
     const created = await createPolicyHandler(
-      { board_id: 'b1', name: 'P', type: 'transition_guard', definition: {}, agent_name: 'a' },
+      {
+        board_id: 'b1',
+        name: 'P',
+        type: 'transition_guard',
+        definition: { from_group: 'todo', to_group: 'done' },
+        agent_name: 'a',
+      },
       deps,
     );
     if (!created.ok) throw new Error('expected success');
@@ -130,7 +205,13 @@ describe('policy edit tools', () => {
 
   it('archive_policy is idempotent', async () => {
     const created = await createPolicyHandler(
-      { board_id: 'b1', name: 'P', type: 'transition_guard', definition: {}, agent_name: 'a' },
+      {
+        board_id: 'b1',
+        name: 'P',
+        type: 'transition_guard',
+        definition: { from_group: 'todo', to_group: 'done' },
+        agent_name: 'a',
+      },
       deps,
     );
     if (!created.ok) throw new Error('expected success');

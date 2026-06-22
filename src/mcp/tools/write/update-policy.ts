@@ -8,6 +8,7 @@ import {
 } from '../../../core/envelope.js';
 import type { Policy } from '../../../core/types.js';
 import { mutateBoardFile, findBoardHolding } from '../../../substrate/writer.js';
+import { validatePolicyDefinition } from '../../../policy/definition-schema.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 import { assertVersion, runEdit } from './substrate-edit.js';
@@ -60,6 +61,11 @@ export function updatePolicyHandler(
           { id: p.id, current: p.type, requested: input.type },
         );
       }
+      // A replacement `definition` is validated against the policy's (immutable)
+      // type, so an edit can't turn a working gate into a silent no-op.
+      if (input.definition !== undefined) {
+        validatePolicyDefinition(p.type, input.definition, SubstrateError.schemaViolation);
+      }
       const updated: Policy = {
         ...p,
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -89,7 +95,7 @@ export function updatePolicyHandler(
 export function registerUpdatePolicy(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'update_policy',
-    'Update a policy (name, description, definition, priority, enabled). `type` is immutable. Requires `version` and `agent_name`.',
+    'Update a policy (name, description, definition, priority, enabled). `type` is immutable. A replacement `definition` is validated against the policy type (same shape as `create_policy`). Requires `version` and `agent_name`.',
     updatePolicyShape,
     wrapToolHandler('update_policy', updatePolicySchema, (input) =>
       updatePolicyHandler(input, deps),

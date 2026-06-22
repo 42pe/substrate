@@ -69,6 +69,23 @@ export async function updateTaskHandler(
         );
       }
 
+      // A group move must target an existing, non-archived group in the board.
+      if (input.group_id !== undefined && input.group_id !== existing.group_id) {
+        const target = board.groups.find((g) => g.id === input.group_id);
+        if (!target) {
+          throw SubstrateError.notFound(
+            `Group '${input.group_id}' not found in board '${board.id}'. Use get_board_substrate to see its groups.`,
+            { entity: 'group', id: input.group_id },
+          );
+        }
+        if (target.archived_at !== null) {
+          throw SubstrateError.conflict(
+            `Group '${input.group_id}' is archived. Move the task to an active group.`,
+            { entity: 'group', id: input.group_id },
+          );
+        }
+      }
+
       // custom_data partial merge (null deletes).
       const touched = Object.keys(input.custom_data ?? {});
       const merged: Record<string, unknown> = { ...existing.custom_data };

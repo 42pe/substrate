@@ -2,17 +2,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Client } from '@libsql/client';
 import { writeConfig } from '../../../shared/config.js';
 import { paths } from '../../../shared/paths.js';
 import { createBoardFile } from '../../../substrate/writer.js';
 import { loadSubstrate } from '../../../substrate/loader.js';
+import { openDatabaseAndMigrate } from '../../../storage/client.js';
+import { createTask } from '../../../storage/repositories/tasks.js';
 import { updateProjectHandler } from './update-project.js';
 import { createBoardHandler } from './create-board.js';
 import { updateBoardHandler } from './update-board.js';
 import { archiveBoardHandler } from './archive-board.js';
 import { unarchiveBoardHandler } from './unarchive-board.js';
 import type { ToolDeps } from '../../deps.js';
-import type { Board, Config } from '../../../core/types.js';
+import type { Board, Config, Task } from '../../../core/types.js';
 
 const baseConfig: Config = {
   project_id: '11111111-1111-4111-8111-111111111111',
@@ -39,9 +42,28 @@ function makeBoard(id: string, overrides: Partial<Board> = {}): Board {
   };
 }
 
+function makeTask(id: string, boardId: string, groupId: string): Task {
+  return {
+    id,
+    board_id: boardId,
+    group_id: groupId,
+    parent_id: null,
+    origin_task_id: null,
+    title: 't',
+    description: '',
+    custom_data: {},
+    version: 1,
+    created_by_agent: 'tester',
+    created_at: '2026-05-09T00:00:00.000Z',
+    updated_at: '2026-05-09T00:00:00.000Z',
+    archived_at: null,
+  };
+}
+
 describe('board + project edit tools', () => {
   let dir: string;
   let root: string;
+  let client: Client;
   let deps: ToolDeps;
 
   beforeEach(async () => {
@@ -49,14 +71,16 @@ describe('board + project edit tools', () => {
     root = join(dir, '.substrate');
     await writeConfig(root, baseConfig);
     await mkdir(paths(root).boardsDir, { recursive: true });
+    client = await openDatabaseAndMigrate(paths(root).dataSqlite);
     deps = {
-      client: {} as ToolDeps['client'],
+      client,
       config: baseConfig,
       loadSubstrate: () => loadSubstrate(root),
       root,
     };
   });
   afterEach(async () => {
+    client.close();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -176,6 +200,13 @@ describe('board + project edit tools', () => {
       const again = await archiveBoardHandler({ id: 'b1', version: 999, agent_name: 'a' }, deps);
       if (!again.ok) throw new Error('expected success');
       expect(again.applied.version).toBe(2); // no-op, no bump, no version check
+    });
+
+    it('archive_board with an active task → conflict (mirrors archive_group)', async () => {
+      await createTask(client, makeTask('t1', 'b1', 'g1'));
+      const env = await archiveBoardHandler({ id: 'b1', version: 1, agent_name: 'a' }, deps);
+      if (env.ok) throw new Error('expected error');
+      expect(env.error.code).toBe('conflict');
     });
 
     it('unarchive_board restores; idempotent on an active board', async () => {
