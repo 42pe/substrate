@@ -95,7 +95,12 @@ export type TaskEventType =
   | 'unarchived'
   | 'comment_added'
   | 'comment_edited'
-  | 'comment_archived';
+  | 'comment_archived'
+  // A transition_guard blocked a group move. Recorded even though the move
+  // rolls back, so a human sees enforcement that otherwise left no trace. The
+  // `created`/`updated` events carry a `policies_fired` entry for policies that
+  // engaged on a successful write — there is no separate event for those.
+  | 'move_blocked';
 
 /**
  * Append-only change log + audit entry. `id` is an INTEGER rowid (not a

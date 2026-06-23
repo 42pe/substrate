@@ -388,12 +388,18 @@ describe('createTaskHandler — policy engine', () => {
       deps,
     );
     if (!env.ok) throw new Error('expected success');
-    expect(env.policies_fired).toContainEqual({
+    const fired = {
       policy_id: 'resp-1',
       policy_name: 'Auth Responsibility',
       policy_type: 'agent_responsibility',
       message: 'May relate to auth tasks.',
-    });
+    };
+    expect(env.policies_fired).toContainEqual(fired);
+
+    // The engagement is persisted in the `created` event (countable later).
+    const { results } = await listEvents(client, env.applied.id);
+    expect(results).toHaveLength(1);
+    expect(results[0]!.changes).toMatchObject({ policies_fired: [fired] });
   });
 
   it('fires no responsibility when the title does not match', async () => {
@@ -403,6 +409,10 @@ describe('createTaskHandler — policy engine', () => {
     );
     if (!env.ok) throw new Error('expected success');
     expect(env.policies_fired).toEqual([]);
+
+    // No engagement → no `policies_fired` key on the event (keeps it clean).
+    const { results } = await listEvents(client, env.applied.id);
+    expect(results[0]!.changes).not.toHaveProperty('policies_fired');
   });
 });
 

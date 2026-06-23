@@ -52,9 +52,8 @@ export async function updateTaskHandler(
   input: UpdateTaskInput,
   deps: ToolDeps,
 ): Promise<SuccessEnvelope<Task> | ErrorEnvelope> {
+  const now = new Date().toISOString();
   try {
-    const now = new Date().toISOString();
-
     const updated = await withTransaction(deps.client, async (tx) => {
       const existing = await getTask(tx, input.id);
 
@@ -123,7 +122,20 @@ export async function updateTaskHandler(
 
       const result = await updateTask(tx, input.id, input.version, patch, now);
 
-      // `updated` event: before/after for touched keys only (spec §3.2).
+      // agent_responsibilities are evaluated against the post-write task. They
+      // never block and are pure (no I/O), so we run them here against the
+      // just-updated row and persist the result IN the `updated` event — policy
+      // engagement is recorded atomically with the write (visible in history,
+      // countable for the responsibility-engagement metric) rather than only
+      // returned in the envelope.
+      const responsibilityEntries = runAgentResponsibilities({
+        board,
+        state: { task: result as unknown as Record<string, unknown> },
+      });
+      const policiesFired = guardEntries.concat(responsibilityEntries);
+
+      // `updated` event: before/after for touched keys only (spec §3.2), plus
+      // any policies that engaged on this write.
       const before: Partial<Task> = {};
       const after: Partial<Task> = {};
       if (input.title !== undefined) {
@@ -146,20 +158,16 @@ export async function updateTaskHandler(
       await appendEvent(tx, {
         task_id: input.id,
         event_type: 'updated',
-        changes: { before, after },
+        changes: {
+          before,
+          after,
+          ...(policiesFired.length > 0 ? { policies_fired: policiesFired } : {}),
+        },
         actor_agent_name: input.agent_name,
         occurred_at: now,
       });
 
-      // Hoist board + guard entries out of the tx for the post-commit
-      // responsibility pass and envelope assembly (C-5).
-      return { result, board, guardEntries };
-    });
-
-    // agent_responsibilities run AFTER commit, against the post-write task.
-    const responsibilityEntries = runAgentResponsibilities({
-      board: updated.board,
-      state: { task: updated.result as unknown as Record<string, unknown> },
+      return { result, policiesFired };
     });
 
     return successEnvelope<Task>(
@@ -169,16 +177,60 @@ export async function updateTaskHandler(
         version: updated.result.version,
         state: updated.result,
       },
-      updated.guardEntries.concat(responsibilityEntries),
+      updated.policiesFired,
     );
   } catch (e) {
-    if (SubstrateError.is(e)) return errorEnvelope(e);
+    if (SubstrateError.is(e)) {
+      // A guard block leaves no state change (the tx rolled back), so record a
+      // `move_blocked` event out-of-band — otherwise enforcement is invisible to
+      // the human watching the board. Best-effort: never mask the original error.
+      if (e.code === 'transition_blocked') {
+        await recordMoveBlocked(deps, input, e, now);
+      }
+      return errorEnvelope(e);
+    }
     logger.error('Unhandled error in update_task handler', {
       error: (e as Error).message,
       err: e,
       agent_name: input.agent_name,
     });
     return errorEnvelope(SubstrateError.internalError('Internal error'));
+  }
+}
+
+/**
+ * Append a `move_blocked` event for a guard that rejected a group move. The
+ * move itself rolled back, so this runs in its own write (not the failed tx).
+ * Best-effort: a failure here is logged but never surfaces — the caller still
+ * gets the original `transition_blocked` error.
+ */
+async function recordMoveBlocked(
+  deps: ToolDeps,
+  input: UpdateTaskInput,
+  error: SubstrateError,
+  occurredAt: string,
+): Promise<void> {
+  const d = error.details ?? {};
+  try {
+    await appendEvent(deps.client, {
+      task_id: input.id,
+      event_type: 'move_blocked',
+      changes: {
+        policy_id: d['policy_id'] ?? null,
+        from_group: d['from_group'] ?? null,
+        to_group: d['to_group'] ?? input.group_id ?? null,
+        message: error.message,
+      },
+      actor_agent_name: input.agent_name,
+      occurred_at: occurredAt,
+    });
+  } catch (e) {
+    logger.error('Failed to record move_blocked event', {
+      error: (e as Error).message,
+      err: e,
+      task_id: input.id,
+      agent_name: input.agent_name,
+    });
   }
 }
 

@@ -280,7 +280,7 @@ describe('updateTaskHandler — policy engine', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('blocks a guarded transition and rolls back (no version bump, no event)', async () => {
+  it('blocks a guarded transition and rolls back (no version bump, records move_blocked)', async () => {
     const env = await updateTaskHandler(
       { id: 't1', version: 1, group_id: 'g2', agent_name: 'a' },
       deps,
@@ -297,8 +297,19 @@ describe('updateTaskHandler — policy engine', () => {
     const task = await getTask(client, 't1');
     expect(task.version).toBe(1); // unchanged
     expect(task.group_id).toBe('g1');
+
+    // The move rolled back (no `updated` event), but the blocked attempt is
+    // recorded as a `move_blocked` event so the human can see the enforcement.
     const { results } = await listEvents(client, 't1');
-    expect(results).toHaveLength(0); // no `updated` event
+    expect(results).toHaveLength(1);
+    expect(results[0]!.event_type).toBe('move_blocked');
+    expect(results[0]!.actor_agent_name).toBe('a');
+    expect(results[0]!.changes).toMatchObject({
+      policy_id: 'guard-1',
+      from_group: 'g1',
+      to_group: 'g2',
+      message: 'Approve before moving to Done.',
+    });
   });
 
   it('passes a guarded transition when require is met (set approved in the same call) and lists it', async () => {
@@ -309,11 +320,17 @@ describe('updateTaskHandler — policy engine', () => {
     );
     if (!env.ok) throw new Error('expected success');
     expect(env.applied.state.group_id).toBe('g2');
-    expect(env.policies_fired).toContainEqual({
+    const guardEntry = {
       policy_id: 'guard-1',
       policy_name: 'Approval Guard',
       policy_type: 'transition_guard',
-    });
+    };
+    expect(env.policies_fired).toContainEqual(guardEntry);
+
+    // The engagement is persisted in the `updated` event alongside before/after.
+    const { results } = await listEvents(client, 't1');
+    const updatedEvent = results.find((e) => e.event_type === 'updated');
+    expect(updatedEvent?.changes['policies_fired']).toContainEqual(guardEntry);
   });
 
   it('does not evaluate guards when there is no group change (even with a failing require)', async () => {
