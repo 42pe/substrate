@@ -77,7 +77,7 @@ describe('validateSubstrate', () => {
     }
     expect(SubstrateError.is(caught)).toBe(true);
     if (SubstrateError.is(caught)) {
-      expect(caught.code).toBe('internal_error');
+      expect(caught.code).toBe('substrate_corrupt');
       expect(caught.details).toMatchObject({ board_id: 'dup' });
     }
   });
@@ -99,7 +99,7 @@ describe('validateSubstrate', () => {
     }
     expect(SubstrateError.is(caught)).toBe(true);
     if (SubstrateError.is(caught)) {
-      expect(caught.code).toBe('internal_error');
+      expect(caught.code).toBe('substrate_corrupt');
       expect(caught.details).toMatchObject({ section: 'task', field: 'sev' });
     }
   });
@@ -124,7 +124,7 @@ describe('validateSubstrate', () => {
     }
     expect(SubstrateError.is(caught)).toBe(true);
     if (SubstrateError.is(caught)) {
-      expect(caught.code).toBe('internal_error');
+      expect(caught.code).toBe('substrate_corrupt');
       expect(caught.details).toMatchObject({ policy_id: 'p1', group_id: 'ghost' });
     }
   });
@@ -155,7 +155,7 @@ describe('validateSubstrate', () => {
     expect(() => validateSubstrate(sub([board]))).not.toThrow();
   });
 
-  it('rejects a malformed guard definition on load (internal_error)', () => {
+  it('rejects a malformed guard definition on load (substrate_corrupt)', () => {
     const board = makeBoard({
       policies: [makePolicy({ definition: { from_group: 'g1' } })], // missing to_group
     });
@@ -163,11 +163,11 @@ describe('validateSubstrate', () => {
       validateSubstrate(sub([board]));
       throw new Error('expected throw');
     } catch (e) {
-      expect(SubstrateError.is(e) && e.code).toBe('internal_error');
+      expect(SubstrateError.is(e) && e.code).toBe('substrate_corrupt');
     }
   });
 
-  it('rejects an agent_responsibility with no message on load (internal_error)', () => {
+  it('rejects an agent_responsibility with no message on load (substrate_corrupt)', () => {
     const board = makeBoard({
       policies: [makePolicy({ type: 'agent_responsibility', definition: {} })],
     });
@@ -175,7 +175,7 @@ describe('validateSubstrate', () => {
       validateSubstrate(sub([board]));
       throw new Error('expected throw');
     } catch (e) {
-      expect(SubstrateError.is(e) && e.code).toBe('internal_error');
+      expect(SubstrateError.is(e) && e.code).toBe('substrate_corrupt');
     }
   });
 });

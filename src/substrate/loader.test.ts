@@ -98,7 +98,7 @@ describe('loadSubstrate', () => {
     }
     expect(SubstrateError.is(caught)).toBe(true);
     if (SubstrateError.is(caught)) {
-      expect(caught.code).toBe('internal_error');
+      expect(caught.code).toBe('substrate_corrupt');
       expect(caught.message).toContain('boards/broken.json');
     }
   });
@@ -113,7 +113,7 @@ describe('loadSubstrate', () => {
     }
     expect(SubstrateError.is(caught)).toBe(true);
     if (SubstrateError.is(caught)) {
-      expect(caught.code).toBe('internal_error');
+      expect(caught.code).toBe('substrate_corrupt');
       expect(caught.message).toContain('boards/bad-shape.json');
       expect(caught.details).toHaveProperty('issues');
     }
@@ -143,7 +143,7 @@ describe('loadSubstrate', () => {
       ],
     });
     await writeBoardFile('board-a.json', board);
-    await expect(loadSubstrate(root)).rejects.toMatchObject({ code: 'internal_error' });
+    await expect(loadSubstrate(root)).rejects.toMatchObject({ code: 'substrate_corrupt' });
   });
 
   it('throws not_found when config.json is missing', async () => {

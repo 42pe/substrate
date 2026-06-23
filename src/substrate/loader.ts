@@ -1,11 +1,11 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Board, Substrate } from '../core/types.js';
-import { SubstrateError } from '../core/errors.js';
 import { readConfig } from '../shared/config.js';
 import { paths } from '../shared/paths.js';
 import { BoardSchema } from './schemas.js';
 import { validateSubstrate } from './validator.js';
+import { corruptBoardError } from './corrupt.js';
 
 /**
  * Load the whole substrate from disk: the project config plus every board in
@@ -56,16 +56,18 @@ async function loadBoardFile(filePath: string, filename: string): Promise<Board>
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    throw SubstrateError.internalError(`Malformed boards/${filename}: ${(e as Error).message}`, {
+    throw corruptBoardError({
       file: `boards/${filename}`,
+      problem: `it is not valid JSON (${(e as Error).message})`,
     });
   }
 
   const result = BoardSchema.safeParse(parsed);
   if (!result.success) {
-    throw SubstrateError.internalError(`Invalid boards/${filename} shape`, {
+    throw corruptBoardError({
       file: `boards/${filename}`,
-      issues: result.error.issues,
+      problem: 'it does not match the board schema',
+      details: { issues: result.error.issues },
     });
   }
   // Zod's `.optional()` infers `T | undefined`, which `exactOptionalPropertyTypes`
