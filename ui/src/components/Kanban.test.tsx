@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useMovedTasks } from './Kanban.js';
-import type { BoardColumn } from '../lib/api.js';
-import type { Task } from '@core/types';
+import type { BoardColumn, ColumnTask } from '../lib/api.js';
 
-function task(id: string): Task {
+function task(id: string): ColumnTask {
   return {
     id,
     board_id: 'b',
@@ -19,6 +18,7 @@ function task(id: string): Task {
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
     archived_at: null,
+    missing_required_fields: [],
   };
 }
 

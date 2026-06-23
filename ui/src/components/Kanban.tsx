@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { BoardColumn } from '../lib/api.js';
-import type { Task } from '@core/types';
+import type { BoardColumn, ColumnTask } from '../lib/api.js';
 import { cn } from '../lib/cn.js';
 import { Badge } from './ui/Badge.js';
 import { EmptyState } from './States.js';
@@ -45,7 +44,8 @@ export function useMovedTasks(columns: BoardColumn[] | null | undefined): Set<st
   return moved;
 }
 
-function KanbanCard({ task, moved }: { task: Task; moved: boolean }) {
+function KanbanCard({ task, moved }: { task: ColumnTask; moved: boolean }) {
+  const missing = task.missing_required_fields;
   return (
     <Link
       to={`/tasks/${encodeURIComponent(task.id)}`}
@@ -55,7 +55,16 @@ function KanbanCard({ task, moved }: { task: Task; moved: boolean }) {
       )}
     >
       <p className="text-sm font-medium text-neutral-900">{task.title}</p>
-      <p className="mt-1 text-xs text-neutral-400">updated {timeAgo(task.updated_at)} ago</p>
+      <div className="mt-1 flex items-center gap-2">
+        <p className="text-xs text-neutral-400">updated {timeAgo(task.updated_at)} ago</p>
+        {missing.length > 0 ? (
+          <Badge variant="warning" title={`Missing required: ${missing.join(', ')}`}>
+            {missing.length === 1
+              ? 'missing 1 required field'
+              : `missing ${missing.length} required`}
+          </Badge>
+        ) : null}
+      </div>
     </Link>
   );
 }

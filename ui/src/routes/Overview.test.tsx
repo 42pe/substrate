@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api.js';
-import type { BoardColumnsResult, BoardSummary, Paginated } from '../lib/api.js';
-import type { Task } from '@core/types';
+import type { BoardColumnsResult, BoardSummary, ColumnTask, Paginated } from '../lib/api.js';
 import { Overview } from './Overview.js';
 
 vi.mock('../lib/api.js', async (orig) => {
@@ -28,7 +27,7 @@ function boardsPage(results: BoardSummary[]): Paginated<BoardSummary> {
   return { results, pagination: { next_cursor: null, has_more: false, page_size: 50 } };
 }
 
-function task(id: string): Task {
+function task(id: string): ColumnTask {
   return {
     id,
     board_id: 'x',
@@ -43,6 +42,7 @@ function task(id: string): Task {
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
     archived_at: null,
+    missing_required_fields: [],
   };
 }
 

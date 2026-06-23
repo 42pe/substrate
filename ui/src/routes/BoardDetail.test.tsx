@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import * as api from '../lib/api.js';
-import type { BoardColumnsResult, BoardSubstrate, Paginated } from '../lib/api.js';
+import type { BoardColumnsResult, BoardSubstrate, ColumnTask, Paginated } from '../lib/api.js';
 import type { Task } from '@core/types';
 import { BoardDetail } from './BoardDetail.js';
 
@@ -45,7 +45,7 @@ const substrate: BoardSubstrate = {
   policies: [],
 };
 
-function task(id: string, groupId: string): Task {
+function task(id: string, groupId: string): ColumnTask {
   return {
     id,
     board_id: 'b1',
@@ -60,6 +60,7 @@ function task(id: string, groupId: string): Task {
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
     archived_at: null,
+    missing_required_fields: [],
   };
 }
 

@@ -27,6 +27,12 @@ export interface Paginated<T> {
   pagination: { next_cursor: string | null; has_more: boolean; page_size: number };
 }
 
+/** A column task plus any REQUIRED fields it is missing (Theme 4b). Mirrors the
+ *  server `ColumnTask`. */
+export interface ColumnTask extends Task {
+  missing_required_fields: string[];
+}
+
 /** One kanban column: an active group + its true active-task count + a capped,
  *  `updated_at DESC` preview. Mirrors the server `BoardColumn` (Phase 9). */
 export interface BoardColumn {
@@ -35,7 +41,14 @@ export interface BoardColumn {
   position: number;
   color: string | null;
   total: number;
-  tasks: Task[];
+  tasks: ColumnTask[];
+}
+
+/** A project-wide activity event (Theme 4a). Mirrors the server `ActivityEvent`. */
+export interface ActivityEvent extends TaskEvent {
+  task_title: string | null;
+  board_id: string | null;
+  board_name: string | null;
 }
 
 export interface BoardColumnsResult {
@@ -134,3 +147,7 @@ export const getComments = (
   id: string,
   params: { parent_id?: string; cursor?: string; page_size?: number } = {},
 ): Promise<Paginated<Comment>> => apiGet(`/tasks/${encodeURIComponent(id)}/comments${qs(params)}`);
+
+export const getActivity = (
+  params: { cursor?: string; page_size?: number } = {},
+): Promise<Paginated<ActivityEvent>> => apiGet(`/activity${qs(params)}`);

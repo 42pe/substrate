@@ -8,6 +8,16 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ### Added
 
+- **The inspector now shows agent activity and schema gaps.** Two additions make
+  enforcement and data quality visible to the human:
+  - A new **Activity** page (and `GET /api/activity`) — a live, cross-board feed
+    of "who did what, when": task creates/updates/archives, comment activity,
+    guard `move_blocked` rejections, and the policies that engaged on a write.
+    Newest-first, polling live like the rest of the inspector.
+  - **Kanban cards flag tasks missing a required field** with an amber badge
+    (the card lists which fields on hover). The board-columns API now returns
+    `missing_required_fields` per task, using the same rule as
+    `list_tasks(missing_required_fields)`.
 - **A broken board file now reports how to fix it.** When a `.substrate/boards/*.json`
   is malformed or structurally invalid, Substrate fails to load with a new
   `substrate_corrupt` error (instead of a generic `internal_error`) that names

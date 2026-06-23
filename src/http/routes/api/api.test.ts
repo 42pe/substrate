@@ -224,6 +224,36 @@ describe('HTTP read API', () => {
     expect(res.status).toBe(404);
   });
 
+  it('GET /api/activity returns cross-board events enriched with task title + board name', async () => {
+    // Add a move_blocked on task 2 so the feed spans more than one event/type.
+    await appendEvent(client, {
+      task_id: '2',
+      event_type: 'move_blocked',
+      changes: { policy_id: 'guard-x', from_group: 'g1', to_group: 'done', message: 'nope' },
+      actor_agent_name: 'agent-z',
+      occurred_at: '2026-05-10T00:00:00.000Z',
+    });
+    const res = await app.request('/api/activity');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      results: Array<{
+        event_type: string;
+        task_id: string;
+        task_title: string | null;
+        board_id: string | null;
+        board_name: string | null;
+        actor_agent_name: string;
+      }>;
+      pagination: { has_more: boolean };
+    };
+    // Newest first: the move_blocked (2026-05-10) precedes the created (2026-05-09).
+    expect(body.results[0]!.event_type).toBe('move_blocked');
+    expect(body.results[0]!.task_title).toBe('Task 2');
+    expect(body.results[0]!.board_id).toBe('b1');
+    expect(body.results[0]!.board_name).toBe('Board 1');
+    expect(body.results.some((e) => e.event_type === 'created')).toBe(true);
+  });
+
   it('/api/project returns JSON, not the SPA HTML (route ordering)', async () => {
     const res = await app.request('/api/project');
     expect(res.headers.get('content-type')).toMatch(/application\/json/);

@@ -221,4 +221,27 @@ describe('GET /api/boards/:id/columns', () => {
     const after = (await (await app.request('/api/boards/b1/columns')).json()) as ColumnsBody;
     expect(after.columns.map((c) => c.group_id)).toEqual(['g1', 'g2']);
   });
+
+  it('flags tasks missing a required field (Theme 4b)', async () => {
+    // A board that declares a required `owner` field.
+    const breq: Board = {
+      ...makeBoard('breq', [group('open', 'Open', 0)]),
+      field_schema: { task: { owner: { type: 'string', required: true } }, comments: {} },
+    };
+    await createBoardFile(root, breq);
+    // tfull has owner set; tmissing does not.
+    await createTask(client, {
+      ...makeTask('tfull', 'breq', 'open', '10'),
+      custom_data: { owner: 'alice' },
+    });
+    await createTask(client, makeTask('tmissing', 'breq', 'open', '11'));
+
+    const body = (await (await app.request('/api/boards/breq/columns')).json()) as {
+      columns: Array<{ tasks: Array<{ id: string; missing_required_fields: string[] }> }>;
+    };
+    const tasks = body.columns[0]!.tasks;
+    const byId = new Map(tasks.map((t) => [t.id, t.missing_required_fields]));
+    expect(byId.get('tmissing')).toEqual(['owner']);
+    expect(byId.get('tfull')).toEqual([]);
+  });
 });

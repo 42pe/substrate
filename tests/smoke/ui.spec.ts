@@ -118,6 +118,16 @@ test('boards (/boards) lists boards', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('activity (/activity) renders the cross-board event feed', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto(`${baseURL}/activity`);
+  await expect(page.getByRole('heading', { name: 'Activity', level: 1 })).toBeVisible();
+  // The seed appends a `created` event for task "Design"; the feed row links to it.
+  await expect(page.getByRole('link', { name: 'Design' })).toBeVisible();
+  await expect(page.locator('[aria-live="polite"]').first()).toBeVisible(); // live indicator
+  expect(errors).toEqual([]);
+});
+
 test('board detail (/boards/:id) renders a kanban with a working List toggle', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto(`${baseURL}/boards/main`);
