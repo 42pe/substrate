@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'not_found'
   | 'conflict'
   | 'forbidden'
+  | 'substrate_corrupt'
   | 'internal_error';
 
 /**
@@ -55,6 +56,16 @@ export class SubstrateError extends Error {
     return new SubstrateError('forbidden', message, details);
   }
 
+  /**
+   * An on-disk substrate file (a `boards/*.json`) is malformed or
+   * structurally invalid, so the substrate can't be loaded. Distinct from
+   * `internal_error`: this is user-authored config the user can fix, not a
+   * server bug. See `substrate/corrupt.ts` for the message+remediation helper.
+   */
+  static substrateCorrupt(message: string, details?: Record<string, unknown>): SubstrateError {
+    return new SubstrateError('substrate_corrupt', message, details);
+  }
+
   static internalError(message: string, details?: Record<string, unknown>): SubstrateError {
     return new SubstrateError('internal_error', message, details);
   }
@@ -89,6 +100,10 @@ export const HTTP_STATUS_FOR: Readonly<Record<ErrorCode, HttpStatusCode>> = {
   not_found: 404,
   conflict: 409,
   forbidden: 403,
+  // The request was fine; the server-side substrate config is broken. 500 is
+  // the honest status — but the message tells the user exactly which file and
+  // how to fix it (it's not an opaque server bug).
+  substrate_corrupt: 500,
   internal_error: 500,
 };
 

@@ -6,6 +6,11 @@ Format: **Decision** — Alternatives — Why — Date.
 
 ---
 
+## Architecture-review follow-ups (2026-06-22/23)
+
+### New error code `substrate_corrupt` for a broken board file on load (Theme 3)
+**Decision:** Add a dedicated error code `substrate_corrupt` (the eighth in the otherwise-locked v1 set) for the load path when a `boards/*.json` is malformed or structurally invalid. The whole-substrate strict-fail is **kept** (one broken board still fails the load — a broken gate must never silently vanish), but the error is now actionable: it names the exact file and embeds a paste-able prompt (also in `details.fix_prompt`) that a human can hand to an AI agent to repair the file. All load-path raises (JSON parse, board-shape, duplicate board/group ids, enum-without-values, dangling group refs, malformed policy definitions) now use it via `substrate/corrupt.ts`; the write path keeps `schema_violation` (there the edit *input* is at fault). **Alternatives:** (a) per-board degradation — skip the broken board, load the rest, warn loudly (rejected for now: more code, and silently dropping a board risks an agent acting against an incomplete substrate; revisit if hand-edit friction dominates the dogfood journal); (b) keep the generic `internal_error` (rejected — reads as "server bug" when it's a user-fixable config file). **Why:** the review flagged that `internal_error` misattributes a fixable authored-file problem to a server fault; a dedicated code + remediation prompt makes the failure self-service without weakening the strict-load guarantee. HTTP status stays 500 (the request was fine; server-side state is broken) but the message carries the fix. PRD §6.4 updated. **Date:** 2026-06-23.
+
 ## v0.3 era (post-reviewer pivot, 2026-05-09)
 
 ### Product-review follow-ups: doc reframe, gate honesty, naming, scope floor (2026-06-09)

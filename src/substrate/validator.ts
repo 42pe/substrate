@@ -1,6 +1,7 @@
 import type { Board, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
 import { validatePolicyDefinition } from '../policy/definition-schema.js';
+import { corruptBoardError } from './corrupt.js';
 
 /**
  * Cross-board structural validation, run once after every board file parses
@@ -30,10 +31,11 @@ export function validateSubstrate(substrate: Substrate): void {
   const seenBoardIds = new Set<string>();
   for (const board of substrate.boards) {
     if (seenBoardIds.has(board.id)) {
-      throw SubstrateError.internalError(
-        `Duplicate board id '${board.id}' across boards/*.json. Board IDs must be unique.`,
-        { board_id: board.id },
-      );
+      throw corruptBoardError({
+        file: `boards/${board.id}.json`,
+        problem: `duplicate board id '${board.id}' — board ids must be unique across boards/*.json`,
+        details: { board_id: board.id },
+      });
     }
     seenBoardIds.add(board.id);
     validateBoard(board);
@@ -81,20 +83,22 @@ export function validateBoardStructure(board: Board): void {
 }
 
 function validateBoard(board: Board): void {
-  // Load path: same structural checks, but a corrupt on-disk board is internal_error.
-  checkBoardStructure(board, SubstrateError.internalError);
+  // Load path: a structurally-broken on-disk board is `substrate_corrupt` (an
+  // authored file the user can fix), carrying the file path + a paste-able
+  // agent prompt. (The write path keeps `schema_violation` — see
+  // validateBoardStructure — because there the edit *input* is at fault.)
+  const corrupt: Raise = (message, details) =>
+    corruptBoardError({ file: `boards/${board.id}.json`, problem: message, details });
+
+  checkBoardStructure(board, corrupt);
 
   const groupIds = new Set(board.groups.map((g) => g.id));
 
   for (const policy of board.policies) {
-    // Shape: a malformed definition must fail the load loudly (internal_error)
-    // rather than load fine and silently never engage. Carries board+policy id.
+    // Shape: a malformed definition must fail the load loudly rather than load
+    // fine and silently never engage. Carries the policy id.
     validatePolicyDefinition(policy.type, policy.definition, (message, details) =>
-      SubstrateError.internalError(`Board '${board.id}' policy '${policy.id}': ${message}`, {
-        board_id: board.id,
-        policy_id: policy.id,
-        ...details,
-      }),
+      corrupt(`policy '${policy.id}': ${message}`, { policy_id: policy.id, ...details }),
     );
 
     // transition_guard policies must reference groups that exist (archived OK).
@@ -104,9 +108,9 @@ function validateBoard(board: Board): void {
       const ref = policy.definition[key];
       if (typeof ref !== 'string' || ref === '*') continue;
       if (!groupIds.has(ref)) {
-        throw SubstrateError.internalError(
-          `Policy '${policy.id}' in board '${board.id}' references ${key} '${ref}', which is not a group in this board.`,
-          { board_id: board.id, policy_id: policy.id, group_id: ref },
+        throw corrupt(
+          `policy '${policy.id}' references ${key} '${ref}', which is not a group in this board`,
+          { policy_id: policy.id, group_id: ref },
         );
       }
     }

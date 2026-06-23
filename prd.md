@@ -167,7 +167,7 @@ Three layers, all in v1:
 
 No tokens, no per-install secrets in v1. (Deferred.)
 
-**Error codes (v1):** `schema_violation`, `transition_blocked`, `version_mismatch`, `not_found`, `conflict`, **`forbidden`** *(added 2026-05-09 for Origin/Host and path-canonicalization rejections)*, `internal_error`. No `auth_denied` (no tokens in v1) and no `validation_failed` (no `validation` policy class in v1).
+**Error codes (v1):** `schema_violation`, `transition_blocked`, `version_mismatch`, `not_found`, `conflict`, **`forbidden`** *(added 2026-05-09 for Origin/Host and path-canonicalization rejections)*, **`substrate_corrupt`** *(added 2026-06-23: a `boards/*.json` is malformed or structurally invalid so the substrate can't load — distinct from `internal_error`, which signals a server bug; carries the file path and a paste-able fix prompt in `details.fix_prompt`)*, `internal_error`. No `auth_denied` (no tokens in v1) and no `validation_failed` (no `validation` policy class in v1).
 
 ### 6.5 Read tools (v1)
 - `whoami()` → project name, board summaries, easter-egg hint.

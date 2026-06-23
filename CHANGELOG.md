@@ -8,6 +8,14 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ### Added
 
+- **A broken board file now reports how to fix it.** When a `.substrate/boards/*.json`
+  is malformed or structurally invalid, Substrate fails to load with a new
+  `substrate_corrupt` error (instead of a generic `internal_error`) that names
+  the exact file and includes a ready-to-paste prompt — surfaced both in the
+  message and in `details.fix_prompt` — that you can hand to an AI agent to
+  repair it. The strict whole-substrate load is unchanged (one broken board
+  still fails the load, so a broken gate never silently vanishes); only the
+  error is now actionable.
 - **Policy activity is now recorded in task history.** When a `transition_guard`
   blocks a move, Substrate records a `move_blocked` event (with the policy id,
   from/to groups, and the block message) — so the enforcement is visible even
