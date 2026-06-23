@@ -6,6 +6,7 @@ import { Overview } from './routes/Overview.js';
 import { Boards } from './routes/Boards.js';
 import { BoardDetail } from './routes/BoardDetail.js';
 import { TaskDetail } from './routes/TaskDetail.js';
+import { Activity } from './routes/Activity.js';
 import { NotFound } from './components/States.js';
 import './styles.css';
 
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'boards', element: <Boards /> },
       { path: 'boards/:id', element: <BoardDetail /> },
       { path: 'tasks/:id', element: <TaskDetail /> },
+      { path: 'activity', element: <Activity /> },
       { path: '*', element: <NotFound /> },
     ],
   },

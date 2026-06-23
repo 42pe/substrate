@@ -23,6 +23,9 @@ function Shell({ children }: { children: React.ReactNode }) {
             <NavLink to="/boards" className={navClass}>
               Boards
             </NavLink>
+            <NavLink to="/activity" className={navClass}>
+              Activity
+            </NavLink>
           </nav>
           <span className="ml-auto text-xs text-neutral-400">read-only inspector</span>
         </div>

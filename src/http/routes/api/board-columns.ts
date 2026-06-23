@@ -26,6 +26,16 @@ import {
 /** Per-column board-detail cap. The Overview wall passes a much smaller limit. */
 export const KANBAN_COLUMN_LIMIT = 100;
 
+/**
+ * A column task plus the names of any REQUIRED fields it is missing (a required
+ * `field_schema.task` key whose `custom_data` value is null/absent — same rule
+ * as `list_tasks(missing_required_fields)`). Empty array ⇒ nothing missing. Lets
+ * the inspector badge a card that violates its own board's schema (Theme 4b).
+ */
+export interface ColumnTask extends Task {
+  missing_required_fields: string[];
+}
+
 export interface BoardColumn {
   group_id: string;
   group_name: string;
@@ -34,7 +44,7 @@ export interface BoardColumn {
   /** True count of ACTIVE tasks in this group — independent of `limit`. */
   total: number;
   /** Up to `limit` active tasks, `updated_at DESC`. */
-  tasks: Task[];
+  tasks: ColumnTask[];
 }
 
 export interface BoardColumnsResult {
@@ -80,6 +90,14 @@ export async function getBoardColumnsHandler(
     .filter((g) => g.archived_at === null)
     .sort((a, b) => a.position - b.position);
 
+  // Required-field set for this board (per-board, like list_tasks). A task is
+  // flagged for any required key whose custom_data value is null/absent.
+  const requiredKeys = Object.entries(board.field_schema.task)
+    .filter(([, entry]) => entry.required === true)
+    .map(([key]) => key);
+  const missingRequired = (task: Task): string[] =>
+    requiredKeys.filter((k) => task.custom_data[k] === null || task.custom_data[k] === undefined);
+
   const counts = await countActiveTasksByGroup(deps.client, board.id);
 
   const columns: BoardColumn[] = [];
@@ -91,7 +109,7 @@ export async function getBoardColumnsHandler(
       position: g.position,
       color: g.color,
       total: counts.get(g.id) ?? 0,
-      tasks,
+      tasks: tasks.map((t) => ({ ...t, missing_required_fields: missingRequired(t) })),
     });
   }
 

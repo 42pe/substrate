@@ -18,6 +18,7 @@ import {
 } from '../../../mcp/tools/read/list-comments.js';
 import { getCommentToolHandler, getCommentShape } from '../../../mcp/tools/read/get-comment.js';
 import { getBoardColumnsHandler, boardColumnsShape } from './board-columns.js';
+import { getActivityHandler, activityShape } from './activity.js';
 import {
   boolParam,
   intParam,
@@ -131,5 +132,12 @@ export function registerApiRoutes(app: Hono, deps: ApiDeps): void {
   app.get('/api/comments/:id', async (c) => {
     const input = validateInput(getCommentShape, { id: c.req.param('id') });
     return c.json(await getCommentToolHandler(input, td));
+  });
+
+  // Project-wide activity feed (Theme 4a). HTTP-only — no MCP twin (agents read
+  // per-task history via get_task_history).
+  app.get('/api/activity', async (c) => {
+    const input = validateInput(activityShape, { pagination: paginationParam(c) });
+    return c.json(await getActivityHandler(input, td));
   });
 }
