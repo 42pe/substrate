@@ -23,7 +23,7 @@ describe('openDatabaseAndMigrate', () => {
       client.close();
       client = null;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('creates a fresh database with migrations applied and WAL on', async () => {
@@ -96,7 +96,7 @@ describe('openClient', () => {
       client.close();
       client = null;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('opens without running migrations', async () => {
@@ -138,7 +138,7 @@ describe('withTransaction', () => {
       client.close();
       client = null;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('commits and returns the fn result', async () => {

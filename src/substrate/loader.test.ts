@@ -53,7 +53,7 @@ describe('loadSubstrate', () => {
     await writeConfig(root, CONFIG);
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   async function writeBoardFile(filename: string, content: unknown): Promise<void> {

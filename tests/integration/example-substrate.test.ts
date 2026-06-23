@@ -69,7 +69,7 @@ describe('example substrate — web-delivery', () => {
       expect(t.source).toBe('convention');
       expect(JSON.stringify(canonical(t.boards[0]))).toBe(JSON.stringify(canonical(authoritative)));
     } finally {
-      rmSync(tmp, { recursive: true, force: true });
+      rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 

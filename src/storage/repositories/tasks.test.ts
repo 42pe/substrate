@@ -39,7 +39,7 @@ describe('tasks repository', () => {
 
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('createTask + getTask round-trips', async () => {
@@ -126,7 +126,7 @@ describe('updateTask (OCC)', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('updates fields and bumps version', async () => {
@@ -196,7 +196,7 @@ describe('archiveTask / unarchiveTask (idempotent)', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('archives and reports changed: true', async () => {
@@ -258,7 +258,7 @@ describe('listTasks', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('filters by board_id', async () => {

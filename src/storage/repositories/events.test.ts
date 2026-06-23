@@ -27,7 +27,7 @@ describe('events repository', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('appendEvent assigns a numeric id and round-trips fields', async () => {

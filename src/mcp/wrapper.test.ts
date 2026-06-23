@@ -81,7 +81,7 @@ describe('wrapToolHandler', () => {
       expect(log).toMatch(/\n {4,}at /); // stack block present
     } finally {
       spy.mockRestore();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 

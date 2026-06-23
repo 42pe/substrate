@@ -109,7 +109,7 @@ describe('HTTP read API', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('GET /api/project returns the project record', async () => {

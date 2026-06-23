@@ -13,7 +13,7 @@ describe('explainCommand', () => {
     cwd = await mkdtemp(join(tmpdir(), 'substrate-explain-'));
   });
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('writes a self-contained HTML map at the default path', async () => {

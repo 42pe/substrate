@@ -57,8 +57,8 @@ describe('addCommand transactional rollback', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     createBoardFileMock.mockReset();
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(tdir, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    rmSync(tdir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('rolls back board 1 when board 2 fails mid-apply, and rethrows the original error', async () => {

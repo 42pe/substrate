@@ -100,7 +100,7 @@ describe('updateTaskHandler', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('updates fields, bumps version, and emits an updated event with before/after', async () => {
@@ -277,7 +277,7 @@ describe('updateTaskHandler — policy engine', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('blocks a guarded transition and rolls back (no version bump, records move_blocked)', async () => {

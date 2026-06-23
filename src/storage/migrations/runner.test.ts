@@ -22,7 +22,7 @@ describe('getCurrentSchemaVersion', () => {
       expect(await getCurrentSchemaVersion(client)).toBe(0);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -33,7 +33,7 @@ describe('getCurrentSchemaVersion', () => {
       expect(await getCurrentSchemaVersion(client)).toBe(42);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });
@@ -50,7 +50,7 @@ describe('runMigrations', () => {
 
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('applies migration 001 to an empty database', async () => {
@@ -170,7 +170,7 @@ describe('auto-backup before migration (Phase 4)', () => {
       expect(baks.length).toBe(1);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -188,7 +188,7 @@ describe('auto-backup before migration (Phase 4)', () => {
       expect(after).toBe(before); // no new backup
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -215,7 +215,7 @@ describe('auto-backup before migration (Phase 4)', () => {
       expect(baks.length).toBe(1);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });

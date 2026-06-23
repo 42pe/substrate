@@ -15,7 +15,7 @@ describe('registerStaticFallback', () => {
   });
 
   afterEach(async () => {
-    await rm(projectRoot, { recursive: true, force: true });
+    await rm(projectRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   describe('when dist/ui/ is absent', () => {

@@ -59,7 +59,7 @@ describe('archiveTaskHandler / unarchiveTaskHandler', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('archives a task, bumps version, and emits an archived event', async () => {

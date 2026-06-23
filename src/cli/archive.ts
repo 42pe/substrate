@@ -100,7 +100,7 @@ export async function extractSubstrateArchive(
     tp.dataSqliteWal,
     tp.dataSqliteShm,
   ]) {
-    await rm(victim, { recursive: true, force: true });
+    await rm(victim, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
   const targetResolved = resolve(targetRoot);
   await tarExtract({

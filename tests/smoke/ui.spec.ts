@@ -81,7 +81,7 @@ test.afterAll(async () => {
       }, 5_000);
     });
   }
-  if (tempDir) await rm(tempDir, { recursive: true, force: true });
+  if (tempDir) await rm(tempDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 /** Attach console/page-error collectors; benign favicon noise is ignored. */

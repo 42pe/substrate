@@ -118,7 +118,7 @@ describe('concurrency smoke', () => {
         `[concurrency smoke] PASS — ${results.length} workers, ${reportedTotal} writes, 0 errors`,
       );
     } finally {
-      await rm(cwd, { recursive: true, force: true });
+      await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 90_000); // 60s test + 30s margin
 });

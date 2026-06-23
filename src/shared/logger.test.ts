@@ -99,7 +99,7 @@ describe('logger file sink', () => {
   afterEach(() => {
     resetFileSink(); // MANDATED: no test leaves sinkPath set (CONCERN-1)
     vi.restoreAllMocks();
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('writes nothing when the sink is unconfigured', () => {

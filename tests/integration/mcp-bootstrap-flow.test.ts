@@ -231,7 +231,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       });
     }
     child = null;
-    await rm(cwd, { recursive: true, force: true });
+    await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('lists the full tool surface in tools/list', async () => {

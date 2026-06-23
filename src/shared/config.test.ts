@@ -19,7 +19,9 @@ async function makeTempRoot(): Promise<string> {
 
 afterEach(async () => {
   for (const dir of tempDirs) {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }).catch(
+      () => undefined,
+    );
   }
   tempDirs = [];
 });

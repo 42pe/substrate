@@ -126,7 +126,9 @@ export async function initCommand(
   } catch (err) {
     // Best-effort rollback of our partial .substrate/. Swallow rollback
     // errors — the original failure is the actionable signal.
-    await rm(root, { recursive: true, force: true }).catch(() => undefined);
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }).catch(
+      () => undefined,
+    );
     throw err;
   }
 }

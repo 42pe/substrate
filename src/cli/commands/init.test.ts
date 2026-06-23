@@ -20,7 +20,7 @@ describe('initCommand', () => {
   });
 
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('creates the full .substrate/ directory tree', async () => {
@@ -200,8 +200,8 @@ describe('initCommand', () => {
           'delivery',
         ]);
       } finally {
-        await rm(fresh1, { recursive: true, force: true });
-        await rm(fresh2, { recursive: true, force: true });
+        await rm(fresh1, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        await rm(fresh2, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
       }
     });
 
@@ -214,7 +214,7 @@ describe('initCommand', () => {
         const sub = await loadSubstrate(root);
         expect(sub.boards.map((b) => b.id)).toContain('alpha');
       } finally {
-        await rm(t, { recursive: true, force: true });
+        await rm(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
       }
     });
 
@@ -226,7 +226,7 @@ describe('initCommand', () => {
         const sub = await loadSubstrate(substrateRootFromCwd(cwd));
         expect(sub.boards.map((b) => b.id).sort()).toEqual(['one', 'three', 'two']);
       } finally {
-        await rm(t, { recursive: true, force: true });
+        await rm(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
       }
     });
 
@@ -254,7 +254,7 @@ describe('initCommand', () => {
         expect(SubstrateError.is(caught)).toBe(true);
         expect(existsSync(join(cwd, '.substrate'))).toBe(false);
       } finally {
-        await rm(empty, { recursive: true, force: true });
+        await rm(empty, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
       }
     });
 
@@ -270,7 +270,7 @@ describe('initCommand', () => {
         }
         expect(SubstrateError.is(caught) && caught.code).toBe('conflict');
       } finally {
-        await rm(t, { recursive: true, force: true });
+        await rm(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
       }
     });
   });

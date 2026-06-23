@@ -76,7 +76,7 @@ describe('addCommand', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    rmSync(cwd, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('dry-run (no --yes) prints the preview and writes NO board files', async () => {
@@ -87,7 +87,7 @@ describe('addCommand', () => {
     expect(output()).toContain('delivery');
     expect(output()).toContain('Dry run — nothing written. Re-run with --yes to apply.');
     expect(boardsDirFiles()).toEqual(before); // byte-for-byte unchanged
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('--yes writes the board and loadSubstrate accepts the merged substrate', async () => {
@@ -97,7 +97,7 @@ describe('addCommand', () => {
     expect(existsSync(paths(substrateRootFromCwd(cwd)).boardJson('delivery'))).toBe(true);
     const sub = await loadSubstrate(substrateRootFromCwd(cwd));
     expect(sub.boards.map((b) => b.id)).toContain('delivery');
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('refuses a collision and writes nothing', async () => {
@@ -107,7 +107,7 @@ describe('addCommand', () => {
     const before = boardsDirFiles();
     await expectError(() => addCommand(cwd, t, { yes: true }), 'conflict', /already exists/);
     expect(boardsDirFiles()).toEqual(before);
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('--as renames a single-board template on apply', async () => {
@@ -116,7 +116,7 @@ describe('addCommand', () => {
     expect(existsSync(paths(substrateRootFromCwd(cwd)).boardJson('delivery2'))).toBe(true);
     const sub = await loadSubstrate(substrateRootFromCwd(cwd));
     expect(sub.boards.map((b) => b.id)).toContain('delivery2');
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('--as is rejected for a multi-board template (before any write)', async () => {
@@ -126,7 +126,7 @@ describe('addCommand', () => {
       'schema_violation',
       /renames a single board/,
     );
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('--as onto an already-existing id refuses (collision on the renamed id)', async () => {
@@ -138,7 +138,7 @@ describe('addCommand', () => {
       'conflict',
       /already exists/,
     );
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('--as with an unsafe id is rejected with the rename-specific message (not writer.ts not_found)', async () => {
@@ -148,7 +148,7 @@ describe('addCommand', () => {
       'schema_violation',
       /is not a valid board id/,
     );
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('aborts attributing failure to the EXISTING substrate when it is invalid (B3)', async () => {
@@ -160,7 +160,7 @@ describe('addCommand', () => {
       'conflict',
       /Your existing substrate is invalid/,
     );
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('errors with the init hint when there is no .substrate/', async () => {
@@ -170,7 +170,7 @@ describe('addCommand', () => {
       'not_found',
       /substrate init/,
     );
-    rmSync(empty, { recursive: true, force: true });
+    rmSync(empty, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('preview counts groups + the two real policy types', async () => {
@@ -232,7 +232,7 @@ describe('addCommand', () => {
     expect(output()).toMatch(
       /2 group\(s\), 2 policy\(ies\) \(1 transition_guard, 1 agent_responsibility\)/,
     );
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   // --- C5: dispatcher arg-parsing order (positional + --as value-flag) ---
@@ -247,8 +247,8 @@ describe('addCommand', () => {
       const res = spawnSync('npx', ['tsx', CLI, ...args], { cwd: fresh, encoding: 'utf-8' });
       expect(res.status, res.stderr).toBe(0);
       expect(existsSync(join(fresh, '.substrate', 'boards', 'renamed.json'))).toBe(true);
-      rmSync(fresh, { recursive: true, force: true });
+      rmSync(fresh, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
-    rmSync(t, { recursive: true, force: true });
+    rmSync(t, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }, 30_000);
 });

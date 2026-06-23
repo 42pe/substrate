@@ -42,7 +42,7 @@ describe('substrate writer', () => {
     await mkdir(paths(root).boardsDir, { recursive: true });
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('createBoardFile writes a new board atomically', async () => {

@@ -31,7 +31,7 @@ describe('migration 002 (comments + task_events)', () => {
 
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('applies on a fresh database (001 then 002) and stamps user_version=2', async () => {

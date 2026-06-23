@@ -45,7 +45,7 @@ describe('logsCommand', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    rmSync(cwd, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('throws not_found when there is no .substrate/', () => {

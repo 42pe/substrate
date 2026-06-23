@@ -40,7 +40,7 @@ describe('comments repository', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('createComment + getComment round-trips', async () => {

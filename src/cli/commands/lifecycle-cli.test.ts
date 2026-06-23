@@ -22,7 +22,7 @@ describe('backup / export / import / diagnose CLIs', () => {
     await initCommand(cwd);
   });
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('backup writes a tarball into .substrate/backups/', async () => {
@@ -45,7 +45,7 @@ describe('backup / export / import / diagnose CLIs', () => {
       await importCommand(dest, archivePath, false);
       expect(existsSync(paths(substrateRootFromCwd(dest)).config)).toBe(true);
     } finally {
-      await rm(dest, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
     spy.mockRestore();
   });
@@ -91,6 +91,6 @@ describe('backup / export / import / diagnose CLIs', () => {
     spy.mockRestore();
     expect(process.exitCode).toBe(1);
     process.exitCode = saved;
-    await rm(broken, { recursive: true, force: true });
+    await rm(broken, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 });

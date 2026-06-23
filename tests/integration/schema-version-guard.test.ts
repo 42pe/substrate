@@ -32,7 +32,7 @@ describe('substrate serve — schema version guard (integration)', () => {
       child.kill('SIGKILL');
     }
     child = null;
-    await rm(cwd, { recursive: true, force: true });
+    await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('starts cleanly when user_version == BINARY_SCHEMA_VERSION (positive path)', async () => {

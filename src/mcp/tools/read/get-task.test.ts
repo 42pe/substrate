@@ -53,7 +53,7 @@ describe('getTaskToolHandler', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('returns the task including its version', async () => {

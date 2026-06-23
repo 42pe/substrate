@@ -34,7 +34,7 @@ describe('diagnoseCommand — recent errors section', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     process.exitCode = savedExitCode;
-    rmSync(cwd, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   function mkdtemp(): string {

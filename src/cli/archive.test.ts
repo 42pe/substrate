@@ -33,7 +33,7 @@ describe('substrate archive', () => {
     client.close();
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('creates an archive and round-trips it via extract into a fresh root', async () => {
