@@ -8,6 +8,16 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ### Added
 
+- **Policy activity is now recorded in task history.** When a `transition_guard`
+  blocks a move, Substrate records a `move_blocked` event (with the policy id,
+  from/to groups, and the block message) — so the enforcement is visible even
+  though the move rolled back and left no other trace. When a policy engages on
+  a successful `create_task` / `update_task`, the entries are persisted on that
+  write's `created` / `updated` event under `changes.policies_fired` (atomic
+  with the write), in addition to being returned in the response envelope. This
+  makes guard and agent_responsibility engagement auditable in the history and
+  countable over time. `get_task_history` accepts `move_blocked` as an
+  `event_types` filter value.
 - **Policy definitions are now validated.** `create_policy` and `update_policy`
   check the `definition` against the policy `type` and reject a malformed one
   with `schema_violation` (naming the offending field) instead of storing a

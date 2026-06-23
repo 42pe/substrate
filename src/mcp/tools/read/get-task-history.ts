@@ -21,6 +21,7 @@ const eventTypeEnum = z.enum([
   'comment_added',
   'comment_edited',
   'comment_archived',
+  'move_blocked',
 ]);
 
 export const getTaskHistoryShape = {
@@ -48,7 +49,7 @@ export function getTaskHistoryHandler(
 export function registerGetTaskHistory(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'get_task_history',
-    'Fetch the TaskEvent log for a task (created, updated, archived, comment_added, …) in chronological order. Paginated.',
+    'Fetch the TaskEvent log for a task (created, updated, archived, comment_added, move_blocked, …) in chronological order. Paginated. `move_blocked` records a transition_guard that rejected a move; `created`/`updated` events carry a `policies_fired` list in `changes` when a policy engaged.',
     getTaskHistoryShape,
     wrapToolHandler('get_task_history', getTaskHistorySchema, (input) =>
       getTaskHistoryHandler(input, deps),

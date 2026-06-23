@@ -111,22 +111,28 @@ export async function createTaskHandler(
     if (input.description !== undefined) initialState.description = input.description;
     if (input.custom_data !== undefined) initialState.custom_data = input.custom_data;
 
+    // agent_responsibilities are evaluated against the new task (create_task is
+    // initial placement, not a transition → no guards). Pure, no I/O, so we run
+    // it before the tx and persist the result IN the `created` event — the
+    // policy engagement is recorded atomically with the write, which makes it
+    // visible in history and countable for the responsibility-engagement metric.
+    const policiesFired = runAgentResponsibilities({
+      board,
+      state: { task: task as unknown as Record<string, unknown> },
+    });
+
     await withTransaction(deps.client, async (tx) => {
       await createTask(tx, task);
       await appendEvent(tx, {
         task_id: task.id,
         event_type: 'created',
-        changes: { initial_state: initialState },
+        changes: {
+          initial_state: initialState,
+          ...(policiesFired.length > 0 ? { policies_fired: policiesFired } : {}),
+        },
         actor_agent_name: input.agent_name,
         occurred_at: now,
       });
-    });
-
-    // agent_responsibilities run after the write, against the new task.
-    // (create_task is initial placement, not a transition → no guards.)
-    const policiesFired = runAgentResponsibilities({
-      board,
-      state: { task: task as unknown as Record<string, unknown> },
     });
 
     return successEnvelope<Task>(

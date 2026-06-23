@@ -527,11 +527,16 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     expect(moved.payload.applied.state.group_id).toBe('in_progress');
     expect(moved.payload.policies_fired.map((p) => p.policy_id)).toContain('guard-repro');
 
-    // history shows only the created + the ONE successful update (block emitted nothing).
+    // history shows the created, the blocked attempt (move_blocked), then the
+    // ONE successful update — the block leaves a trace even though it rolled back.
     const history = await callTool<{ results: Array<{ event_type: string }> }>('get_task_history', {
       task_id: taskId,
     });
-    expect(history.payload.results.map((e) => e.event_type)).toEqual(['created', 'updated']);
+    expect(history.payload.results.map((e) => e.event_type)).toEqual([
+      'created',
+      'move_blocked',
+      'updated',
+    ]);
   }, 30_000);
 
   it('authors substrate via MCP edit tools end-to-end (board → groups → policy → enforce)', async () => {
