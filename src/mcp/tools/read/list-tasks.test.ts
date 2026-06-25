@@ -141,4 +141,51 @@ describe('listTasksToolHandler', () => {
     );
     expect(r.results.map((t) => t.id)).toEqual(['hi']);
   });
+
+  // --- Phase 11: summary projection ---
+
+  it('defaults to summary rows (no description; excerpt + trimmed custom_data)', async () => {
+    await createTask(
+      client,
+      makeTask('t1', {
+        description: 'D'.repeat(500),
+        custom_data: { priority: 'high', acceptance_criteria: 'A'.repeat(400) },
+      }),
+    );
+    const r = await listTasksToolHandler({ filters: {} }, deps);
+    const row = r.results[0] as unknown as Record<string, unknown>;
+    expect(row).not.toHaveProperty('description');
+    expect(row['description_truncated']).toBe(true);
+    expect(typeof row['description_excerpt']).toBe('string');
+    expect((row['description_excerpt'] as string).length).toBeLessThan(500);
+    // scalar kept, bulky omitted
+    expect(row['custom_data']).toEqual({ priority: 'high' });
+    expect(row['custom_data_omitted']).toEqual(['acceptance_criteria']);
+  });
+
+  it("view: 'full' returns the full task verbatim (description + custom_data)", async () => {
+    const cd = { priority: 'high', acceptance_criteria: 'A'.repeat(400), tags: ['x'] };
+    await createTask(client, makeTask('t1', { description: 'D'.repeat(500), custom_data: cd }));
+    const r = await listTasksToolHandler({ filters: {}, view: 'full' }, deps);
+    const row = r.results[0] as unknown as Record<string, unknown>;
+    expect(row['description']).toBe('D'.repeat(500));
+    expect(row['custom_data']).toEqual(cd);
+    expect(row).not.toHaveProperty('description_excerpt');
+  });
+
+  it('custom_field filtering still matches a row whose value is omitted from the summary', async () => {
+    // `notes` is a long string → omitted from the summary projection, but the
+    // filter runs in SQL against the full row, so the match still works.
+    const longNote = `urgent ${'n'.repeat(400)}`;
+    await createTask(client, makeTask('hit', { custom_data: { notes: longNote } }));
+    await createTask(client, makeTask('miss', { custom_data: { notes: 'calm' } }));
+    const r = await listTasksToolHandler(
+      { filters: { custom_field: { field: 'notes', op: 'contains', value: 'urgent' } } },
+      deps,
+    );
+    expect(r.results.map((t) => t.id)).toEqual(['hit']);
+    // and the matched row's value is indeed omitted in the summary
+    const row = r.results[0] as unknown as Record<string, unknown>;
+    expect(row['custom_data_omitted']).toContain('notes');
+  });
 });

@@ -44,6 +44,27 @@ export interface BoardColumn {
   tasks: ColumnTask[];
 }
 
+/** Lean task row from `list_tasks` / `GET /api/tasks` (default summary view).
+ *  Mirrors the server `TaskSummary` (Phase 11). The List view reads only these
+ *  fields; full detail comes from `getTask`. */
+export interface TaskSummary {
+  id: string;
+  board_id: string;
+  group_id: string;
+  parent_id: string | null;
+  origin_task_id: string | null;
+  title: string;
+  description_excerpt: string;
+  description_truncated: boolean;
+  custom_data: Record<string, unknown>;
+  custom_data_omitted: string[];
+  version: number;
+  created_by_agent: string;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
 /** A project-wide activity event (Theme 4a). Mirrors the server `ActivityEvent`. */
 export interface ActivityEvent extends TaskEvent {
   task_title: string | null;
@@ -123,6 +144,8 @@ export const getBoardColumns = (
   params: { limit?: number } = {},
 ): Promise<BoardColumnsResult> => apiGet(`/boards/${encodeURIComponent(id)}/columns${qs(params)}`);
 
+// The inspector only ever lists summaries — no `view` param, so the full-row
+// branch is unreachable from the browser (the invariant lives in the type).
 export const getTasks = (
   params: {
     board_id?: string;
@@ -134,7 +157,7 @@ export const getTasks = (
     sort?: string;
     direction?: string;
   } = {},
-): Promise<Paginated<Task>> => apiGet(`/tasks${qs(params)}`);
+): Promise<Paginated<TaskSummary>> => apiGet(`/tasks${qs(params)}`);
 
 export const getTask = (id: string): Promise<Task> => apiGet(`/tasks/${encodeURIComponent(id)}`);
 

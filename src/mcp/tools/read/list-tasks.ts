@@ -12,7 +12,8 @@ import {
   type ListTasksOptions,
   type ListTasksFilters,
 } from '../../../storage/repositories/tasks.js';
-import type { Task } from '../../../core/types.js';
+import type { Task, TaskSummary } from '../../../core/types.js';
+import { toTaskSummary } from '../../../core/task-summary.js';
 import type { ToolDeps } from '../../deps.js';
 
 /**
@@ -77,6 +78,10 @@ export const listTasksShape = {
     })
     .optional(),
   pagination: paginationShape.optional(),
+  // Absent ⇒ summary (the handler treats only 'full' specially). Left optional
+  // rather than `.default('summary')` so direct (non-Zod) callers — and the
+  // output type — don't have to carry the field.
+  view: z.enum(['summary', 'full']).optional(),
 };
 const listTasksSchema = z.object(listTasksShape);
 export type ListTasksInput = z.output<typeof listTasksSchema>;
@@ -84,7 +89,7 @@ export type ListTasksInput = z.output<typeof listTasksSchema>;
 export async function listTasksToolHandler(
   input: ListTasksInput,
   deps: ToolDeps,
-): Promise<{ results: Task[]; pagination: PaginationOutput }> {
+): Promise<{ results: TaskSummary[] | Task[]; pagination: PaginationOutput }> {
   const { missing_required_fields, custom_field, ...rest } = input.filters;
 
   let requiredTaskFields: string[] | undefined;
@@ -132,13 +137,23 @@ export async function listTasksToolHandler(
     ...(requiredTaskFields ? { requiredTaskFields } : {}),
   };
 
-  return listTasks(deps.client, opts);
+  const full = await listTasks(deps.client, opts);
+  if (input.view === 'full') return full;
+  // Default: project to lean summary rows (description → excerpt, custom_data
+  // trimmed). Filtering already ran in SQL against the full rows, so a value
+  // omitted from the projection was still matchable.
+  return { results: full.results.map(toTaskSummary), pagination: full.pagination };
 }
 
 export function registerListTasks(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'list_tasks',
-    'Query tasks with filters (board, group membership, custom_field predicates, text search, missing required fields). Returns paginated results; pass `pagination.cursor` from the previous response to continue.',
+    [
+      'Query tasks with filters (board, group membership, custom_field predicates, text search, missing required fields). Paginated — pass `pagination.cursor` from the previous response to continue.',
+      'Returns lightweight SUMMARY rows by default: id, title, group_id, version, timestamps, a `description_excerpt` (+ `description_truncated`), and a `custom_data` trimmed to small scalar values (booleans, numbers, short strings — e.g. gate flags and priority) with any bulky keys listed in `custom_data_omitted`. This keeps a list small enough to read; call `get_task(id)` for the full description and custom_data.',
+      "Pass `view: 'full'` to get complete `description` + `custom_data` on every row (heavier — only when you truly need all values without per-task reads).",
+      'Filtering is unaffected by the summary: `custom_field` predicates and `missing_required_fields` run against the full task, so you can filter on a field even when its value is omitted from the row.',
+    ].join('\n'),
     listTasksShape,
     wrapToolHandler('list_tasks', listTasksSchema, (input) => listTasksToolHandler(input, deps)),
   );

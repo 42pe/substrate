@@ -65,6 +65,37 @@ export interface Task {
 }
 
 /**
+ * Lean projection of a Task for `list_tasks` (default `view: 'summary'`). Drops
+ * the two heavy fields — `description` (markdown body) and the bulky parts of
+ * `custom_data` — so a list response stays small enough for an agent's context.
+ * `get_task` (and `list_tasks` with `view: 'full'`) return the full `Task`.
+ *
+ * See `core/task-summary.ts` for the projection. Filtering is unaffected:
+ * `custom_field` predicates run in SQL against the full row, not this view.
+ */
+export interface TaskSummary {
+  id: string;
+  board_id: string;
+  group_id: string;
+  parent_id: string | null;
+  origin_task_id: string | null;
+  title: string;
+  /** First ~200 graphemes of `description`, word-trimmed, `…` if cut; `''` if none. */
+  description_excerpt: string;
+  /** True when the excerpt is shorter than the full description (call `get_task`). */
+  description_truncated: boolean;
+  /** Trimmed `custom_data`: only `boolean | number | null | string(≤120)` values. */
+  custom_data: Record<string, unknown>;
+  /** Keys dropped from `custom_data` (long string / array / object) — in `get_task`. */
+  custom_data_omitted: string[];
+  version: number;
+  created_by_agent: string;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+/**
  * Comment on a task. Threaded via `parent_id`. Append-only with
  * last-write-wins on edits — NO version column (design doc §Concurrency).
  */

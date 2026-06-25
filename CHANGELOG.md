@@ -6,6 +6,18 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **`list_tasks` now returns lightweight summary rows by default.** A list of a
+  busy board used to return every task's full `description` and `custom_data`
+  (a 35-task board was ~69KB — enough to overflow an agent's context). Rows are
+  now a summary: the small fields verbatim, a bounded `description_excerpt`
+  (+ `description_truncated`), and a `custom_data` trimmed to small scalar
+  values, with bulky keys listed in `custom_data_omitted`. Read a task in full
+  with `get_task(id)`, or pass `view: 'full'` (MCP) / `?view=full` (HTTP) to get
+  the complete rows. Filtering is unaffected — `custom_field` and
+  `missing_required_fields` still run against the full task.
+
 ### Added
 
 - **The inspector now shows agent activity and schema gaps.** Two additions make
