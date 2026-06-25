@@ -94,6 +94,9 @@ export function registerApiRoutes(app: Hono, deps: ApiDeps): void {
           ? { field: q('sort'), direction: q('direction') ?? 'desc' }
           : undefined,
       pagination: paginationParam(c),
+      // top-level (sibling to sort/pagination), NOT under filters — else the
+      // Zod default always wins. `?view=full` opts into full rows.
+      view: strParam(q('view')),
     });
     return c.json(await listTasksToolHandler(input, td));
   });

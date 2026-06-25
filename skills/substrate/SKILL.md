@@ -139,7 +139,11 @@ before any other call. Then `get_board_substrate` for the board you'll work in
 ### Typical loop
 
 1. `whoami` → pick the board → `get_board_substrate` (groups + schema + policies).
-2. `list_tasks` (filter by board/group) to see current work.
+2. `list_tasks` (filter by board/group) to see current work. It returns
+   lightweight **summary** rows (title, status, gate flags, priority, a
+   description excerpt) so a big board doesn't flood your context — call
+   `get_task(id)` to read a task's full description and custom fields, or pass
+   `view: 'full'` only when you genuinely need every value at once.
 3. Create work: `create_task` (`board_id`, `group_id`, `title`, `agent_name`;
    optional `description` markdown, `custom_data`).
 4. Progress work: `update_task` to move it between groups or edit fields (send

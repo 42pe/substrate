@@ -150,6 +150,30 @@ describe('HTTP read API', () => {
     expect(body.results.map((t) => t.id).sort()).toEqual(['1', '2']);
   });
 
+  it('GET /api/tasks defaults to summary rows; ?view=full returns full tasks', async () => {
+    const summary = (await (await app.request('/api/tasks?board_id=b1')).json()) as {
+      results: Array<Record<string, unknown>>;
+    };
+    expect(summary.results.length).toBeGreaterThan(0);
+    for (const row of summary.results) {
+      expect(row).not.toHaveProperty('description');
+      expect(row).toHaveProperty('description_excerpt');
+      expect(row).toHaveProperty('custom_data_omitted');
+    }
+    const full = (await (await app.request('/api/tasks?board_id=b1&view=full')).json()) as {
+      results: Array<Record<string, unknown>>;
+    };
+    for (const row of full.results) {
+      expect(row).toHaveProperty('description');
+      expect(row).not.toHaveProperty('description_excerpt');
+    }
+  });
+
+  it('GET /api/tasks?view=garbage → 400 (schema_violation)', async () => {
+    const res = await app.request('/api/tasks?view=garbage');
+    expect(res.status).toBe(400);
+  });
+
   it('GET /api/tasks paginates via cursor', async () => {
     const p1 = (await (
       await app.request('/api/tasks?sort=created_at&direction=asc&page_size=1')

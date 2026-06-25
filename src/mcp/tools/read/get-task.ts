@@ -23,7 +23,7 @@ export function getTaskToolHandler(input: GetTaskInput, deps: ToolDeps): Promise
 export function registerGetTask(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'get_task',
-    'Fetch one task by id, including its current `version` (which you must echo back on `update_task`).',
+    'Fetch one task by id — the full detail: complete `description`, all `custom_data`, and its current `version` (which you must echo back on `update_task`). Use this to read a task in full after finding it via `list_tasks` (whose default rows are summaries).',
     getTaskShape,
     wrapToolHandler('get_task', getTaskSchema, (input) => getTaskToolHandler(input, deps)),
   );

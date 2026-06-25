@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import * as api from '../lib/api.js';
-import type { BoardColumnsResult, BoardSubstrate, ColumnTask, Paginated } from '../lib/api.js';
-import type { Task } from '@core/types';
+import type {
+  BoardColumnsResult,
+  BoardSubstrate,
+  ColumnTask,
+  Paginated,
+  TaskSummary,
+} from '../lib/api.js';
 import { BoardDetail } from './BoardDetail.js';
 
 vi.mock('../lib/api.js', async (orig) => {
@@ -97,7 +102,7 @@ function renderAt(path: string) {
   );
 }
 
-const emptyPage: Paginated<Task> = {
+const emptyPage: Paginated<TaskSummary> = {
   results: [],
   pagination: { next_cursor: null, has_more: false, page_size: 25 },
 };
