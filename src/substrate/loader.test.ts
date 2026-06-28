@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmrf } from '../../tests/helpers/tmp.js';
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -53,7 +54,7 @@ describe('loadSubstrate', () => {
     await writeConfig(root, CONFIG);
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   async function writeBoardFile(filename: string, content: unknown): Promise<void> {

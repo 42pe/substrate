@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { rmrf } from '../helpers/tmp.js';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -50,7 +51,7 @@ describe('substrate serve — lifecycle (integration)', () => {
       await killAndWait(child, 'SIGKILL').catch(() => undefined);
     }
     child = null;
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('starts, serves /api/health, then exits cleanly on SIGINT', async () => {
@@ -160,8 +161,8 @@ describe('substrate serve — port conflict (integration; B-1 regression test)',
     }
     child1 = null;
     child2 = null;
-    await rm(cwd1, { recursive: true, force: true });
-    await rm(cwd2, { recursive: true, force: true });
+    await rmrf(cwd1);
+    await rmrf(cwd2);
   });
 
   it('refuses to start with a clear stderr error when the port is taken (EADDRINUSE)', async () => {
@@ -210,7 +211,7 @@ describe('substrate serve — missing .substrate/ (integration)', () => {
       await killAndWait(child, 'SIGKILL').catch(() => undefined);
     }
     child = null;
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('exits non-zero with a clear error when .substrate/ is missing', async () => {

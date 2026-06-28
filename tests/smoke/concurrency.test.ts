@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { rmrf } from '../helpers/tmp.js';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { initCommand } from '../../src/cli/commands/init.js';
@@ -118,7 +119,7 @@ describe('concurrency smoke', () => {
         `[concurrency smoke] PASS — ${results.length} workers, ${reportedTotal} writes, 0 errors`,
       );
     } finally {
-      await rm(cwd, { recursive: true, force: true });
+      await rmrf(cwd);
     }
   }, 90_000); // 60s test + 30s margin
 });

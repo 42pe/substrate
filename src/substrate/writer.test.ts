@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { rmrf } from '../../tests/helpers/tmp.js';
+import { mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createBoardFile, mutateBoardFile, mutateConfig, findBoardHolding } from './writer.js';
@@ -42,7 +43,7 @@ describe('substrate writer', () => {
     await mkdir(paths(root).boardsDir, { recursive: true });
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('createBoardFile writes a new board atomically', async () => {

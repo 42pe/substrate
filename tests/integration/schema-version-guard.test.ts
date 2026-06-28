@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { rmrf } from '../helpers/tmp.js';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
@@ -32,7 +33,7 @@ describe('substrate serve — schema version guard (integration)', () => {
       child.kill('SIGKILL');
     }
     child = null;
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('starts cleanly when user_version == BINARY_SCHEMA_VERSION (positive path)', async () => {

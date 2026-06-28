@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
+import { rmrf } from '../../tests/helpers/tmp.js';
+import { mkdtemp, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readConfig, writeConfig } from './config.js';
@@ -19,7 +20,7 @@ async function makeTempRoot(): Promise<string> {
 
 afterEach(async () => {
   for (const dir of tempDirs) {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    await rmrf(dir).catch(() => undefined);
   }
   tempDirs = [];
 });

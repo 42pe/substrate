@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { rmrf } from '../../../tests/helpers/tmp.js';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Client } from '@libsql/client';
@@ -39,7 +40,7 @@ describe('tasks repository', () => {
 
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('createTask + getTask round-trips', async () => {
@@ -126,7 +127,7 @@ describe('updateTask (OCC)', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('updates fields and bumps version', async () => {
@@ -196,7 +197,7 @@ describe('archiveTask / unarchiveTask (idempotent)', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('archives and reports changed: true', async () => {
@@ -258,7 +259,7 @@ describe('listTasks', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('filters by board_id', async () => {

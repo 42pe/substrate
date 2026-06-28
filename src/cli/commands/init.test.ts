@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmrf } from '../../../tests/helpers/tmp.js';
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +21,7 @@ describe('initCommand', () => {
   });
 
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('creates the full .substrate/ directory tree', async () => {
@@ -200,8 +201,8 @@ describe('initCommand', () => {
           'delivery',
         ]);
       } finally {
-        await rm(fresh1, { recursive: true, force: true });
-        await rm(fresh2, { recursive: true, force: true });
+        await rmrf(fresh1);
+        await rmrf(fresh2);
       }
     });
 
@@ -214,7 +215,7 @@ describe('initCommand', () => {
         const sub = await loadSubstrate(root);
         expect(sub.boards.map((b) => b.id)).toContain('alpha');
       } finally {
-        await rm(t, { recursive: true, force: true });
+        await rmrf(t);
       }
     });
 
@@ -226,7 +227,7 @@ describe('initCommand', () => {
         const sub = await loadSubstrate(substrateRootFromCwd(cwd));
         expect(sub.boards.map((b) => b.id).sort()).toEqual(['one', 'three', 'two']);
       } finally {
-        await rm(t, { recursive: true, force: true });
+        await rmrf(t);
       }
     });
 
@@ -254,7 +255,7 @@ describe('initCommand', () => {
         expect(SubstrateError.is(caught)).toBe(true);
         expect(existsSync(join(cwd, '.substrate'))).toBe(false);
       } finally {
-        await rm(empty, { recursive: true, force: true });
+        await rmrf(empty);
       }
     });
 
@@ -270,7 +271,7 @@ describe('initCommand', () => {
         }
         expect(SubstrateError.is(caught) && caught.code).toBe('conflict');
       } finally {
-        await rm(t, { recursive: true, force: true });
+        await rmrf(t);
       }
     });
   });

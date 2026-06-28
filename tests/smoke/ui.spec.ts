@@ -1,6 +1,7 @@
 import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
+import { rmrf } from '../helpers/tmp.js';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
@@ -81,7 +82,7 @@ test.afterAll(async () => {
       }, 5_000);
     });
   }
-  if (tempDir) await rm(tempDir, { recursive: true, force: true });
+  if (tempDir) await rmrf(tempDir);
 });
 
 /** Attach console/page-error collectors; benign favicon noise is ignored. */

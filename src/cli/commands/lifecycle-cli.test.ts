@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { rmrf } from '../../../tests/helpers/tmp.js';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,7 +23,7 @@ describe('backup / export / import / diagnose CLIs', () => {
     await initCommand(cwd);
   });
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('backup writes a tarball into .substrate/backups/', async () => {
@@ -45,7 +46,7 @@ describe('backup / export / import / diagnose CLIs', () => {
       await importCommand(dest, archivePath, false);
       expect(existsSync(paths(substrateRootFromCwd(dest)).config)).toBe(true);
     } finally {
-      await rm(dest, { recursive: true, force: true });
+      await rmrf(dest);
     }
     spy.mockRestore();
   });
@@ -91,6 +92,6 @@ describe('backup / export / import / diagnose CLIs', () => {
     spy.mockRestore();
     expect(process.exitCode).toBe(1);
     process.exitCode = saved;
-    await rm(broken, { recursive: true, force: true });
+    await rmrf(broken);
   });
 });

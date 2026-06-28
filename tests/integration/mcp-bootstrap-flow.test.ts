@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { rmrf } from '../helpers/tmp.js';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -231,7 +232,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       });
     }
     child = null;
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('lists the full tool surface in tools/list', async () => {

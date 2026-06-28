@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { rmrfSync } from '../../tests/helpers/tmp.js';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -81,7 +82,7 @@ describe('wrapToolHandler', () => {
       expect(log).toMatch(/\n {4,}at /); // stack block present
     } finally {
       spy.mockRestore();
-      rmSync(dir, { recursive: true, force: true });
+      rmrfSync(dir);
     }
   });
 

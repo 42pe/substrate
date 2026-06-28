@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { rmrf } from '../../tests/helpers/tmp.js';
+import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,7 +34,7 @@ describe('substrate archive', () => {
     client.close();
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('creates an archive and round-trips it via extract into a fresh root', async () => {

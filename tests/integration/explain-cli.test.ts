@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmrf } from '../helpers/tmp.js';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -13,7 +14,7 @@ describe('explainCommand', () => {
     cwd = await mkdtemp(join(tmpdir(), 'substrate-explain-'));
   });
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    await rmrf(cwd);
   });
 
   it('writes a self-contained HTML map at the default path', async () => {
