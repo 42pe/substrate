@@ -22,12 +22,33 @@ accordingly:
 
 ## Platform support
 
-- **macOS and Linux** — primary, exercised in CI.
-- **Windows / WSL** — **best-effort**. The CI matrix runs a Windows leg so
-  platform problems are *visible*, but Windows failures are **non-blocking** and
-  may go unfixed. If you're on Windows, **WSL is the recommended path**. If you
-  hit a Windows-specific install or runtime issue, please file it with full
-  `diagnose` output — visibility helps even when a fix isn't promised.
+- **macOS and Linux (x64/arm64)** — primary, exercised in CI.
+- **Windows x64** — **supported, best-effort.** The CI matrix runs a Windows x64
+  leg and it passes. It is kept **non-blocking** because the SQLite driver
+  (`@libsql/client`) has rough edges on Windows (see below), so a future
+  Windows-only flake shouldn't block unrelated work. File Windows issues with
+  full `diagnose` output.
+- **Windows on ARM (arm64)** — **not supported.** `@libsql/client` ships no
+  `win32-arm64` native binding, so the database layer can't load. Use **WSL** (or
+  an x64 machine) on Windows-on-ARM hardware.
+
+### Known Windows quirk (libsql)
+
+On Windows, `@libsql/client`'s `close()` does not release the underlying SQLite
+file handle the way standard SQLite does (verified: the built-in `node:sqlite`
+closes and deletes the same WAL database cleanly). Practical effect, minor for
+normal single-process use: a command that **opens** the database and then, in the
+*same process*, tries to **delete** `data.sqlite` can fail with `EBUSY`. Each CLI
+command runs in a fresh process, so this isn't normally hit — but if `substrate
+import` errors this way over an existing substrate, stop any running
+`serve`/`mcp` process and retry.
+
+Separately, a heavy **multi-process** concurrency stress test (four processes
+writing to the same WAL database for 60s) has been observed to *intermittently*
+crash a worker with a native access violation (`0xC0000005`) on Windows — i.e.
+libsql's binding isn't rock-solid under concurrent multi-process writes on
+Windows. Single-agent and single-process use is unaffected. This is the main
+reason the Windows CI leg is kept **non-blocking**.
 
 ## Security
 
