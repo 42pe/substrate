@@ -13,26 +13,33 @@ import { rmSync } from 'node:fs';
  * `maxRetries` makes it *worse* (each permanently-held file burns the full
  * backoff, hanging the suite past the hook timeout).
  *
- * So: try a few quick retries (covers a merely-lagging handle), and if the
- * handle is genuinely still held, SWALLOW the error and leak the temp dir. CI
+ * So: attempt the remove ONCE and SWALLOW any error, leaking the temp dir. CI
  * runners are ephemeral and the OS reclaims `%TEMP%`, so a leaked dir is
- * harmless; a failed/hung teardown is not. On POSIX this is a no-op cost — the
- * first unlink succeeds (you can delete an open file), so the retries/catch
- * never engage. Never throws.
+ * harmless; a failed/hung teardown is not.
+ *
+ * Crucially, do NOT pass `maxRetries`: against a held handle the libsql leak is
+ * permanent (the handle never releases within the process), so retries can't
+ * succeed — they only *block*. Measured on a Windows VM: a single failing
+ * `rm` returns in ~3ms, but with `maxRetries:3` it spins ~3.3s PER locked file,
+ * and a WAL db has three (`data.sqlite`, `-wal`, `-shm`) → ~10s, which blows
+ * vitest's hook timeout on every DB test. No retries = fail fast + swallow.
+ *
+ * On POSIX this is a no-op cost: the first unlink succeeds (you can delete an
+ * open file). Never throws.
  */
 export async function rmrf(path: string): Promise<void> {
   try {
-    await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    await rm(path, { recursive: true, force: true });
   } catch {
     // Stubbornly-held handle (Windows + libsql): leak the temp dir rather than
-    // fail or hang teardown. The OS cleans %TEMP%.
+    // fail teardown. The OS cleans %TEMP%.
   }
 }
 
 /** Synchronous {@link rmrf} for sync teardown callbacks. Same best-effort semantics. */
 export function rmrfSync(path: string): void {
   try {
-    rmSync(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    rmSync(path, { recursive: true, force: true });
   } catch {
     // best-effort — see rmrf().
   }
