@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { rmrfSync } from '../../../tests/helpers/tmp.js';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addCommand } from './add.js';
@@ -57,8 +58,8 @@ describe('addCommand transactional rollback', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     createBoardFileMock.mockReset();
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(tdir, { recursive: true, force: true });
+    rmrfSync(cwd);
+    rmrfSync(tdir);
   });
 
   it('rolls back board 1 when board 2 fails mid-apply, and rethrows the original error', async () => {

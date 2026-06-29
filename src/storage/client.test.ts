@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { rmrf } from '../../tests/helpers/tmp.js';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabaseAndMigrate, openClient, withTransaction } from './client.js';
@@ -23,7 +24,7 @@ describe('openDatabaseAndMigrate', () => {
       client.close();
       client = null;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('creates a fresh database with migrations applied and WAL on', async () => {
@@ -96,7 +97,7 @@ describe('openClient', () => {
       client.close();
       client = null;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('opens without running migrations', async () => {
@@ -138,7 +139,7 @@ describe('withTransaction', () => {
       client.close();
       client = null;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('commits and returns the fn result', async () => {

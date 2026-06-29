@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { rmrf } from '../../../../tests/helpers/tmp.js';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Client } from '@libsql/client';
@@ -87,7 +88,7 @@ describe('editCommentHandler', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('edits the body, sets edited_at, and emits comment_edited with prior body', async () => {

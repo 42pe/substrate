@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { rmrfSync } from '../../../tests/helpers/tmp.js';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initCommand } from './init.js';
@@ -34,7 +35,7 @@ describe('diagnoseCommand — recent errors section', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     process.exitCode = savedExitCode;
-    rmSync(cwd, { recursive: true, force: true });
+    rmrfSync(cwd);
   });
 
   function mkdtemp(): string {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { rmrfSync } from '../../../tests/helpers/tmp.js';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { logsCommand } from './logs.js';
@@ -45,7 +46,7 @@ describe('logsCommand', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    rmSync(cwd, { recursive: true, force: true });
+    rmrfSync(cwd);
   });
 
   it('throws not_found when there is no .substrate/', () => {

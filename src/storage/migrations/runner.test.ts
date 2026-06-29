@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmrf } from '../../../tests/helpers/tmp.js';
 import { createClient, type Client } from '@libsql/client';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getCurrentSchemaVersion, runMigrations, type Migration } from './runner.js';
@@ -22,7 +23,7 @@ describe('getCurrentSchemaVersion', () => {
       expect(await getCurrentSchemaVersion(client)).toBe(0);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rmrf(dir);
     }
   });
 
@@ -33,7 +34,7 @@ describe('getCurrentSchemaVersion', () => {
       expect(await getCurrentSchemaVersion(client)).toBe(42);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rmrf(dir);
     }
   });
 });
@@ -50,7 +51,7 @@ describe('runMigrations', () => {
 
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('applies migration 001 to an empty database', async () => {
@@ -170,7 +171,7 @@ describe('auto-backup before migration (Phase 4)', () => {
       expect(baks.length).toBe(1);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rmrf(dir);
     }
   });
 
@@ -188,7 +189,7 @@ describe('auto-backup before migration (Phase 4)', () => {
       expect(after).toBe(before); // no new backup
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rmrf(dir);
     }
   });
 
@@ -215,7 +216,7 @@ describe('auto-backup before migration (Phase 4)', () => {
       expect(baks.length).toBe(1);
     } finally {
       client.close();
-      await rm(dir, { recursive: true, force: true });
+      await rmrf(dir);
     }
   });
 });

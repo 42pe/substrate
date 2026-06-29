@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmrfSync } from '../../../tests/helpers/tmp.js';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -57,7 +58,7 @@ describe('loadExternalTemplate', () => {
     dir = mkdtempSync(join(tmpdir(), 'substrate-ext-'));
   });
   afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
+    rmrfSync(dir);
   });
 
   // --- manifest mode ---

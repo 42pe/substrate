@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { rmrf } from '../../../../tests/helpers/tmp.js';
+import { mkdtemp, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Hono } from 'hono';
@@ -109,7 +110,7 @@ describe('HTTP read API', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('GET /api/project returns the project record', async () => {

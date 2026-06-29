@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { rmrfSync } from '../helpers/tmp.js';
 import { resolve, join } from 'node:path';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { loadSubstrate } from '../../src/substrate/loader.js';
 import { loadExternalTemplate } from '../../src/cli/templates/external.js';
@@ -69,7 +70,7 @@ describe('example substrate — web-delivery', () => {
       expect(t.source).toBe('convention');
       expect(JSON.stringify(canonical(t.boards[0]))).toBe(JSON.stringify(canonical(authoritative)));
     } finally {
-      rmSync(tmp, { recursive: true, force: true });
+      rmrfSync(tmp);
     }
   });
 

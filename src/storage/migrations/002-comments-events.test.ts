@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmrf } from '../../../tests/helpers/tmp.js';
 import { createClient, type Client } from '@libsql/client';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runMigrations, getCurrentSchemaVersion, type Migration } from './runner.js';
@@ -31,7 +32,7 @@ describe('migration 002 (comments + task_events)', () => {
 
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('applies on a fresh database (001 then 002) and stamps user_version=2', async () => {

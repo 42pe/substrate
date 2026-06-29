@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { rmrf } from '../../../tests/helpers/tmp.js';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
@@ -15,7 +16,7 @@ describe('registerStaticFallback', () => {
   });
 
   afterEach(async () => {
-    await rm(projectRoot, { recursive: true, force: true });
+    await rmrf(projectRoot);
   });
 
   describe('when dist/ui/ is absent', () => {

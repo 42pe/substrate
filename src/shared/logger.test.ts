@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, existsSync, statSync, writeFileSync } from 'node:fs';
+import { rmrfSync } from '../../tests/helpers/tmp.js';
+import { mkdtempSync, readFileSync, existsSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -99,7 +100,7 @@ describe('logger file sink', () => {
   afterEach(() => {
     resetFileSink(); // MANDATED: no test leaves sinkPath set (CONCERN-1)
     vi.restoreAllMocks();
-    rmSync(dir, { recursive: true, force: true });
+    rmrfSync(dir);
   });
 
   it('writes nothing when the sink is unconfigured', () => {

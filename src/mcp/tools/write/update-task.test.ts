@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { rmrf } from '../../../../tests/helpers/tmp.js';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Client } from '@libsql/client';
@@ -100,7 +101,7 @@ describe('updateTaskHandler', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('updates fields, bumps version, and emits an updated event with before/after', async () => {
@@ -277,7 +278,7 @@ describe('updateTaskHandler — policy engine', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('blocks a guarded transition and rolls back (no version bump, records move_blocked)', async () => {

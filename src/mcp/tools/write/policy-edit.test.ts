@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { rmrf } from '../../../../tests/helpers/tmp.js';
+import { mkdtemp, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Client } from '@libsql/client';
@@ -79,7 +80,7 @@ describe('policy edit tools', () => {
   });
   afterEach(async () => {
     client.close();
-    await rm(dir, { recursive: true, force: true });
+    await rmrf(dir);
   });
 
   it('create_policy appends a policy', async () => {
