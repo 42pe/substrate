@@ -27,7 +27,7 @@ export function TaskDetail() {
       <section>
         <Link
           to={`/boards/${encodeURIComponent(task.board_id)}`}
-          className="text-sm text-neutral-500 hover:underline"
+          className="text-sm text-muted-foreground hover:underline"
         >
           ← {task.board_id}
         </Link>
@@ -35,7 +35,7 @@ export function TaskDetail() {
           <h1 className="text-2xl font-semibold tracking-tight">{task.title}</h1>
           {task.archived_at ? <Badge variant="muted">archived</Badge> : null}
         </div>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500">
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
           <Badge variant="outline">group {task.group_id}</Badge>
           <Badge variant="outline">v{task.version}</Badge>
           <span>by {task.created_by_agent}</span>
@@ -53,32 +53,32 @@ export function TaskDetail() {
         <TabsContent value="details">
           <div className="space-y-6">
             <section>
-              <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">
+              <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Description
               </h2>
               {task.description ? (
                 <Card>
-                  <CardContent className="prose prose-sm max-w-none py-4 text-neutral-700">
+                  <CardContent className="markdown max-w-none py-4 text-subtle">
                     <Markdown source={task.description} />
                   </CardContent>
                 </Card>
               ) : (
-                <p className="text-sm text-neutral-500">No description.</p>
+                <p className="text-sm text-muted-foreground">No description.</p>
               )}
             </section>
             <section>
-              <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">
+              <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Custom data
               </h2>
               {customEntries.length === 0 ? (
-                <p className="text-sm text-neutral-500">No custom fields.</p>
+                <p className="text-sm text-muted-foreground">No custom fields.</p>
               ) : (
                 <Card>
                   <CardContent className="py-4">
                     <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm">
                       {customEntries.map(([k, v]) => (
                         <div key={k} className="contents">
-                          <dt className="font-mono text-xs text-neutral-500">{k}</dt>
+                          <dt className="font-mono text-xs text-muted-foreground">{k}</dt>
                           <dd className="break-words">{formatValue(v)}</dd>
                         </div>
                       ))}
@@ -118,13 +118,13 @@ function CommentsTab({ taskId }: { taskId: string }) {
       {items.map((c) => (
         <Card key={c.id} className={c.parent_id ? 'ml-6' : undefined}>
           <CardContent className="py-3">
-            <div className="mb-1 flex items-center gap-2 text-xs text-neutral-500">
-              <span className="font-medium text-neutral-700">{c.created_by_agent}</span>
+            <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-subtle">{c.created_by_agent}</span>
               <span>· {formatDate(c.created_at)}</span>
               {c.edited_at ? <span>· edited</span> : null}
               {c.archived_at ? <Badge variant="muted">archived</Badge> : null}
             </div>
-            <div className="prose prose-sm max-w-none text-neutral-700">
+            <div className="markdown max-w-none text-subtle">
               <Markdown source={c.body} />
             </div>
           </CardContent>
@@ -135,7 +135,7 @@ function CommentsTab({ taskId }: { taskId: string }) {
           type="button"
           onClick={loadMore}
           disabled={loadingMore}
-          className="rounded-md border border-neutral-300 px-4 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50"
+          className="rounded-md border border-input px-4 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
         >
           {loadingMore ? 'Loading…' : 'Load more'}
         </button>
@@ -162,10 +162,10 @@ function EventsTab({ taskId }: { taskId: string }) {
           <li key={ev.id} className="flex items-start gap-3 text-sm">
             <Badge variant="outline">{ev.event_type}</Badge>
             <div className="min-w-0">
-              <span className="text-neutral-700">{ev.actor_agent_name}</span>
-              <span className="text-neutral-400"> · {formatDate(ev.occurred_at)}</span>
+              <span className="text-subtle">{ev.actor_agent_name}</span>
+              <span className="text-muted-foreground"> · {formatDate(ev.occurred_at)}</span>
               {Object.keys(ev.changes).length > 0 ? (
-                <pre className="mt-1 overflow-x-auto rounded bg-neutral-50 p-2 text-xs text-neutral-600">
+                <pre className="mt-1 overflow-x-auto rounded bg-background p-2 text-xs text-muted-foreground">
                   {JSON.stringify(ev.changes, null, 2)}
                 </pre>
               ) : null}
@@ -178,7 +178,7 @@ function EventsTab({ taskId }: { taskId: string }) {
           type="button"
           onClick={loadMore}
           disabled={loadingMore}
-          className="rounded-md border border-neutral-300 px-4 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50"
+          className="rounded-md border border-input px-4 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
         >
           {loadingMore ? 'Loading…' : 'Load more'}
         </button>

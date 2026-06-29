@@ -50,13 +50,13 @@ function KanbanCard({ task, moved }: { task: ColumnTask; moved: boolean }) {
     <Link
       to={`/tasks/${encodeURIComponent(task.id)}`}
       className={cn(
-        'block rounded-lg border border-neutral-200 bg-white p-3 shadow-sm transition hover:border-neutral-300 hover:shadow',
+        'block rounded-lg border border-border bg-card p-3 shadow-sm transition hover:border-input hover:shadow',
         moved && 'animate-card-pulse',
       )}
     >
-      <p className="text-sm font-medium text-neutral-900">{task.title}</p>
+      <p className="text-sm font-medium text-foreground">{task.title}</p>
       <div className="mt-1 flex items-center gap-2">
-        <p className="text-xs text-neutral-400">updated {timeAgo(task.updated_at)} ago</p>
+        <p className="text-xs text-muted-foreground">updated {timeAgo(task.updated_at)} ago</p>
         {missing.length > 0 ? (
           <Badge variant="warning" title={`Missing required: ${missing.join(', ')}`}>
             {missing.length === 1
@@ -71,31 +71,47 @@ function KanbanCard({ task, moved }: { task: ColumnTask; moved: boolean }) {
 
 function KanbanColumn({ column, movedIds }: { column: BoardColumn; movedIds: Set<string> }) {
   const overflow = column.total - column.tasks.length;
+  const unit = column.total === 1 ? 'task' : 'tasks';
   return (
-    <div className="flex w-72 shrink-0 flex-col">
+    <section
+      aria-label={`${column.group_name}, ${column.total} ${unit}`}
+      className="flex w-72 shrink-0 flex-col"
+    >
       <div
-        className="mb-3 flex items-center gap-2 border-b-2 border-neutral-200 pb-1.5"
+        className="mb-3 flex items-center gap-2 border-b-2 border-border pb-1.5"
         style={column.color ? { borderBottomColor: column.color } : undefined}
       >
-        <h3 className="text-sm font-semibold text-neutral-800">{column.group_name}</h3>
-        <Badge variant="secondary">{column.total}</Badge>
+        <h3 className="text-sm font-semibold text-foreground">{column.group_name}</h3>
+        <Badge variant="secondary">
+          <span className="sr-only">{unit}: </span>
+          {column.total}
+        </Badge>
       </div>
-      <div className="flex max-h-[calc(100vh-18rem)] flex-col gap-2 overflow-y-auto pr-1">
+      <ul
+        role="list"
+        className="flex max-h-[calc(100vh-18rem)] flex-col gap-2 overflow-y-auto pr-1"
+      >
         {column.tasks.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-neutral-400">No tasks</p>
+          <li className="px-1 py-2 text-xs text-muted-foreground">No tasks</li>
         ) : (
-          column.tasks.map((t) => <KanbanCard key={t.id} task={t} moved={movedIds.has(t.id)} />)
+          column.tasks.map((t) => (
+            <li key={t.id}>
+              <KanbanCard task={t} moved={movedIds.has(t.id)} />
+            </li>
+          ))
         )}
         {overflow > 0 ? (
-          <Link
-            to={`?view=list&group=${encodeURIComponent(column.group_id)}`}
-            className="px-1 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-800 hover:underline"
-          >
-            +{overflow} more — open List
-          </Link>
+          <li>
+            <Link
+              to={`?view=list&group=${encodeURIComponent(column.group_id)}`}
+              className="block px-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+            >
+              +{overflow} more — open List
+            </Link>
+          </li>
         ) : null}
-      </div>
-    </div>
+      </ul>
+    </section>
   );
 }
 
