@@ -54,34 +54,41 @@ describe('substrate serve — lifecycle (integration)', () => {
     await rmrf(cwd);
   });
 
-  it('starts, serves /api/health, then exits cleanly on SIGINT', async () => {
-    child = spawnCli(['serve'], {
-      cwd,
-      env: { SUBSTRATE_PORT_OVERRIDE: String(port) },
-    });
+  // Skipped on Windows: Windows has no POSIX SIGINT — `child.kill('SIGINT')`
+  // maps to a forceful TerminateProcess that never fires the CLI's graceful
+  // shutdown handler (so no clean exit code / PID-file removal), and it doesn't
+  // propagate through the npx→tsx→node wrapper chain.
+  it.skipIf(process.platform === 'win32')(
+    'starts, serves /api/health, then exits cleanly on SIGINT',
+    async () => {
+      child = spawnCli(['serve'], {
+        cwd,
+        env: { SUBSTRATE_PORT_OVERRIDE: String(port) },
+      });
 
-    // Wait for server to be listening
-    await waitFor(() => fetchOk(port), { timeoutMs: 15_000 });
+      // Wait for server to be listening
+      await waitFor(() => fetchOk(port), { timeoutMs: 15_000 });
 
-    // Verify PID file exists and contains a valid integer.
-    // NOTE: we don't compare to `child.pid` because `npx tsx` spawns a chain
-    // (npx → tsx → node), and `child.pid` is the outer npx wrapper while
-    // the PID written to .substrate/substrate.pid is the deeply-nested
-    // Node process that actually runs the CLI code.
-    const pidFile = join(cwd, '.substrate', 'substrate.pid');
-    expect(existsSync(pidFile)).toBe(true);
-    const pidContent = await readFile(pidFile, 'utf-8');
-    const pidInFile = parseInt(pidContent.trim(), 10);
-    expect(Number.isFinite(pidInFile)).toBe(true);
-    expect(pidInFile).toBeGreaterThan(0);
+      // Verify PID file exists and contains a valid integer.
+      // NOTE: we don't compare to `child.pid` because `npx tsx` spawns a chain
+      // (npx → tsx → node), and `child.pid` is the outer npx wrapper while
+      // the PID written to .substrate/substrate.pid is the deeply-nested
+      // Node process that actually runs the CLI code.
+      const pidFile = join(cwd, '.substrate', 'substrate.pid');
+      expect(existsSync(pidFile)).toBe(true);
+      const pidContent = await readFile(pidFile, 'utf-8');
+      const pidInFile = parseInt(pidContent.trim(), 10);
+      expect(Number.isFinite(pidInFile)).toBe(true);
+      expect(pidInFile).toBeGreaterThan(0);
 
-    // SIGINT → clean exit
-    const code = await killAndWait(child, 'SIGINT');
-    expect(code).toBe(0);
+      // SIGINT → clean exit
+      const code = await killAndWait(child, 'SIGINT');
+      expect(code).toBe(0);
 
-    // PID file should be removed
-    expect(existsSync(pidFile)).toBe(false);
-  });
+      // PID file should be removed
+      expect(existsSync(pidFile)).toBe(false);
+    },
+  );
 
   it('refuses to start a second instance from the same directory', async () => {
     child = spawnCli(['serve'], {

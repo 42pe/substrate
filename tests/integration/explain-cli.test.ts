@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rmrf } from '../helpers/tmp.js';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,7 +39,10 @@ describe('explainCommand', () => {
 
   it('works with data.sqlite absent (reads substrate-as-code only)', async () => {
     await initCommand(cwd, { template: 'web-delivery' });
-    await rm(join(cwd, '.substrate', 'data.sqlite'), { force: true });
+    // Best-effort delete: on Windows the libsql handle from init keeps the file
+    // open, but explain reads substrate-as-code only and never touches the db,
+    // so the result is the same whether or not the file is actually gone.
+    await rmrf(join(cwd, '.substrate', 'data.sqlite'));
     await explainCommand(cwd, { out: 'no-db.html' });
     expect(existsSync(join(cwd, 'no-db.html'))).toBe(true);
   });

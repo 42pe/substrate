@@ -244,8 +244,14 @@ describe('addCommand', () => {
       ['add', '--as', 'renamed', t, '--yes'],
     ]) {
       const fresh = mkdtempSync(join(tmpdir(), 'substrate-c5-'));
-      spawnSync('npx', ['tsx', CLI, 'init'], { cwd: fresh, encoding: 'utf-8' });
-      const res = spawnSync('npx', ['tsx', CLI, ...args], { cwd: fresh, encoding: 'utf-8' });
+      // `shell: true` so `npx` resolves to `npx.cmd` on Windows (Node can't exec
+      // a .cmd directly without a shell).
+      spawnSync('npx', ['tsx', CLI, 'init'], { cwd: fresh, encoding: 'utf-8', shell: true });
+      const res = spawnSync('npx', ['tsx', CLI, ...args], {
+        cwd: fresh,
+        encoding: 'utf-8',
+        shell: true,
+      });
       expect(res.status, res.stderr).toBe(0);
       expect(existsSync(join(fresh, '.substrate', 'boards', 'renamed.json'))).toBe(true);
       rmrfSync(fresh);

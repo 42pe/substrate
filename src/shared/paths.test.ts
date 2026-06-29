@@ -43,6 +43,7 @@ describe('paths', () => {
 
 describe('substrateRootFromCwd', () => {
   it('joins cwd with .substrate/', () => {
-    expect(substrateRootFromCwd('/some/cwd')).toBe('/some/cwd/.substrate');
+    // Use join() for the expectation so this holds on Windows (\\) too.
+    expect(substrateRootFromCwd('/some/cwd')).toBe(join('/some/cwd', '.substrate'));
   });
 });

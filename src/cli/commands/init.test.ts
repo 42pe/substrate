@@ -79,16 +79,23 @@ describe('initCommand', () => {
     expect(gi).toContain('# substrate:v1:gitignore-block (managed by `substrate init`)');
   });
 
-  it('is idempotent on .gitignore — does not add a second block', async () => {
-    await initCommand(cwd);
-    // Simulate user re-running init by removing only .substrate/ (keep .gitignore)
-    await rm(join(cwd, '.substrate'), { recursive: true });
-    await initCommand(cwd);
-    const gi = await readFile(join(cwd, '.gitignore'), 'utf-8');
-    const occurrences =
-      gi.split('# substrate:v1:gitignore-block (managed by `substrate init`)').length - 1;
-    expect(occurrences).toBe(1);
-  });
+  // Skipped on Windows: this re-init simulation must delete .substrate/ in-process,
+  // but the libsql handle from the first init keeps data.sqlite open (a
+  // libsql-on-Windows limitation), so the dir can't be removed. Real re-init runs
+  // in a fresh process where nothing holds the handle.
+  it.skipIf(process.platform === 'win32')(
+    'is idempotent on .gitignore — does not add a second block',
+    async () => {
+      await initCommand(cwd);
+      // Simulate user re-running init by removing only .substrate/ (keep .gitignore)
+      await rm(join(cwd, '.substrate'), { recursive: true });
+      await initCommand(cwd);
+      const gi = await readFile(join(cwd, '.gitignore'), 'utf-8');
+      const occurrences =
+        gi.split('# substrate:v1:gitignore-block (managed by `substrate init`)').length - 1;
+      expect(occurrences).toBe(1);
+    },
+  );
 
   it('refuses to re-init when .substrate/ already exists', async () => {
     await initCommand(cwd);
