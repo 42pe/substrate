@@ -3,7 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+    # Docs-only changes don't affect build/test — skip the matrix to save CI minutes.
+    paths-ignore: ['**.md', '.agents/**', 'LICENSE']
   pull_request:
+    paths-ignore: ['**.md', '.agents/**', 'LICENSE']
+
+# Cancel superseded runs on the same ref (e.g. rapid re-pushes to a PR branch) so
+# only the latest commit consumes the matrix.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

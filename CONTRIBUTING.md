@@ -41,6 +41,13 @@ Before submitting, make sure `pnpm build`, `pnpm test`, `pnpm --dir ui test`,
 `pnpm lint`, and `pnpm format:check` all pass. PRs are validated by CI on
 Ubuntu, macOS, and Windows (Windows is non-blocking).
 
+**Writing a test that opens the database?** Clean its temp dir up with `rmrf` /
+`rmrfSync` from `tests/helpers/tmp.ts` — never a bare `rm(dir, { recursive,
+force })`. On Windows, `@libsql/client` doesn't release the SQLite file handle on
+`close()`, so a plain `rm` throws `EBUSY` (and adding `maxRetries` makes it
+*hang*). `rmrf` is fail-fast + best-effort and leaks the temp dir instead. See
+the decisions-log entry "Windows CI" for the full story.
+
 ## Code of conduct
 
 Be decent. Harassment or hostility gets you blocked. There's no formal CoC
