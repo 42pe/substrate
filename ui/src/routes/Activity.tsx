@@ -39,36 +39,36 @@ function detail(ev: ActivityEvent): string | null {
 function ActivityRow({ ev }: { ev: ActivityEvent }) {
   const note = detail(ev);
   return (
-    <li className="flex items-start gap-3 border-b border-neutral-100 py-3 text-sm last:border-b-0">
+    <li className="flex items-start gap-3 border-b border-border py-3 text-sm last:border-b-0">
       <Badge variant={badgeVariant(ev.event_type)}>{ev.event_type}</Badge>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="font-medium text-neutral-700">{ev.actor_agent_name}</span>
-          <span className="text-neutral-400">·</span>
+          <span className="font-medium text-subtle">{ev.actor_agent_name}</span>
+          <span className="text-muted-foreground">·</span>
           {ev.task_title !== null ? (
             <Link
               to={`/tasks/${encodeURIComponent(ev.task_id)}`}
-              className="truncate font-medium text-neutral-900 hover:underline"
+              className="truncate font-medium text-foreground hover:underline"
             >
               {ev.task_title}
             </Link>
           ) : (
-            <span className="text-neutral-400">(task removed)</span>
+            <span className="text-muted-foreground">(task removed)</span>
           )}
           {ev.board_name !== null && ev.board_id !== null ? (
             <>
-              <span className="text-neutral-400">in</span>
+              <span className="text-muted-foreground">in</span>
               <Link
                 to={`/boards/${encodeURIComponent(ev.board_id)}`}
-                className="text-neutral-600 hover:underline"
+                className="text-muted-foreground hover:underline"
               >
                 {ev.board_name}
               </Link>
             </>
           ) : null}
-          <span className="text-neutral-400">· {formatDate(ev.occurred_at)}</span>
+          <span className="text-muted-foreground">· {formatDate(ev.occurred_at)}</span>
         </div>
-        {note ? <p className="mt-0.5 truncate text-xs text-neutral-500">{note}</p> : null}
+        {note ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{note}</p> : null}
       </div>
     </li>
   );
@@ -85,7 +85,7 @@ export function Activity() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             What agents did across every board — newest first.
           </p>
         </div>
@@ -109,7 +109,7 @@ export function Activity() {
             ))}
           </ol>
           {data.pagination.has_more ? (
-            <p className="pt-2 text-xs text-neutral-400">
+            <p className="pt-2 text-xs text-muted-foreground">
               Showing the {data.results.length} most recent events. Older history is on each task’s
               Events tab.
             </p>

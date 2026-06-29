@@ -23,10 +23,10 @@ export function Overview() {
   return (
     <div className="space-y-8">
       <section>
-        <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Project</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Project</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{p.project_name}</h1>
         {p.description ? (
-          <div className="prose prose-sm mt-3 max-w-none text-neutral-700">
+          <div className="markdown mt-3 max-w-none text-subtle">
             <Markdown source={p.description} />
           </div>
         ) : null}
@@ -76,7 +76,9 @@ function BoardWall({ boards }: { boards: BoardSummary[] }) {
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Boards</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Boards
+        </h2>
         <LiveIndicator paused={paused} reconnecting={reconnecting} lastUpdated={lastUpdated} />
       </div>
       {loading ? (
@@ -101,18 +103,18 @@ function BoardStrip({ entry }: { entry: WallEntry }) {
       <div className="mb-2 flex items-baseline gap-3">
         <Link
           to={`/boards/${encodeURIComponent(board.id)}`}
-          className="text-base font-semibold tracking-tight text-neutral-900 hover:underline"
+          className="text-base font-semibold tracking-tight text-foreground hover:underline"
         >
           {board.name}
         </Link>
         {board.description ? (
-          <span className="truncate text-sm text-neutral-500">{board.description}</span>
+          <span className="truncate text-sm text-muted-foreground">{board.description}</span>
         ) : null}
       </div>
       {columns === null ? (
-        <p className="text-sm text-red-600">Couldn’t load this board’s columns.</p>
+        <p className="text-sm text-destructive">Couldn’t load this board’s columns.</p>
       ) : columns.length === 0 ? (
-        <p className="text-sm text-neutral-400">No active groups.</p>
+        <p className="text-sm text-muted-foreground">No active groups.</p>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-2">
           {columns.map((col) => (
@@ -128,21 +130,21 @@ function MiniColumn({ boardId, column }: { boardId: string; column: BoardColumn 
   const overflow = column.total - column.tasks.length;
   return (
     <div className="w-56 shrink-0">
-      <div className="mb-2 flex items-center gap-2 border-b border-neutral-200 pb-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
+      <div className="mb-2 flex items-center gap-2 border-b border-border pb-1">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {column.group_name}
         </span>
         <Badge variant="secondary">{column.total}</Badge>
       </div>
       <div className="space-y-1.5">
         {column.tasks.length === 0 ? (
-          <p className="py-1 text-xs text-neutral-400">No tasks</p>
+          <p className="py-1 text-xs text-muted-foreground">No tasks</p>
         ) : (
           column.tasks.map((t) => (
             <Link
               key={t.id}
               to={`/tasks/${encodeURIComponent(t.id)}`}
-              className="block truncate rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-800 shadow-sm hover:border-neutral-300"
+              className="block truncate rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground shadow-sm hover:border-input"
             >
               {t.title}
             </Link>
@@ -151,7 +153,7 @@ function MiniColumn({ boardId, column }: { boardId: string; column: BoardColumn 
         {overflow > 0 ? (
           <Link
             to={`/boards/${encodeURIComponent(boardId)}`}
-            className="block px-1 py-0.5 text-xs font-medium text-neutral-500 hover:text-neutral-800 hover:underline"
+            className="block px-1 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
             +{overflow} more
           </Link>

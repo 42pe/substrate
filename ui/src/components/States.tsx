@@ -8,15 +8,15 @@ import { Card, CardContent } from './ui/Card.js';
  */
 
 export function Loading({ label = 'Loading…' }: { label?: string }) {
-  return <p className="py-12 text-center text-sm text-neutral-500">{label}</p>;
+  return <p className="py-12 text-center text-sm text-muted-foreground">{label}</p>;
 }
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <Card>
       <CardContent className="py-10 text-center">
-        <p className="text-sm font-medium text-neutral-700">{title}</p>
-        {hint ? <p className="mt-1 text-sm text-neutral-500">{hint}</p> : null}
+        <p className="text-sm font-medium text-subtle">{title}</p>
+        {hint ? <p className="mt-1 text-sm text-muted-foreground">{hint}</p> : null}
       </CardContent>
     </Card>
   );
@@ -24,10 +24,10 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
 
 export function ErrorCard({ error }: { error: Error }) {
   return (
-    <Card className="border-red-200 bg-red-50">
+    <Card className="border-destructive/30 bg-destructive-muted">
       <CardContent className="py-8">
-        <p className="text-sm font-medium text-red-700">Something went wrong</p>
-        <p className="mt-1 break-words text-sm text-red-600">{error.message}</p>
+        <p className="text-sm font-medium text-destructive">Something went wrong</p>
+        <p className="mt-1 break-words text-sm text-destructive">{error.message}</p>
       </CardContent>
     </Card>
   );
@@ -37,8 +37,8 @@ export function NotFound({ what = 'page', children }: { what?: string; children?
   return (
     <Card>
       <CardContent className="py-10 text-center">
-        <p className="text-sm font-medium text-neutral-700">Not found</p>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="text-sm font-medium text-subtle">Not found</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           {children ?? `The requested ${what} does not exist.`}
         </p>
       </CardContent>

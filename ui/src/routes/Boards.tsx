@@ -24,7 +24,7 @@ export function Boards() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Boards</h1>
-        <label className="flex items-center gap-2 text-sm text-neutral-600">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -44,7 +44,7 @@ export function Boards() {
         <div className="grid gap-4 sm:grid-cols-2">
           {data.results.map((b) => (
             <Link key={b.id} to={`/boards/${encodeURIComponent(b.id)}`} className="block">
-              <Card className="h-full transition hover:border-neutral-300 hover:shadow">
+              <Card className="h-full transition hover:border-input hover:shadow">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <CardTitle>{b.name}</CardTitle>
@@ -54,7 +54,7 @@ export function Boards() {
                     <CardDescription className="line-clamp-2">{b.description}</CardDescription>
                   ) : null}
                 </CardHeader>
-                <CardContent className="flex items-center justify-between text-xs text-neutral-400">
+                <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
                   <span className="font-mono">{b.id}</span>
                   {b.archived_at ? <span>archived {formatDate(b.archived_at)}</span> : null}
                 </CardContent>

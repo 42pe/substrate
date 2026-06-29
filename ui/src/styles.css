@@ -1,31 +1,205 @@
 @import 'tailwindcss';
 
 /*
- * Tailwind v4 uses CSS-first config. Theme tokens, custom variants, and
- * other configuration live here via `@theme` directive blocks. Phase 1
- * needs no customization — defaults are fine for a hello-world.
- *
- * Dark mode (configured for Phase 5 when the inspector lands):
- *   @custom-variant dark (&:where(.dark, .dark *));
+ * Phase 12 (UX foundation): a semantic design-token layer. Components consume
+ * tokens (`bg-card`, `text-muted-foreground`, `border-border`, …) instead of
+ * raw `neutral-*` palette utilities, so restyle + dark mode are a single source
+ * of truth. Light/dark values live in `:root`/`.dark`; `@theme inline` maps them
+ * to Tailwind color utilities (inline → the utility references the live var, so
+ * toggling `.dark` re-themes at runtime).
  */
 
-/*
- * Phase 9: a one-shot highlight for a kanban card that just changed column
- * (the inspector polls; an agent's MCP move surfaces here within a few
- * seconds). Registered as an `animate-card-pulse` utility via the theme token —
- * no Tailwind utility covers a 1.5s one-shot background+ring fade.
- */
-@theme {
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #fafafa;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b; /* neutral-600 — ~7:1 on white, AA */
+  --subtle: #3f3f46; /* neutral-700 — secondary text */
+  --border: #e4e4e7;
+  --input: #d4d4d8;
+  --ring: #2563eb; /* blue-600 focus ring */
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #27272a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #b91c1c; /* red-700 text/border, AA on white */
+  --destructive-foreground: #ffffff;
+  --destructive-muted: #fef2f2; /* red-50 surface */
+  --warning: #fef3c7; /* amber-100 surface */
+  --warning-foreground: #92400e; /* amber-800 — 5.9:1 on warning */
+  --success: #059669; /* emerald-600 — AA for the live dot */
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #161618;
+  --card-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa; /* neutral-400 — AA on dark surfaces */
+  --subtle: #d4d4d8;
+  --border: #2a2a2e;
+  --input: #3f3f46;
+  --ring: #3b82f6; /* blue-500 */
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #f87171; /* red-400 */
+  --destructive-foreground: #18181b;
+  --destructive-muted: #1f1416;
+  --warning: #422006; /* amber-950 surface */
+  --warning-foreground: #fcd34d; /* amber-300 */
+  --success: #34d399; /* emerald-400 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-muted: var(--destructive-muted);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  /* Phase 9: one-shot highlight for a kanban card that just changed column. */
   --animate-card-pulse: card-pulse 1.5s ease-out 1;
 }
 
 @keyframes card-pulse {
   0% {
-    background-color: rgb(254 249 195); /* amber-100 */
-    box-shadow: 0 0 0 2px rgb(252 211 77); /* amber-300 ring */
+    background-color: color-mix(in srgb, var(--warning-foreground) 22%, transparent);
+    box-shadow: 0 0 0 2px var(--warning-foreground);
   }
   100% {
-    background-color: rgb(255 255 255);
-    box-shadow: 0 0 0 0 rgb(255 255 255 / 0);
+    background-color: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@layer base {
+  /*
+   * A single visible focus-visible ring for every interactive element. Nothing
+   * defined one before (and Tabs removed its outline) — keyboard users were
+   * flying blind. WCAG 2.4.7.
+   */
+  :where(a, button, summary, [role='button'], [tabindex], input, select, textarea):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /*
+   * Tokenized markdown render styles. Replaces the `prose` classes that were
+   * no-ops (the typography plugin was never installed). Applied via the
+   * `markdown` class on <Markdown>.
+   */
+  .markdown {
+    line-height: 1.6;
+  }
+  .markdown > :first-child {
+    margin-top: 0;
+  }
+  .markdown > :last-child {
+    margin-bottom: 0;
+  }
+  .markdown p {
+    margin: 0.5em 0;
+  }
+  .markdown a {
+    color: var(--ring);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .markdown strong {
+    font-weight: 600;
+  }
+  .markdown em {
+    font-style: italic;
+  }
+  .markdown code {
+    background: var(--muted);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  .markdown pre {
+    background: var(--muted);
+    padding: 0.75em;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0.6em 0;
+  }
+  .markdown pre code {
+    background: transparent;
+    padding: 0;
+  }
+  .markdown ul {
+    list-style: disc;
+    padding-left: 1.3em;
+    margin: 0.5em 0;
+  }
+  .markdown ol {
+    list-style: decimal;
+    padding-left: 1.3em;
+    margin: 0.5em 0;
+  }
+  .markdown li {
+    margin: 0.15em 0;
+  }
+  .markdown h1,
+  .markdown h2,
+  .markdown h3,
+  .markdown h4 {
+    font-weight: 600;
+    margin: 0.85em 0 0.35em;
+    line-height: 1.3;
+  }
+  .markdown blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 0.75em;
+    color: var(--muted-foreground);
+    margin: 0.5em 0;
+  }
+  .markdown hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 1em 0;
+  }
+}
+
+/* Respect reduced-motion: neutralize the poll pulse + card-move animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

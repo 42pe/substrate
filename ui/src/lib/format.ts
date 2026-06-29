@@ -3,8 +3,10 @@
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString();
+  if (Number.isNaN(d.getTime())) return iso ?? '—';
+  // Medium date + short time reads like a UI, not a debug dump
+  // ("Jun 28, 2026, 7:00 PM" rather than "6/28/2026, 7:00:00 PM").
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 /** Compact "time since" for the live indicator + kanban cards, e.g. `3s`,

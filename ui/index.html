@@ -4,8 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Substrate</title>
+    <script>
+      // Set the initial theme before first paint (no flash): explicit choice in
+      // localStorage wins, else fall back to the OS preference.
+      (function () {
+        try {
+          var t = localStorage.getItem('substrate-theme');
+          if (t === 'dark' || (t === null && matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-neutral-50 text-neutral-900 antialiased">
+  <body class="bg-background text-foreground antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -97,12 +97,21 @@ it can ship before public launch as polish.
 - **Done when:** linking to a task's Comments tab works; dates are uniform; history reads
   as diffs.
 
-### Step 7 — Layout & responsive — (Frontend) [ux §E]
+### Step 7 — Layout, responsive & markdown rendering — (Frontend) [ux §E]
 - Responsive header (hide the tagline < sm, collapse nav), reflow check at 320px.
 - Ground the page layout (columns fill height / tighten the empty-expanse feel).
-- Decide markdown styling: add `@tailwindcss/typography` (or a tokenized `.markdown`) so
-  `prose` stops being a no-op — needed before Phase 14 comment rendering.
-- **Done when:** mobile header doesn't clip; markdown descriptions are styled.
+- **Markdown line-break fix (folded-in dogfood bug):** `renderMarkdown` calls
+  `marked.parse(src, { async: false })` at defaults, so a *single* `\n` is a soft break
+  rendered as a space — agents' single-newline content flattens to a run-on block ("0 new
+  lines"). Content is stored faithfully (verified: the real sample has 39 encoded newlines;
+  the write schema is `z.string()` with no trim/normalize) — this is purely a render
+  default. Fix: `marked.parse(src, { async: false, breaks: true })` (GFM line breaks → `<br>`,
+  which DOMPurify still sees — the "single sanitize gate" invariant holds; not a raw-HTML
+  extension). `ui/src/lib/markdown.ts`, one line.
+- Markdown styling: add a tokenized `.markdown` style (or `@tailwindcss/typography`) so the
+  `prose` no-op is fixed — needed before Phase 14 comment rendering.
+- **Done when:** mobile header doesn't clip; single-newline descriptions render with line
+  breaks; markdown is styled.
 
 ### Step 8 — Vendor remaining interactive primitives (built, not yet wired) — (Frontend) [ux §A]
 - Vendor (ShadCN-style, CVA + `cn`, Radix where applicable): `Button`, `Input`, `Textarea`,

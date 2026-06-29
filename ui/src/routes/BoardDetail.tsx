@@ -63,12 +63,14 @@ export function BoardDetail() {
 function ViewToggle({ view }: { view: View }) {
   const base = 'rounded px-3 py-1 text-sm transition';
   return (
-    <div className="inline-flex rounded-md border border-neutral-300 p-0.5">
+    <div className="inline-flex rounded-md border border-input p-0.5">
       <Link
         to="?view=kanban"
         className={cn(
           base,
-          view === 'kanban' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100',
+          view === 'kanban'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:bg-muted',
         )}
       >
         Board
@@ -77,7 +79,9 @@ function ViewToggle({ view }: { view: View }) {
         to="?view=list"
         className={cn(
           base,
-          view === 'list' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100',
+          view === 'list'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:bg-muted',
         )}
       >
         List
@@ -93,20 +97,20 @@ function BoardDetailsDisclosure({ data }: { data: BoardSubstrate }) {
   const taskFields = Object.entries(field_schema.task);
   const commentFields = Object.entries(field_schema.comments);
   return (
-    <details className="group mt-3 rounded-lg border border-neutral-200 bg-white">
-      <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium text-neutral-600 hover:text-neutral-900">
+    <details className="group mt-3 rounded-lg border border-border bg-card">
+      <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground">
         <span className="inline-flex items-center gap-2">
-          <span className="text-neutral-400 transition group-open:rotate-90">▸</span>
+          <span className="text-muted-foreground transition group-open:rotate-90">▸</span>
           Board details — description, field schema, policies
         </span>
       </summary>
-      <div className="space-y-6 border-t border-neutral-100 px-4 py-4">
+      <div className="space-y-6 border-t border-border px-4 py-4">
         {board.description ? (
-          <div className="prose prose-sm max-w-none text-neutral-700">
+          <div className="markdown max-w-none text-subtle">
             <Markdown source={board.description} />
           </div>
         ) : null}
-        <p className="font-mono text-xs text-neutral-400">{board.id}</p>
+        <p className="font-mono text-xs text-muted-foreground">{board.id}</p>
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -123,17 +127,17 @@ function BoardDetailsDisclosure({ data }: { data: BoardSubstrate }) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {policies.length === 0 ? (
-                <p className="text-neutral-500">No policies.</p>
+                <p className="text-muted-foreground">No policies.</p>
               ) : (
                 policies.map((pol) => (
-                  <div key={pol.id} className="border-b border-neutral-100 pb-2 last:border-0">
+                  <div key={pol.id} className="border-b border-border pb-2 last:border-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{pol.name}</span>
                       <Badge variant="outline">{pol.type}</Badge>
                       {pol.enabled ? null : <Badge variant="muted">disabled</Badge>}
                     </div>
                     {pol.description ? (
-                      <div className="prose prose-sm mt-1 max-w-none text-neutral-600">
+                      <div className="markdown mt-1 max-w-none text-muted-foreground">
                         <Markdown source={pol.description} />
                       </div>
                     ) : null}
@@ -159,7 +163,7 @@ function KanbanView({ boardId }: { boardId: string }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Board</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Board</h2>
         <LiveIndicator paused={paused} reconnecting={reconnecting} lastUpdated={lastUpdated} />
       </div>
       {loading ? (
@@ -182,16 +186,18 @@ function FieldList({
 }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       {entries.length === 0 ? (
-        <p className="mt-1 text-neutral-500">None.</p>
+        <p className="mt-1 text-muted-foreground">None.</p>
       ) : (
         <ul className="mt-1 space-y-0.5">
           {entries.map(([name, def]) => (
             <li key={name} className="flex items-center gap-2">
               <span className="font-mono text-xs">{name}</span>
               <Badge variant="outline">{def.type}</Badge>
-              {def.required ? <span className="text-xs text-neutral-400">required</span> : null}
+              {def.required ? (
+                <span className="text-xs text-muted-foreground">required</span>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -231,13 +237,13 @@ function TaskTable({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Tasks</h2>
+      <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Tasks</h2>
 
       <div className="flex flex-wrap items-center gap-3">
         <select
           value={groupId}
           onChange={(e) => setGroupId(e.target.value)}
-          className="rounded-md border border-neutral-300 px-2 py-1 text-sm"
+          className="rounded-md border border-input px-2 py-1 text-sm"
         >
           <option value="">All groups</option>
           {groups.map((g) => (
@@ -246,7 +252,7 @@ function TaskTable({
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-2 text-sm text-neutral-600">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={archived}
@@ -266,11 +272,11 @@ function TaskTable({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search title/description…"
-            className="rounded-md border border-neutral-300 px-2 py-1 text-sm"
+            className="rounded-md border border-input px-2 py-1 text-sm"
           />
           <button
             type="submit"
-            className="rounded-md border border-neutral-300 px-3 py-1 text-sm hover:bg-neutral-100"
+            className="rounded-md border border-input px-3 py-1 text-sm hover:bg-muted"
           >
             Search
           </button>
@@ -300,7 +306,7 @@ function TaskTable({
                     <TD>
                       <Link
                         to={`/tasks/${encodeURIComponent(t.id)}`}
-                        className="font-medium text-neutral-900 hover:underline"
+                        className="font-medium text-foreground hover:underline"
                       >
                         {t.title}
                       </Link>
@@ -310,8 +316,8 @@ function TaskTable({
                         </Badge>
                       ) : null}
                     </TD>
-                    <TD className="text-neutral-600">{groupName(t.group_id)}</TD>
-                    <TD className="text-neutral-500">{formatDate(t.updated_at)}</TD>
+                    <TD className="text-muted-foreground">{groupName(t.group_id)}</TD>
+                    <TD className="text-muted-foreground">{formatDate(t.updated_at)}</TD>
                   </TR>
                 ))}
               </TBody>
@@ -322,7 +328,7 @@ function TaskTable({
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="rounded-md border border-neutral-300 px-4 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50"
+              className="rounded-md border border-input px-4 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
             >
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>
