@@ -1,10 +1,10 @@
-# Phase 13 Plan — Task authoring + comments
+# Phase 14 Plan — Task authoring + comments
 
-**Status:** Draft for Diego's review (lighter — reuses Phase 12's foundation)
+**Status:** Draft for Diego's review (lighter — reuses Phase 13's foundation)
 **Author:** Architect
 **Date:** 2026-06-29
 **Spec:** [interactive-ui-spec.md](specs/interactive-ui-spec.md) (umbrella)
-**Depends on:** [Phase 12](phase-12-interactive-write-foundation.md) (ops layer,
+**Depends on:** [Phase 13](phase-13-interactive-write-foundation.md) (ops layer,
 HTTP write transport, write-guard, mutation/toast plumbing, form primitives).
 **Theme:** Full task editing (custom fields) and the human↔agent conversation.
 
@@ -12,13 +12,13 @@ HTTP write transport, write-guard, mutation/toast plumbing, form primitives).
 
 ## 1. Overview
 
-Phase 12 made tasks movable/creatable. Phase 13 fills in **the rest of a task** —
+Phase 13 made tasks movable/creatable. Phase 14 fills in **the rest of a task** —
 `field_schema`-driven custom-data editing and the **comments** thread — so a human
 can fully author a task and talk back to the agents. It is mostly *new ops + thin
 HTTP routes + forms*; the transport, security, and feedback layers already exist.
 
 ## 2. Branching
-- Branch `feature/phase-13-task-authoring-comments` off `main` (post Phase 12).
+- Branch `feature/phase-14-task-authoring-comments` off `main` (post Phase 13).
 - Step commits; one Code-Reviewer pass; CI green (Actions billing must be live).
 
 ## 3. Implementation order
@@ -35,7 +35,7 @@ HTTP routes + forms*; the transport, security, and feedback layers already exist
 - **Done when:** integration tests cover add/edit/archive incl. threaded replies.
 
 ### Step 2 — `field_schema`-driven task custom-data editing — (Backend + Frontend)
-- Extend `PATCH /api/tasks/:id` (already exists from Phase 12) to accept
+- Extend `PATCH /api/tasks/:id` (already exists from Phase 13) to accept
   `custom_data` patches; the op already validates via `field_schema`
   (`schema_violation` on bad type/missing-required) — surface it per field.
 - UI: on `TaskDetail`, render an **editable field set from the board's
@@ -63,7 +63,7 @@ HTTP routes + forms*; the transport, security, and feedback layers already exist
 ### Step 5 — Review + acceptance + audit — (Reviewer → Assistant)
 - Security focus: markdown render path never bypassed for comment bodies;
   field-schema validation enforced server-side; actor stamping on comments.
-- Audit → `.agents/audits/phase-13-audit.md`; merge; tag `phase-13-complete`.
+- Audit → `.agents/audits/phase-14-audit.md`; merge; tag `phase-14-complete`.
 
 ## 4. Acceptance criteria
 - Add / reply / edit / archive a comment from the browser; each emits the right
@@ -83,4 +83,4 @@ HTTP routes + forms*; the transport, security, and feedback layers already exist
 
 ## 6. Definition of Done
 - Comment + custom-data ops live in `src/operations/`; HTTP routes are thin
-  adapters; behavior validated. Audit clean; tag `phase-13-complete`.
+  adapters; behavior validated. Audit clean; tag `phase-14-complete`.

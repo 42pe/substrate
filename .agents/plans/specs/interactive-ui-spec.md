@@ -4,9 +4,13 @@
 **Author:** Architect (synthesizing a server write-path map + a UI map)
 **Date:** 2026-06-29
 **Companions (per-phase plans):**
-[Phase 12](../phase-12-interactive-write-foundation.md) ·
-[Phase 13](../phase-13-task-authoring-comments.md) ·
-[Phase 14](../phase-14-column-board-authoring.md)
+[Phase 12 — UX foundation](../phase-12-ux-foundation.md) (prerequisite) ·
+[Phase 13](../phase-13-interactive-write-foundation.md) ·
+[Phase 14](../phase-14-task-authoring-comments.md) ·
+[Phase 15](../phase-15-column-board-authoring.md)
+**Prerequisite:** [Phase 12 — UX foundation](../phase-12-ux-foundation.md) (design
+tokens, accessible primitives, mutation/status scaffolding) runs **first**, per the
+4-lens UX review ([ux-review-20260629.md](../../ux-review-20260629.md)).
 **Supersedes the v1 non-goal:** v1-architecture §Phase 5 listed *"Authoring UI (no
 CRUD forms for v1)"* as out of scope. This is the deliberate **v1.x** lift that
 takes it on. The architecture doc's module rules are respected (see §6).
@@ -66,7 +70,7 @@ transport framing). So the clean design is to lift the orchestration **out of**
 - Authentication, users, roles, sharing, multi-tenant. Local single-user only.
 - Real-time push (WebSocket/SSE). The existing 4s polling stays; mutations trigger
   an immediate refetch. (SSE is a possible later optimization, not in scope.)
-- A visual **policy-DSL builder** (see §5, Phase 15 — deferred).
+- A visual **policy-DSL builder** (see §5, Phase 16 — deferred).
 - Remote access / exposing the server beyond localhost.
 
 ## 4. Cross-cutting design decisions
@@ -121,7 +125,7 @@ equivalent** ("Move to…" on the card) so interactivity isn't mouse-only.
 **D6 — Forms: minimal vendored primitives, no form lib (yet).**
 No form lib today; the surface is small. Vendor a few ShadCN primitives (`Button`,
 `Input`, `Textarea`, `Label`, `Select`, `Dialog`, `Toast`) and hand-roll
-controlled forms. Revisit `react-hook-form` only if Phase 13/14 forms grow
+controlled forms. Revisit `react-hook-form` only if Phase 14/15 forms grow
 unwieldy.
 
 **D7 — Optimistic for moves, pending-state for forms.**
@@ -142,19 +146,24 @@ cue needed.
 
 ## 5. Phasing
 
-Split into three build phases + one deferred, smallest-blast-radius first:
+A **UX-foundation prerequisite** (Phase 12) runs first, then three interactivity
+build phases + one deferred, smallest-blast-radius first:
 
 | Phase | Title | Headline | Surface |
 |---|---|---|---|
-| **12** | Interactive write **foundation** + task moves | "The board comes alive" | operations-layer extraction, HTTP write transport, CSRF guard, UI mutation layer, **drag-to-move**, task create/edit/archive |
-| **13** | Task **authoring** + comments | "Full task editing & the conversation" | `field_schema`-driven custom-data editing, add/edit/archive comments, actionable missing-required badge |
-| **14** | **Column & board** authoring | "Manage the board's structure" | group create/rename/recolor/reorder/archive, board create/rename/archive, project rename (substrate-as-code) |
-| **15** *(deferred / stretch)* | **Policy & field_schema** authoring | "Edit the rules from the UI" | GUI for the policy DSL + field_schema. **Recommended deferred** — keep policies agent-authored / hand-edited; the DSL is a large GUI design space and the recent validation + `substrate_corrupt` recovery already make code-editing safe. |
+| **12** *(prerequisite)* | **UX foundation** | "Fix the base before building on it" | design-token layer + dark-mode structure, accessibility floor (focus-visible, contrast, semantics, live-region announcer), vendored primitives (Button/Input/Dialog/Select/Toast/…), `useMutation`+`apiPost`/`refetch`/optimistic scaffolding, canonical header status/conflict channel, URL view-state, dedup (PageHeader/TaskCard). From the [4-lens UX review](../../ux-review-20260629.md). |
+| **13** | Interactive write **foundation** + task moves | "The board comes alive" | operations-layer extraction, HTTP write transport, CSRF guard, **drag-to-move**, task create/edit/archive |
+| **14** | Task **authoring** + comments | "Full task editing & the conversation" | `field_schema`-driven custom-data editing, add/edit/archive comments, actionable missing-required badge |
+| **15** | **Column & board** authoring | "Manage the board's structure" | group create/rename/recolor/reorder/archive, board create/rename/archive, project rename (substrate-as-code) |
+| **16** *(deferred / stretch)* | **Policy & field_schema** authoring | "Edit the rules from the UI" | GUI for the policy DSL + field_schema. **Recommended deferred** — keep policies agent-authored / hand-edited; the DSL is a large GUI design space and the recent validation + `substrate_corrupt` recovery already make code-editing safe. |
 
-Phase 12 is the foundation: it builds the *transport and patterns* (ops layer,
-`apiPost/apiPatch`, `useMutation`, toasts, CSRF guard, dnd) that 13 and 14 reuse,
-so they get progressively lighter. Each phase still passes through the repo's
-Stage-1 spec gate before its build (this umbrella spec seeds them).
+Phase 12 (UX foundation) lands the tokens, accessible primitives, and the
+mutation/status/optimistic scaffolding so the interactivity phases drop in on a
+solid base rather than multiplying today's hardcoding and a11y gaps. Phase 13 then
+builds the *transport and patterns* (ops layer, HTTP writes, CSRF guard, dnd) that
+14 and 15 reuse, so they get progressively lighter. Each phase still passes through
+the repo's Stage-1 spec gate before its build (this umbrella spec + the UX review
+seed them).
 
 ## 6. Architecture / module-boundary impact
 
@@ -192,17 +201,21 @@ Stage-1 spec gate before its build (this umbrella spec seeds them).
 - **Policy-on-human-write:** a board with a `transition_guard`; an HTTP move that
   violates it returns `transition_blocked` and writes nothing.
 - **OCC:** stale-version HTTP move returns `version_mismatch`.
-- **One Playwright interaction test** per phase (12: drag a card → persisted +
-  event; 13: add a comment; 14: add a column) — extends the single existing smoke,
+- **One Playwright interaction test** per phase (13: drag a card → persisted +
+  event; 14: add a comment; 15: add a column) — extends the single existing smoke,
   staying within the "smoke, not full e2e" budget.
 
 ## 9. Open questions for Diego
 
-1. **Sequencing vs. Phase 10 launch.** Ship the read-only inspector as v1 first and
-   add interactivity as **v1.1** (clean story, smaller launch), or fold Phase 12
-   into pre-launch? *Recommendation: launch read-only, then v1.1 interactive.*
+1. **Sequencing vs. Phase 10 launch.** Three sensible orders: (a) launch the
+   read-only inspector as v1, then do Phase 12 (UX) + 13–15 (interactivity) as
+   **v1.1**; (b) do **Phase 12 (UX foundation) before launch** (it polishes the
+   read-only UI that ships) and interactivity as v1.1; (c) fold everything in
+   pre-launch. *Recommendation: (b) — the UX-foundation phase improves the v1
+   inspector itself and is low-risk, so ship a polished read-only v1, then v1.1
+   interactive.*
 2. **Actor naming.** `human:<os-username>` default with `config.json:ui_actor_name`
    override — good? Or a one-time "who are you?" prompt stored in localStorage?
-3. **Policy authoring (Phase 15).** Confirm deferring the GUI policy editor and
+3. **Policy authoring (Phase 16).** Confirm deferring the GUI policy editor and
    keeping policies agent-authored / hand-edited for now.
 4. **DnD dep.** OK to add `@dnd-kit` (one well-maintained dependency) to the UI?

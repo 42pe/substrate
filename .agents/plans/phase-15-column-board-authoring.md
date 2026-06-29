@@ -1,10 +1,10 @@
-# Phase 14 Plan — Column & board authoring (substrate-as-code via UI)
+# Phase 15 Plan — Column & board authoring (substrate-as-code via UI)
 
 **Status:** Draft for Diego's review (builds on Phases 12–13)
 **Author:** Architect
 **Date:** 2026-06-29
 **Spec:** [interactive-ui-spec.md](specs/interactive-ui-spec.md) (umbrella)
-**Depends on:** [Phase 12](phase-12-interactive-write-foundation.md) foundation.
+**Depends on:** [Phase 13](phase-13-interactive-write-foundation.md) foundation.
 **Theme:** Let a human shape the board's **structure** — columns, the board itself,
 the project — from the browser. These edits write **substrate-as-code** (`boards/*.json`),
 not just SQLite.
@@ -16,15 +16,15 @@ not just SQLite.
 Tasks and comments live in SQLite (gitignored). **Structure** — groups (columns),
 boards, project metadata, `field_schema`, policies — lives in committed
 `boards/*.json` and `config.json`, edited through the substrate **writer**
-(`mutateBoardFile`, board-level version CAS). Phase 14 exposes the safe subset of
+(`mutateBoardFile`, board-level version CAS). Phase 15 exposes the safe subset of
 that authoring to the UI: **columns and board/project metadata**. Policy and
-`field_schema` *editing* is explicitly **deferred to Phase 15** (see spec §5).
+`field_schema` *editing* is explicitly **deferred to Phase 16** (see spec §5).
 
 The defining concern (D9): these edits change **git-tracked files**, so the UI must
 signal "this edits source you'll want to commit."
 
 ## 2. Branching
-- Branch `feature/phase-14-column-board-authoring` off `main`.
+- Branch `feature/phase-15-column-board-authoring` off `main`.
 - Step commits; one Code-Reviewer pass; CI green (Actions billing must be live).
 
 ## 3. Implementation order
@@ -42,19 +42,19 @@ signal "this edits source you'll want to commit."
 - **Done when:** ops extracted; MCP substrate-edit tests pass against them.
 
 ### Step 2 — HTTP routes — (Backend)
-- Mounted under the write surface (write-guard + actor injection from Phase 12):
+- Mounted under the write surface (write-guard + actor injection from Phase 13):
   - `POST /api/boards`, `PATCH /api/boards/:id`, archive/unarchive
   - `POST /api/boards/:id/groups`, `PATCH /api/boards/:id/groups/:gid`,
     `POST /api/boards/:id/groups/reorder`, group archive/unarchive
   - `PATCH /api/project`
-- All carry the board `version` for CAS; `version_mismatch` surfaces as in Phase 12.
+- All carry the board `version` for CAS; `version_mismatch` surfaces as in Phase 13.
 - **Done when:** integration tests assert `boards/*.json` content + version bump +
   atomic-write behavior; `archive_group` with active tasks → `conflict`.
 
 ### Step 3 — Column management UI — (Frontend)
 - On `BoardDetail` kanban: "+ Add column" (Dialog: name, optional color),
   per-column menu (rename, recolor, archive), and **drag-to-reorder columns**
-  (reuse Phase 12's `@dnd-kit`, now on columns) → `reorderGroups` with board
+  (reuse Phase 13's `@dnd-kit`, now on columns) → `reorderGroups` with board
   `version`.
 - Archiving a column with active tasks shows the `conflict` message (move/clear
   tasks first).
@@ -72,7 +72,7 @@ signal "this edits source you'll want to commit."
 ### Step 5 — Review + acceptance + audit — (Reviewer → Assistant)
 - Focus: atomic-write integrity (no torn `boards/*.json`), version CAS on
   concurrent edits, `conflict` on group-archive-with-tasks, actor stamping.
-- Audit → `.agents/audits/phase-14-audit.md`; merge; tag `phase-14-complete`.
+- Audit → `.agents/audits/phase-15-audit.md`; merge; tag `phase-15-complete`.
 
 ## 4. Acceptance criteria
 - Add / rename / recolor / reorder / archive a column from the browser; reorder and
@@ -95,11 +95,11 @@ signal "this edits source you'll want to commit."
 
 ## 6. Definition of Done
 - Column/board/project ops in `src/operations/`; HTTP routes thin; substrate-as-code
-  writes atomic + CAS-guarded. Audit clean; tag `phase-14-complete`.
+  writes atomic + CAS-guarded. Audit clean; tag `phase-15-complete`.
 
 ---
 
-## Appendix — Phase 15 (deferred): Policy & field_schema authoring
+## Appendix — Phase 16 (deferred): Policy & field_schema authoring
 
 Not scheduled. Editing the **policy DSL** and **`field_schema`** through a GUI is a
 large design space (condition trees, operators, the two policy classes). The recent

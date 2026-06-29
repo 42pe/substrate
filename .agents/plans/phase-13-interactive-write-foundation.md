@@ -1,4 +1,4 @@
-# Phase 12 Plan — Interactive write foundation + task moves
+# Phase 13 Plan — Interactive write foundation + task moves
 
 **Status:** Draft for Diego's review
 **Author:** Architect
@@ -11,7 +11,7 @@ highest-value interaction (drag a card between columns).
 
 ## 1. Overview
 
-Phase 12 builds the **foundation** every later interactive phase reuses — a
+Phase 13 builds the **foundation** every later interactive phase reuses — a
 framework-neutral operations layer, an HTTP write transport, a CSRF write-guard,
 and the UI's mutation/optimistic/toast plumbing — and proves it end-to-end on the
 **task lifecycle**: move (drag), create, edit, archive/unarchive. After this
@@ -20,7 +20,7 @@ policy-checked, event-logged write path.
 
 ## 2. Branching & merge strategy
 
-- Branch `feature/phase-12-interactive-write-foundation` off `main`.
+- Branch `feature/phase-13-interactive-write-foundation` off `main`.
 - Step commits; one Code-Reviewer pass at the end (per workflow.md).
 - CI must be green — **note: blocked until the GitHub Actions minutes/spending
   limit is resolved** (see decisions.md "Windows CI" postscript). Don't start the
@@ -52,7 +52,7 @@ policy-checked, event-logged write path.
   read routes:
   - `POST   /api/tasks`               → `applyCreateTask`
   - `PATCH  /api/tasks/:id`           → `applyUpdateTask` (title, description,
-    `group_id` for moves; `custom_data` deferred to Phase 13)
+    `group_id` for moves; `custom_data` deferred to Phase 14)
   - `POST   /api/tasks/:id/archive`   → `applyArchiveTask`
   - `POST   /api/tasks/:id/unarchive` → `applyUnarchiveTask`
 - Each route: parse body with the **same zod schema** the MCP tool uses (export it
@@ -120,8 +120,8 @@ policy-checked, event-logged write path.
 ### Step 7 — Code-Reviewer pass + acceptance + audit — (Reviewer → Assistant)
 - Security review focus: the write-guard (D3), actor stamping (D2), no policy
   bypass (D1), no markdown render path bypassed.
-- Acceptance battery (below) green; `.agents/audits/phase-12-audit.md` written;
-  fast-forward merge; tag `phase-12-complete`.
+- Acceptance battery (below) green; `.agents/audits/phase-13-audit.md` written;
+  fast-forward merge; tag `phase-13-complete`.
 
 ## 4. Acceptance criteria
 
@@ -165,5 +165,5 @@ policy-checked, event-logged write path.
 - All acceptance criteria met; Code-Reviewer BLOCKER/CONCERN resolved.
 - `src/operations/` is the single write path; `mcp` and `http` are thin adapters
   over it and still don't import each other.
-- Audit clean → `.agents/audits/phase-12-audit.md`; fast-forward merge to `main`;
-  tag `phase-12-complete`. Footer/docs updated to reflect the UI can now write.
+- Audit clean → `.agents/audits/phase-13-audit.md`; fast-forward merge to `main`;
+  tag `phase-13-complete`. Footer/docs updated to reflect the UI can now write.
