@@ -21,13 +21,20 @@ enforced** — and `agent_name` is a **free-form, unauthenticated tag** (`src/co
 Substrate cannot today distinguish a human write from an agent write.
 
 **This is a design decision (needs Diego).** Options:
-- **(A — Recommended) Write-origin provenance + human-only fields.** Give every write an
-  authenticated *origin* (`agent` vs `human`), stamped by the write path, not client-claimed — reuse
-  the interactivity spec's **D2** model (the HTTP/UI write layer stamps `human:<os-user>` server-side;
-  stdio MCP writes are `agent`). A board can mark fields (e.g. `plan_approved`) as **human-set-only**;
-  the write path **rejects an agent write** that sets them (`forbidden`/`schema_violation`). Guards
-  then trust the field because only a human could have set it. Minimal new policy DSL; the enforcement
-  is at the write boundary.
+- **(A — Recommended) Human-only fields, enforced at the MCP write boundary.** A board marks fields
+  (e.g. `plan_approved`) as **`human_only`**; the **agent's `update_task`/`create_task` MCP tools
+  refuse to set them** (`forbidden`). That alone fixes the autonomous case — the 4am agent can't
+  self-approve, so the task **stops at the gate** — and needs **no UI**. The human flips the field via
+  any non-agent channel: a `substrate approve`/`substrate set` **CLI** (ship this), hand-edit, or the
+  web write-UI later. **The write-UI is the ergonomic human front-end, NOT a prerequisite.**
+  When the interactivity write path lands (Phase 13 / spec D2), it stamps `human:<os-user>`
+  server-side, giving the same fields a nice GUI approval — additive.
+  **Honest limit:** on a local, no-auth, single-machine tool you cannot *cryptographically* prove a
+  human made the write (an autonomous agent with shell/localhost access could shell out to the CLI).
+  `human_only` means "not settable via the agent's normal MCP tool surface" — self-approval goes from
+  *happens accidentally in-flow* (what bit StackChan) to *requires a deliberate break-out to another
+  channel it was told not to use*. A strong practical boundary for an honest-agent tool, not an
+  unbreakable one. Document this plainly.
 - **(B) A first-class approval record** — a dedicated `approve(task, gate)` action only a
   human-origin caller can invoke, separate from `custom_data`; guards check the record. More
   surface, cleaner semantics.
@@ -59,10 +66,14 @@ the pure guard evaluator.
    `src/cli/commands/validate.ts` reusing `definition-schema.ts` + a ref-integrity pass; wire into
    `diagnose` output too.
 2. **dry-run** — `check_transition` MCP tool (+ CLI) over `runTransitionGuards`; read-only.
-3. **B3 provenance** — *pending Diego's option choice.* If **A**: add authenticated write-origin to
-   the write path (`ToolDeps`/handlers), a board-level `human_only_fields` list, and rejection of
-   agent writes to those fields; align with interactive-ui-spec D2 so UI/human writes are stamped
-   `human`. Land the doc-only "gates are advisory for agents" note **immediately** regardless.
+3. **B3 (Option A) — ships in two independent layers, no UI dependency:**
+   - **(core, now)** board-level `human_only` field list + the agent's `update_task`/`create_task`
+     MCP tools **reject** writes to those fields (`forbidden`); a `substrate approve`/`set` **CLI** as
+     the human channel. This fully fixes the autonomous self-approval case on its own.
+   - **(additive, later)** when the Phase 13 write path lands, it stamps `human:<os-user>` and gives
+     the same fields a GUI approval — nice-to-have, not required.
+   - Land the "approval gates are advisory for autonomous agents until human_only ships" **doc note
+     immediately**, regardless.
 
 ## Acceptance criteria (validate locally)
 - `substrate validate` flags a board with a dead gate (bad group ref / unparseable definition) and
@@ -75,9 +86,10 @@ the pure guard evaluator.
 - `pnpm lint`/`format`/`tsc`/tests green.
 
 ## Risks
-- **R1 (B3 scope):** authenticated origin touches the write path + overlaps Phase 13 (interactivity
-  actor model). Sequence with it; don't build two provenance systems. Land the **advisory-gate
-  documentation** now so the autonomous-pipeline risk is at least visible while the model is built.
+- **R1 (B3 scope):** the **core** fix (MCP refuses `human_only` fields + CLI approve) does **not**
+  depend on the web UI and can ship now. The later UI stamping (Phase 13 / D2) is additive — don't
+  build two provenance systems; the MCP boundary is the source of truth, the UI just becomes another
+  human-origin caller. Land the **advisory-gate doc note** immediately regardless.
 - **R2 (validate):** must match the *loader's* validation exactly, or `validate` and runtime disagree
   — reuse `definition-schema.ts`, don't re-implement.
 - **R3 (dry-run):** must use the same evaluator as the write path to avoid drift.
