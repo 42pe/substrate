@@ -202,6 +202,10 @@ export async function updateTask(
     args,
   });
   if (result.rowsAffected === 0) {
+    // CAS race: a concurrent write bumped the version between the SELECT check and
+    // this UPDATE. Unlike the check site, `current` is now stale, so we omit
+    // `current_version` (there's no correct integer to report). Unreachable in a
+    // single transaction, so intentionally untested (B5).
     throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id });
   }
 

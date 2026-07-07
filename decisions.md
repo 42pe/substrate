@@ -18,15 +18,20 @@ retrying — real cost for weak protection, since a determined agent can blind-o
 anyway by reading and ignoring the diff. The honest safeguard is the message + the
 requirement to reconcile, not the missing integer. **Scope:** added at the OCC version-CHECK
 sites (`tasks.ts` update/archive/unarchive + `assertVersion` for board/group/policy/project);
-the rare CAS-race sites (`rowsAffected === 0`) keep `{id}` only (there the read value is
-already stale). **Approved by Diego 2026-07-07.** See `.agents/plans/dogfood-fix-observability.md`.
+the rare CAS-race sites (`rowsAffected === 0`) keep `{id}` only — there no fresh version was
+read, so there is no correct integer to report. That branch is effectively unreachable
+single-threaded, so it is intentionally left untested. **Approved by Diego 2026-07-07.** See
+`.agents/plans/dogfood-fix-observability.md`.
 
 ### Handled tool errors are logged (B4)
 The MCP wrapper now logs handled `SubstrateError`s to the persistent log at ERROR (so
 `substrate logs --errors` shows an agent session's error trail — previously handled errors
 were returned in the envelope but never logged), **excluding** the expected control-flow
 codes `transition_blocked`/`version_mismatch` (normal outcomes, already surfaced via events
-+ OCC). Agent-derived content rides in the JSON-escaped context, so it can't forge a log line.
++ OCC) **and `internal_error`** (already logged with its stack by the handler — logging the
+scrubbed generic again would be a thinner duplicate). The error is attributed to the acting
+`agent_name` when present. Agent-derived content rides in the JSON-escaped context, so it
+can't forge a log line.
 
 ## Architecture-review follow-ups (2026-06-22/23)
 

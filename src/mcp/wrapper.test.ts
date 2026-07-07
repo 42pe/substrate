@@ -177,4 +177,44 @@ describe('wrapToolHandler', () => {
       rmrfSync(dir);
     }
   });
+
+  it('B4: does not double-log internal_error (handler logs it richly already) (C1)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const wrapped = wrapToolHandler('t', schema, () => {
+        throw new Error('boom');
+      });
+      await wrapped({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('Unhandled error in t'); // the rich stack-bearing line
+      expect(log).not.toContain('returned internal_error'); // no thin duplicate (C1)
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
+
+  it('B4: attributes a handled error to the acting agent (agent_name) when present', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const wrapped = wrapToolHandler('update_task', schema, () =>
+        Promise.resolve(
+          errorEnvelope(SubstrateError.notFound('gone', { entity: 'task', id: 'z' })),
+        ),
+      );
+      await wrapped({ id: 'z', agent_name: 'builder-7' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('not_found');
+      expect(log).toContain('builder-7'); // sanitized to [builder-7] in the context
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
 });

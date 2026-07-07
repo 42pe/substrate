@@ -71,16 +71,21 @@ export function wrapToolHandler<S extends z.ZodTypeAny>(
       return jsonResult(errorEnvelope(err), true);
     }
 
+    // Attribute a handled error to the acting agent when the input carried one
+    // (writes do; reads don't). Sanitized by the logger's buildSafeContext.
+    const rawAgent = (parsed.data as { agent_name?: unknown }).agent_name;
+    const agentName = typeof rawAgent === 'string' ? rawAgent : undefined;
+
     try {
       const result = await handler(parsed.data);
       if (isErrorEnvelope(result)) {
         const err = (result as { error?: { code?: string; message?: string } }).error;
-        logHandledError(toolName, err?.code, err?.message);
+        logHandledError(toolName, err?.code, err?.message, agentName);
       }
       return jsonResult(result, isErrorEnvelope(result));
     } catch (e) {
       if (SubstrateError.is(e)) {
-        logHandledError(toolName, e.code, e.message);
+        logHandledError(toolName, e.code, e.message, agentName);
         return jsonResult(errorEnvelope(e), true);
       }
       logger.error(`Unhandled error in ${toolName}`, { error: (e as Error).message, err: e });
@@ -94,20 +99,34 @@ export function wrapToolHandler<S extends z.ZodTypeAny>(
  * shows an agent session's error trail (they were returned in the envelope but never
  * logged, so the log stayed empty). Logged at ERROR because `logs --errors` — the
  * command an agent reaches for — filters to error level, and from the tool-call's
- * perspective these ARE the failures the agent hit. EXCLUDES the expected
- * control-flow codes (a blocked gate / stale-version OCC are normal outcomes, already
- * surfaced via events + the envelope) so an autonomous pipeline's log isn't flooded.
+ * perspective these ARE the failures the agent hit.
+ *
+ * Skipped codes: the expected control-flow codes (a blocked gate / stale-version OCC
+ * are normal outcomes, already surfaced via events + the envelope), AND `internal_error`
+ * (the handler/wrapper already logs the unexpected failure richly WITH its stack, so
+ * re-logging the scrubbed generic here would just be a thinner duplicate — reviewer C1).
  *
  * Injection-safe: the (safe, enumerated) tool name + code go in the header; any
- * agent-derived content (e.g. an `id` inside `message`) rides in the JSON-serialized
- * context, which escapes control chars/newlines — it cannot forge a log line.
+ * agent-derived content (`id` inside `message`, `agent_name`) rides in the
+ * JSON-serialized context, which escapes control chars/newlines — it cannot forge a
+ * log line (and `agent_name` is additionally sanitized by the logger).
  */
-const CONTROL_FLOW_CODES = new Set<string>(['transition_blocked', 'version_mismatch']);
+const SKIP_TRAIL_CODES = new Set<string>([
+  'transition_blocked',
+  'version_mismatch',
+  'internal_error',
+]);
 function logHandledError(
   toolName: string,
   code: string | undefined,
   message: string | undefined,
+  agentName?: string,
 ): void {
-  if (code === undefined || CONTROL_FLOW_CODES.has(code)) return;
-  logger.error(`${toolName} returned ${code}`, { tool: toolName, code, message });
+  if (code === undefined || SKIP_TRAIL_CODES.has(code)) return;
+  logger.error(`${toolName} returned ${code}`, {
+    tool: toolName,
+    code,
+    message,
+    ...(agentName !== undefined ? { agent_name: agentName } : {}),
+  });
 }
