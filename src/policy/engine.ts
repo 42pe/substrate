@@ -40,10 +40,14 @@ function toPolicyEntry(policy: Policy, message?: string): PolicyFiredEntry {
 }
 
 /**
- * Evaluate transition_guards for an `update_task` group change. Returns the
- * entries for guards that engaged AND passed (informational, no message).
- * Throws `transition_blocked` on the FIRST engaged guard that fails (priority
- * order; later guards are not evaluated).
+ * Evaluate transition_guards for an `update_task` group change. Throws
+ * `transition_blocked` on the FIRST engaged guard that fails (priority order;
+ * later guards are not evaluated). A guard that engages and PASSES contributes
+ * nothing to the success envelope (B6, dogfood 2026-07-07): a passed guard has
+ * no `message` and read as clutter — enforcement is by *not* blocking, so guards
+ * surface only on the block (error) path. Returns `[]` on success; the array
+ * return type is kept so the caller's merge with `agent_responsibility` entries
+ * is unchanged.
  */
 export function runTransitionGuards(args: {
   board: Board;
@@ -52,16 +56,13 @@ export function runTransitionGuards(args: {
   candidate: EvalContext;
 }): PolicyFiredEntry[] {
   const { board, fromGroup, toGroup, candidate } = args;
-  const fired: PolicyFiredEntry[] = [];
 
   for (const policy of activePoliciesOfType(board, 'transition_guard')) {
     const def = parseGuardDefinition(policy.definition);
     if (!def) continue; // malformed → does not engage
     if (!guardEngages(def, fromGroup, toGroup)) continue;
 
-    if (guardPasses(def, candidate)) {
-      fired.push(toPolicyEntry(policy));
-    } else {
+    if (!guardPasses(def, candidate)) {
       const message =
         def.onFailureMessage ??
         `Policy '${policy.name}' blocks moving from '${fromGroup}' to '${toGroup}'.`;
@@ -71,9 +72,10 @@ export function runTransitionGuards(args: {
         to_group: toGroup,
       });
     }
+    // passed → silent (B6)
   }
 
-  return fired;
+  return [];
 }
 
 /**

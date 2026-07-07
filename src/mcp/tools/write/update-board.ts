@@ -8,7 +8,8 @@ import {
 import type { Board, FieldSchema } from '../../../core/types.js';
 import { mutateBoardFile } from '../../../substrate/writer.js';
 import { validateBoardStructure } from '../../../substrate/validator.js';
-import { FieldSchemaSchema } from '../../../substrate/schemas.js';
+import { FieldSchemaSchema, FieldSchemaEntrySchema } from '../../../substrate/schemas.js';
+import { SubstrateError } from '../../../core/errors.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 import { assertVersion, runEdit } from './substrate-edit.js';
@@ -17,7 +18,14 @@ import { assertVersion, runEdit } from './substrate-edit.js';
  * MCP tool: update_board — patch a board's name/description/field_schema. OCC on
  * board.version. The post-mutate result is structurally re-validated so a write
  * can never persist a structurally-invalid board.
+ *
+ * `field_schema` replaces the whole schema. `field_schema_patch` (dogfood
+ * 2026-07-07) is a PARTIAL edit — merge/add the given fields, `null` deletes one
+ * — so you can add a single field without resending the entire `task` + `comments`
+ * maps (the whole-object requirement was a dogfood bail-to-hand-edit trigger).
  */
+
+const fieldSectionPatch = z.record(z.string(), FieldSchemaEntrySchema.nullable());
 
 export const updateBoardShape = {
   id: z.string().min(1, 'id is required'),
@@ -25,6 +33,12 @@ export const updateBoardShape = {
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   field_schema: FieldSchemaSchema.optional(),
+  field_schema_patch: z
+    .object({ task: fieldSectionPatch.optional(), comments: fieldSectionPatch.optional() })
+    .optional()
+    .describe(
+      'Partial field_schema edit: merge/add the given fields; a null value deletes a field. Use instead of resending the whole field_schema. Mutually exclusive with field_schema.',
+    ),
   agent_name: z.string().min(1, 'agent_name is required'),
 };
 export const updateBoardSchema = z.object(updateBoardShape);
@@ -36,15 +50,60 @@ export function updateBoardHandler(
 ): Promise<SuccessEnvelope<Board> | ErrorEnvelope> {
   return runEdit('update_board', input.agent_name, async () => {
     const now = new Date().toISOString();
+    if (input.field_schema !== undefined && input.field_schema_patch !== undefined) {
+      throw SubstrateError.schemaViolation(
+        'Provide either field_schema (full replace) or field_schema_patch (partial), not both.',
+        { fields: ['field_schema', 'field_schema_patch'] },
+      );
+    }
     const next = await mutateBoardFile(deps.root, input.id, (board) => {
       assertVersion(board.version, input.version, board.id);
+
+      let fieldSchema: FieldSchema | undefined;
+      if (input.field_schema !== undefined) {
+        fieldSchema = input.field_schema as FieldSchema;
+      } else if (input.field_schema_patch !== undefined) {
+        const patch = input.field_schema_patch;
+        const merged: FieldSchema = {
+          task: { ...board.field_schema.task },
+          comments: { ...board.field_schema.comments },
+        };
+        let changed = false;
+        for (const section of ['task', 'comments'] as const) {
+          const sectionPatch = patch[section];
+          if (!sectionPatch) continue;
+          for (const [field, entry] of Object.entries(sectionPatch)) {
+            if (entry === null) {
+              if (field in merged[section]) {
+                delete merged[section][field];
+                changed = true;
+              }
+            } else {
+              merged[section][field] = entry as FieldSchema['task'][string];
+              changed = true;
+            }
+          }
+        }
+        // Only apply (and bump version) if the patch actually changed the schema —
+        // an empty/no-op patch must not burn an OCC version.
+        if (changed) fieldSchema = merged;
+      }
+
+      // Nothing to change → return the board untouched (mutateBoardFile skips the
+      // write when next === board, so no version bump on a no-op edit).
+      if (
+        input.name === undefined &&
+        input.description === undefined &&
+        fieldSchema === undefined
+      ) {
+        return { result: board, next: board };
+      }
+
       const updated: Board = {
         ...board,
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
-        ...(input.field_schema !== undefined
-          ? { field_schema: input.field_schema as FieldSchema }
-          : {}),
+        ...(fieldSchema !== undefined ? { field_schema: fieldSchema } : {}),
         version: board.version + 1,
         updated_at: now,
       };
@@ -63,7 +122,7 @@ export function updateBoardHandler(
 export function registerUpdateBoard(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'update_board',
-    'Update a board (name, description, field_schema). Requires `version` and `agent_name`. Schema changes never reject existing data (lazy validation).',
+    'Update a board (name, description, field_schema). Requires `version` and `agent_name`. Schema changes never reject existing data (lazy validation). To add/remove a single field without resending the whole schema, use `field_schema_patch` (merge; null deletes) instead of `field_schema`.',
     updateBoardShape,
     wrapToolHandler('update_board', updateBoardSchema, (input) => updateBoardHandler(input, deps)),
   );

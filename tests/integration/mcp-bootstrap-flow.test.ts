@@ -454,11 +454,26 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       'unarchived',
     ]);
 
-    // 8. list_tasks finds the (now active) task on board 'b'.
+    // 8. list_tasks finds the (now active) task on board 'b' (deprecated nested form).
     const list = await callTool<{ results: Array<{ id: string }> }>('list_tasks', {
       filters: { board_id: 'b' },
     });
     expect(list.payload.results.map((t) => t.id)).toContain(taskId);
+
+    // 8b. B1 (dogfood): the FLAT top-level filter form works over the real MCP wire.
+    // This is the fix — agents' flat calls used to have their keys stripped and got
+    // the whole project. Proven end-to-end (SDK → wrapper → handler), not just at
+    // the schema in isolation.
+    const listFlat = await callTool<{ results: Array<{ id: string }> }>('list_tasks', {
+      board_id: 'b',
+    });
+    expect(listFlat.payload.results.map((t) => t.id)).toContain(taskId);
+    // A board that has no tasks returns none — proof the flat filter actually
+    // applied over MCP (if it were ignored, this would dump the existing task).
+    const listOther = await callTool<{ results: Array<{ id: string }> }>('list_tasks', {
+      board_id: 'no-such-board',
+    });
+    expect(listOther.payload.results).toHaveLength(0);
   }, 30_000);
 
   it('enforces transition_guard and surfaces agent_responsibility end-to-end', async () => {
@@ -512,11 +527,12 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     expect(afterBlock.payload.version).toBe(1);
     expect(afterBlock.payload.group_id).toBe('todo');
 
-    // add repro_steps + move in the same call → succeeds; the guard is listed.
+    // add repro_steps + move in the same call → succeeds; the passed guard is
+    // silent (B6 — enforcement is by not blocking, so it's not surfaced).
     const moved = await callTool<{
       ok: boolean;
       applied: { version: number; state: { group_id: string } };
-      policies_fired: Array<{ policy_id: string }>;
+      policies_fired: Array<{ policy_id: string; policy_type: string }>;
     }>('update_task', {
       id: taskId,
       version: 1,
@@ -526,7 +542,9 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     });
     expect(moved.payload.ok).toBe(true);
     expect(moved.payload.applied.state.group_id).toBe('in_progress');
-    expect(moved.payload.policies_fired.map((p) => p.policy_id)).toContain('guard-repro');
+    expect(moved.payload.policies_fired.some((p) => p.policy_type === 'transition_guard')).toBe(
+      false,
+    );
 
     // history shows the created, the blocked attempt (move_blocked), then the
     // ONE successful update — the block leaves a trace even though it rolled back.
