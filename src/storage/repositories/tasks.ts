@@ -346,6 +346,21 @@ export async function listActiveGroupPreview(
   return (result.rows as unknown as TaskRow[]).map(rowToTask);
 }
 
+/**
+ * Every ACTIVE task on a board, unpaginated — for cross-board scans that must see
+ * all tasks (e.g. the pending-approval aggregate derives a per-task flag and can't
+ * page). Bounded by one board's active task count.
+ */
+export async function listActiveTasksForBoard(exec: Executor, boardId: string): Promise<Task[]> {
+  const result = await exec.execute({
+    sql: `SELECT * FROM tasks
+          WHERE board_id = ? AND archived_at IS NULL
+          ORDER BY updated_at DESC, id DESC`,
+    args: [boardId],
+  });
+  return (result.rows as unknown as TaskRow[]).map(rowToTask);
+}
+
 // --- list_tasks ------------------------------------------------------------
 
 export type CustomFieldOp =

@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { ApiError, getComments, getTask, getTaskHistory } from '../lib/api.js';
+import { ApiError, getComments, getTask, getTaskApproval, getTaskHistory } from '../lib/api.js';
 import { useResource } from '../lib/useResource.js';
 import { usePaginated } from '../lib/usePaginated.js';
 import { Markdown } from '../components/Markdown.js';
@@ -13,6 +13,8 @@ import type { Comment, TaskEvent } from '@core/types';
 export function TaskDetail() {
   const { id = '' } = useParams();
   const { data: task, error, loading } = useResource(() => getTask(id), [id]);
+  // Pending-approval flag rides on a small dedicated endpoint (keeps get_task lean).
+  const { data: approval } = useResource(() => getTaskApproval(id), [id]);
 
   if (loading) return <Loading label="Loading task…" />;
   if (error instanceof ApiError && error.status === 404)
@@ -31,9 +33,18 @@ export function TaskDetail() {
         >
           ← {task.board_id}
         </Link>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{task.title}</h1>
           {task.archived_at ? <Badge variant="muted">archived</Badge> : null}
+          {approval?.pending ? (
+            <Badge
+              variant="pending"
+              aria-label={`pending human approval: set ${approval.awaiting_fields.join(', ')}`}
+              title={`Pending human approval — set ${approval.awaiting_fields.join(', ')} to move to ${approval.gate?.to_group ?? 'the next group'}`}
+            >
+              pending approval
+            </Badge>
+          ) : null}
         </div>
         <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
           <Badge variant="outline">group {task.group_id}</Badge>
@@ -58,7 +69,7 @@ export function TaskDetail() {
               </h2>
               {task.description ? (
                 <Card>
-                  <CardContent className="markdown max-w-none py-4 text-subtle">
+                  <CardContent className="max-w-none py-4 text-subtle">
                     <Markdown source={task.description} />
                   </CardContent>
                 </Card>
@@ -124,7 +135,7 @@ function CommentsTab({ taskId }: { taskId: string }) {
               {c.edited_at ? <span>· edited</span> : null}
               {c.archived_at ? <Badge variant="muted">archived</Badge> : null}
             </div>
-            <div className="markdown max-w-none text-subtle">
+            <div className="max-w-none text-subtle">
               <Markdown source={c.body} />
             </div>
           </CardContent>

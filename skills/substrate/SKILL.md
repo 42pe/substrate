@@ -17,7 +17,7 @@ Substrate is a local-first project-management substrate that you (the agent) and
 the human share. Boards, groups, custom fields, and policies are
 **substrate-as-code** (JSON in `.substrate/boards/*.json`, read fresh on every
 call). Tasks, comments, and an append-only event log are **runtime state** in a
-local SQLite DB. You operate it through an MCP server (30 tools); the human
+local SQLite DB. You operate it through an MCP server (31 tools); the human
 inspects the same data at `http://localhost:7475` via `substrate serve`.
 
 **If this project has a `.substrate/` directory, Substrate is the source of
@@ -171,6 +171,18 @@ before any other call. Then `get_board_substrate` for the board you'll work in
 - Your handled tool errors this session are recorded — run `substrate logs --errors` to review
   your own error trail (routine gate blocks / stale-version retries are intentionally excluded).
 
+### Report pending human approvals (`/substrate pending-approval`)
+
+When the human asks what's waiting on them — or you hit a `transition_blocked`
+you can't clear because the required field is `human_only` (a human decision, not
+yours to set) — call **`list_pending_approvals`**. It returns every task whose
+move is gated on an unset `human_only` field, with the board, the gate, and
+`awaiting_fields`. Present it grouped by board and, for each, name the exact field
+a human must set and how: `substrate approve <task_id> <field>`. Don't try to set
+a `human_only` field yourself — your write tools refuse it by design (that's what
+makes the gate real). The human can also run `substrate pending-approval` (same
+report from the CLI) or see a **"pending approval"** pill on the task in the UI.
+
 ### Don't
 
 - Don't invent board/group ids — resolve them from reads.
@@ -237,12 +249,14 @@ the source).
 
 ---
 
-## Tool reference (30)
+## Tool reference (31)
 
-**Read (11):** `whoami`, `get_project`, `list_boards`, `get_board_substrate`,
+**Read (12):** `whoami`, `get_project`, `list_boards`, `get_board_substrate`,
 `list_tasks`, `get_task`, `get_task_history`, `list_comments`, `get_comment`,
 `check_transition` (dry-run: would moving a task to a group be allowed by the
 guards? — verify a gate without a throwaway task),
+`list_pending_approvals` (every task blocked on a HUMAN gate — a `human_only`
+field a human must set; returns board + gate + `awaiting_fields`),
 `reverse_captcha` (an easter egg — a timed puzzle, not part of normal work).
 
 **Task & comment writes (7):** `create_task`, `update_task`, `archive_task`,

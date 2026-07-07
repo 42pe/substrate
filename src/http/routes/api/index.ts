@@ -19,6 +19,10 @@ import {
 import { getCommentToolHandler, getCommentShape } from '../../../mcp/tools/read/get-comment.js';
 import { getBoardColumnsHandler, boardColumnsShape } from './board-columns.js';
 import { getActivityHandler, activityShape } from './activity.js';
+import { listPendingApprovals } from '../../../operations/list-pending-approvals.js';
+import { pendingApprovalFor } from '../../../policy/pending-approval.js';
+import { getTask } from '../../../storage/repositories/tasks.js';
+import { SubstrateError } from '../../../core/errors.js';
 import {
   boolParam,
   intParam,
@@ -106,6 +110,21 @@ export function registerApiRoutes(app: Hono, deps: ApiDeps): void {
     return c.json(await getTaskToolHandler(input, td));
   });
 
+  // Per-task pending-approval flag for the task-detail pill (sprint pending-approval).
+  // HTTP-only — keeps the MCP `get_task` output shape stable for agents.
+  app.get('/api/tasks/:id/approval', async (c) => {
+    const task = await getTask(td.client, c.req.param('id')); // not_found → 404
+    const substrate = await td.loadSubstrate();
+    const board = substrate.boards.find((b) => b.id === task.board_id);
+    if (!board) {
+      throw SubstrateError.notFound(
+        `Board '${task.board_id}' for task '${task.id}' not found in substrate.`,
+        { entity: 'board', id: task.board_id },
+      );
+    }
+    return c.json(pendingApprovalFor(board, task));
+  });
+
   app.get('/api/tasks/:id/history', async (c) => {
     const input = validateInput(getTaskHistoryShape, {
       task_id: c.req.param('id'),
@@ -142,5 +161,12 @@ export function registerApiRoutes(app: Hono, deps: ApiDeps): void {
   app.get('/api/activity', async (c) => {
     const input = validateInput(activityShape, { pagination: paginationParam(c) });
     return c.json(await getActivityHandler(input, td));
+  });
+
+  // Cross-board "pending human approval" list (sprint pending-approval). Backs a
+  // UI roll-up; the per-task pill rides on /api/boards/:id/columns. An optional
+  // ?board_id scopes it; the MCP `list_pending_approvals` tool is the agent twin.
+  app.get('/api/pending-approvals', async (c) => {
+    return c.json(await listPendingApprovals(td, strParam(c.req.query('board_id'))));
   });
 }

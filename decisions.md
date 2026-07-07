@@ -8,6 +8,37 @@ Format: **Decision** — Alternatives — Why — Date.
 
 ## Dogfood fixes (2026-07-07)
 
+### "Pending human approval" — a derived signal + a UI pill (sprint pending-approval)
+**Decision:** A task is **pending human approval** when advancing it is gated on a human
+decision: an active `transition_guard` engages on a move OUT of the task's current group, its
+`require` references ≥1 `human_only` field (B3), and that field is currently unset. It's a pure,
+board-derived function (`pendingApprovalFor(board, task)`) — no new task state — surfaced three
+ways off one aggregate (`listPendingApprovals`): the `list_pending_approvals` MCP tool, the
+`substrate pending-approval` CLI, and `GET /api/pending-approvals`; plus a per-task flag on the
+kanban columns payload and a `GET /api/tasks/:id/approval` for the detail view. The UI shows a
+distinct **violet "pending approval" pill** (its own `--pending` token — deliberately NOT the
+amber `missing_required` style, so the two signals are visually separable). **Scope decisions
+(Diego-approved plan):** (4) start simple — report every task in a human-gate's `from_group`
+with the human field unset; a `human_only` field is "awaiting" when its leaf doesn't pass
+standalone (positive `exists`/`eq` gates are exact; a `human_only` field buried in a `none_of`
+is leaf-evaluated, accepted until dogfood shows noise). Same-group no-op moves and already-past
+tasks are excluded (matches the write path / `check_transition`). (2) Pill ships on kanban card
++ task detail; List filter / Overview roll-up deferred as nice-to-have. (3) No dedicated `/pending`
+UI route — the pill + CLI/skill cover it. **Why:** Diego's StackChan-style pipeline runs agents
+unattended to a human gate; "what's waiting on me?" must be a first-class, cross-board question,
+and a blocked task must look blocked. See `.agents/plans/pending-approval-and-md-fix.md`.
+
+### Task-detail markdown was stale-serve, not a code bug (sprint pending-approval, item C)
+**Decision:** The reported "description renders as plain text / no line breaks" was a **stale
+running `serve`** serving a pre-Phase-12 `dist/ui` — the code on `main` was already correct
+(`marked` with `breaks: true` → DOMPurify → `.markdown` styles). Verified by reproducing on a
+fresh build (renders correctly). Hardened anyway: removed the redundant outer `.markdown` class
+on the description/comment `CardContent` (the `<Markdown>` component already emits its own
+`.markdown` div — the double-nesting made `.markdown > :first-child` target the wrapper). The
+Playwright smoke now asserts a `<strong>` AND a `<br>` (from a single `\n`) render in the built
+app, so the symptom can't regress silently. **Takeaway for the runbook:** restart `serve` after
+updating Substrate — a long-lived `serve` serves the old bundle until restarted.
+
 ### `human_only` fields — a gate an autonomous agent can't self-clear (B3)
 **Decision:** `FieldSchemaEntry` gains an optional `human_only: boolean`. When a task field is
 `human_only`, the agent-facing MCP write tools (`create_task`/`update_task`) **refuse** to set

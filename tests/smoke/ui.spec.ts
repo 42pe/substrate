@@ -138,6 +138,9 @@ test('board detail (/boards/:id) renders a kanban with a working List toggle', a
   await expect(page.getByRole('heading', { name: 'Done' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Design' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"]').first()).toBeVisible();
+  // The "Design" card (todo, plan_approved unset) is gated on a human_only field
+  // → a distinct "pending approval" pill on its kanban card.
+  await expect(page.getByText('pending approval').first()).toBeVisible();
   // Kanban has no <table>; the demoted policy lives in a collapsed disclosure.
   await expect(page.getByRole('table')).toHaveCount(0);
   // The policy is reachable by expanding "Board details".
@@ -157,6 +160,11 @@ test('task detail (/tasks/:id) shows the task and a sanitized comment', async ({
 
   // Markdown render path: description bold renders as a real <strong>.
   await expect(page.locator('strong', { hasText: 'Design' }).first()).toBeVisible();
+  // …and a single `\n` in the description becomes a real <br> (breaks: true),
+  // proving the "plain text / no line breaks" symptom is closed in the built app.
+  await expect(page.locator('.markdown br').first()).toBeAttached();
+  // t1 (todo, plan_approved unset) awaits a human gate → a pending-approval pill.
+  await expect(page.getByText('pending approval')).toBeVisible();
 
   // Comments tab → seeded comment body renders through <Markdown> (the bold
   // word "comment" becomes a real <strong>, distinct from the "Comments" tab).

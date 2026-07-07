@@ -29,6 +29,7 @@ import { logsCommand } from './commands/logs.js';
 import { addCommand } from './commands/add.js';
 import { approveCommand } from './commands/approve.js';
 import { validateCommand } from './commands/validate.js';
+import { pendingApprovalCommand } from './commands/pending-approval.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -62,6 +63,8 @@ Usage:
   substrate validate          Lint boards + policies without a server (CI-friendly):
                               a corrupt substrate exits non-zero; logical smells
                               (a guard that can never fire) print advisory warnings
+  substrate pending-approval  List every task awaiting a human approval (a move
+                              gated on an unset human-only field), grouped by board
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -177,6 +180,10 @@ Next steps:
     case 'validate':
       rejectUnknownFlags('validate', rest);
       await validateCommand(cwd);
+      return;
+    case 'pending-approval':
+      rejectUnknownFlags('pending-approval', rest);
+      await pendingApprovalCommand(cwd);
       return;
     case '--help':
     case '-h':

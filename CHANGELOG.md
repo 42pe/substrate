@@ -20,6 +20,18 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ### Added
 
+- **Human-approval gates you can see and report on.** A board field can be marked
+  `human_only` (B3): an agent's write tools refuse to set it and `update_board`
+  refuses to un-protect it, so a `transition_guard` requiring it becomes a real
+  human gate an unattended agent can't self-clear. A human sets it with the new
+  **`substrate approve <task_id> <field> [value]`** (stamped `human:<user>`).
+  Surfacing it: the **`list_pending_approvals`** MCP tool + **`substrate
+  pending-approval`** CLI + `GET /api/pending-approvals` list every task waiting on
+  a human, with the gate and the exact field to set; a distinct **"pending
+  approval"** pill marks those tasks on the kanban card and task-detail in the UI.
+  Also new: **`check_transition`** (dry-run whether a move would pass the guards,
+  without a throwaway task) and **`substrate validate`** (lint boards + policies
+  without a server; corrupt → non-zero exit for CI).
 - **The inspector now shows agent activity and schema gaps.** Two additions make
   enforcement and data quality visible to the human:
   - A new **Activity** page (and `GET /api/activity`) — a live, cross-board feed

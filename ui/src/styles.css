@@ -33,6 +33,8 @@
   --destructive-muted: #fef2f2; /* red-50 surface */
   --warning: #fef3c7; /* amber-100 surface */
   --warning-foreground: #92400e; /* amber-800 — 5.9:1 on warning */
+  --pending: #ede9fe; /* violet-100 surface — distinct from amber warning */
+  --pending-foreground: #5b21b6; /* violet-800 — 7.5:1 on pending */
   --success: #059669; /* emerald-600 — AA for the live dot */
   --radius: 0.5rem;
 }
@@ -59,6 +61,8 @@
   --destructive-muted: #1f1416;
   --warning: #422006; /* amber-950 surface */
   --warning-foreground: #fcd34d; /* amber-300 */
+  --pending: #2e1065; /* violet-950 surface */
+  --pending-foreground: #c4b5fd; /* violet-300 */
   --success: #34d399; /* emerald-400 */
 }
 
@@ -84,6 +88,8 @@
   --color-destructive-muted: var(--destructive-muted);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-pending: var(--pending);
+  --color-pending-foreground: var(--pending-foreground);
   --color-success: var(--success);
   /* Phase 9: one-shot highlight for a kanban card that just changed column. */
   --animate-card-pulse: card-pulse 1.5s ease-out 1;

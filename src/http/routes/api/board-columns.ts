@@ -6,6 +6,7 @@ import {
   countActiveTasksByGroup,
   listActiveGroupPreview,
 } from '../../../storage/repositories/tasks.js';
+import { pendingApprovalFor } from '../../../policy/pending-approval.js';
 
 /**
  * Kanban columns aggregate (Phase 9) — HTTP-only, NOT an MCP tool.
@@ -34,6 +35,10 @@ export const KANBAN_COLUMN_LIMIT = 100;
  */
 export interface ColumnTask extends Task {
   missing_required_fields: string[];
+  /** B3/pending-approval: advancing this task is gated on an unset human_only field. */
+  pending_approval: boolean;
+  /** The human_only field(s) a human must set to unblock the move (empty unless pending). */
+  awaiting_fields: string[];
 }
 
 export interface BoardColumn {
@@ -109,7 +114,15 @@ export async function getBoardColumnsHandler(
       position: g.position,
       color: g.color,
       total: counts.get(g.id) ?? 0,
-      tasks: tasks.map((t) => ({ ...t, missing_required_fields: missingRequired(t) })),
+      tasks: tasks.map((t) => {
+        const approval = pendingApprovalFor(board, t);
+        return {
+          ...t,
+          missing_required_fields: missingRequired(t),
+          pending_approval: approval.pending,
+          awaiting_fields: approval.awaiting_fields,
+        };
+      }),
     });
   }
 

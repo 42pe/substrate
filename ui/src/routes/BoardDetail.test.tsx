@@ -66,6 +66,8 @@ function task(id: string, groupId: string): ColumnTask {
     updated_at: '2026-01-01T00:00:00.000Z',
     archived_at: null,
     missing_required_fields: [],
+    pending_approval: false,
+    awaiting_fields: [],
   };
 }
 

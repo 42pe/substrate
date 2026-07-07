@@ -12,6 +12,7 @@ vi.mock('../lib/api.js', async (orig) => {
     getTask: vi.fn(),
     getComments: vi.fn(),
     getTaskHistory: vi.fn(),
+    getTaskApproval: vi.fn(),
   };
 });
 
@@ -43,6 +44,7 @@ function renderAt(id: string) {
 
 beforeEach(() => {
   vi.mocked(api.getTask).mockResolvedValue(task);
+  vi.mocked(api.getTaskApproval).mockResolvedValue({ pending: false, awaiting_fields: [] });
   vi.mocked(api.getTaskHistory).mockResolvedValue({
     results: [],
     pagination: { next_cursor: null, has_more: false, page_size: 50 },
@@ -82,5 +84,18 @@ describe('TaskDetail', () => {
     vi.mocked(api.getTask).mockRejectedValue(new api.ApiError(404, null));
     renderAt('ghost');
     expect(await screen.findByText('Not found')).toBeTruthy();
+  });
+
+  it('shows a "pending approval" pill when the task awaits a human gate', async () => {
+    vi.mocked(api.getTaskApproval).mockResolvedValue({
+      pending: true,
+      gate: { policy_id: 'g', policy_name: 'Approval gate', to_group: 'done' },
+      awaiting_fields: ['plan_approved'],
+    });
+    renderAt('t1');
+    await screen.findByText('My Task');
+    const pill = await screen.findByText('pending approval');
+    expect(pill).toBeTruthy();
+    expect(pill.getAttribute('title')).toContain('plan_approved');
   });
 });

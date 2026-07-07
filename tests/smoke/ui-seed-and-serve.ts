@@ -33,7 +33,11 @@ const board: Board = {
   name: 'Roadmap',
   description: 'The **primary** board. Tracks delivery.',
   field_schema: {
-    task: { priority: { type: 'enum', values: ['low', 'high'], required: false } },
+    task: {
+      priority: { type: 'enum', values: ['low', 'high'], required: false },
+      // B3 human-only gate field — an agent can't set it; it drives the pending pill.
+      plan_approved: { type: 'boolean', human_only: true },
+    },
     comments: {},
   },
   groups: [
@@ -76,6 +80,25 @@ const board: Board = {
       updated_at: now,
       archived_at: null,
     },
+    {
+      id: 'p2',
+      name: 'Human sign-off',
+      description: 'Moving to Done needs a human to set plan_approved.',
+      type: 'transition_guard',
+      definition: {
+        from_group: 'todo',
+        to_group: 'done',
+        require: [{ field: 'task.custom_data.plan_approved', op: 'exists' }],
+        on_failure_message: 'A human must run `substrate approve <id> plan_approved`.',
+      },
+      priority: 0,
+      enabled: true,
+      version: 1,
+      created_by_agent: 'seed',
+      created_at: now,
+      updated_at: now,
+      archived_at: null,
+    },
   ],
   version: 1,
   created_at: now,
@@ -91,7 +114,8 @@ function makeTask(id: string, group: string, title: string): Task {
     parent_id: null,
     origin_task_id: null,
     title,
-    description: `Task **${title}** description with a [link](https://example.com).`,
+    // Two lines separated by a SINGLE newline → `breaks: true` must render a <br>.
+    description: `Task **${title}** description with a [link](https://example.com).\nA second line after a single newline.`,
     custom_data: { priority: 'high' },
     version: 1,
     created_by_agent: 'seed',
