@@ -31,6 +31,10 @@ export interface Paginated<T> {
  *  server `ColumnTask`. */
 export interface ColumnTask extends Task {
   missing_required_fields: string[];
+  /** B3/pending-approval: advancing this task is gated on an unset human_only field. */
+  pending_approval: boolean;
+  /** The human_only field(s) a human must set to unblock the move. */
+  awaiting_fields: string[];
 }
 
 /** One kanban column: an active group + its true active-task count + a capped,
@@ -160,6 +164,17 @@ export const getTasks = (
 ): Promise<Paginated<TaskSummary>> => apiGet(`/tasks${qs(params)}`);
 
 export const getTask = (id: string): Promise<Task> => apiGet(`/tasks/${encodeURIComponent(id)}`);
+
+/** Per-task pending-approval flag (sprint pending-approval). Mirrors the server
+ *  `PendingApproval`. */
+export interface TaskApproval {
+  pending: boolean;
+  gate?: { policy_id: string; policy_name: string; to_group: string };
+  awaiting_fields: string[];
+}
+
+export const getTaskApproval = (id: string): Promise<TaskApproval> =>
+  apiGet(`/tasks/${encodeURIComponent(id)}/approval`);
 
 export const getTaskHistory = (
   id: string,

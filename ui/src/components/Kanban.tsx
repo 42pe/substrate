@@ -55,8 +55,17 @@ function KanbanCard({ task, moved }: { task: ColumnTask; moved: boolean }) {
       )}
     >
       <p className="text-sm font-medium text-foreground">{task.title}</p>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex flex-wrap items-center gap-2">
         <p className="text-xs text-muted-foreground">updated {timeAgo(task.updated_at)} ago</p>
+        {task.pending_approval ? (
+          <Badge
+            variant="pending"
+            aria-label={`pending human approval: set ${task.awaiting_fields.join(', ')}`}
+            title={`Pending human approval — set ${task.awaiting_fields.join(', ')}`}
+          >
+            pending approval
+          </Badge>
+        ) : null}
         {missing.length > 0 ? (
           <Badge variant="warning" title={`Missing required: ${missing.join(', ')}`}>
             {missing.length === 1
