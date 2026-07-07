@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Client } from '@libsql/client';
 import { openDatabaseAndMigrate } from '../../../storage/client.js';
-import { createTask } from '../../../storage/repositories/tasks.js';
+import { createTask, getTask } from '../../../storage/repositories/tasks.js';
 import { checkTransitionHandler } from './check-transition.js';
 import { SubstrateError } from '../../../core/errors.js';
 import type { ToolDeps } from '../../deps.js';
@@ -122,6 +122,23 @@ describe('checkTransitionHandler (dry-run)', () => {
     const r = await checkTransitionHandler({ task_id: 't2', to_group: 'done' }, deps);
     expect(r.allowed).toBe(true);
     expect(r.blocked_by).toBeUndefined();
+  });
+
+  it('a same-group "move" is allowed without evaluating guards (matches the write path)', async () => {
+    // todo→done would be BLOCKED for t1, but a same-group move isn't a transition,
+    // so the dry-run must report allowed — exactly as update_task skips guards.
+    const r = await checkTransitionHandler({ task_id: 't1', to_group: 'todo' }, deps);
+    expect(r.allowed).toBe(true);
+    expect(r.blocked_by).toBeUndefined();
+  });
+
+  it('an ALLOWED dry-run performs no move — task version + group unchanged', async () => {
+    const before = await getTask(client, 't2'); // approved: todo→done would be allowed
+    const r = await checkTransitionHandler({ task_id: 't2', to_group: 'done' }, deps);
+    expect(r.allowed).toBe(true);
+    const after = await getTask(client, 't2');
+    expect(after.version).toBe(before.version);
+    expect(after.group_id).toBe('todo'); // still in todo — the dry-run didn't move it
   });
 
   it('not_found on a missing task', async () => {

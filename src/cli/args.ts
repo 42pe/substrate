@@ -14,6 +14,8 @@ const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
   explain: new Set(['--out']),
   logs: new Set(['-n', '--errors']),
   add: new Set(['--yes', '--as']),
+  approve: new Set(),
+  validate: new Set(),
 };
 
 /**

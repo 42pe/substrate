@@ -54,6 +54,13 @@ export async function checkTransitionHandler(
     );
   }
 
+  // A same-group "move" isn't a transition — the write path (update_task) skips
+  // guards when group_id is unchanged, so the dry-run must too, or it would
+  // report `blocked` for a write that would actually be a no-op.
+  if (task.group_id === input.to_group) {
+    return { allowed: true, from_group: task.group_id, to_group: input.to_group };
+  }
+
   try {
     runTransitionGuards({
       board,

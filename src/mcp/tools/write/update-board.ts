@@ -27,6 +27,31 @@ import { assertVersion, runEdit } from './substrate-edit.js';
 
 const fieldSectionPatch = z.record(z.string(), FieldSchemaEntrySchema.nullable());
 
+/**
+ * B3 (dogfood 2026-07-07): `human_only` is only a real gate if an agent can't
+ * *un-protect* it. An agent's write tools already refuse to SET a human_only
+ * field; this closes the sibling hole — refuse to clear the flag or delete the
+ * field via `update_board`, which would otherwise let an agent downgrade its own
+ * gate and then set it (a two-call self-approval). Removing the protection is a
+ * human action (edit the board JSON directly). Task-scoped, matching where
+ * human_only is enforced on write.
+ */
+function assertNoHumanOnlyDowngrade(before: FieldSchema, after: FieldSchema): void {
+  const downgraded = Object.entries(before.task)
+    .filter(
+      ([field, entry]) => entry?.human_only === true && after.task[field]?.human_only !== true,
+    )
+    .map(([field]) => field);
+  if (downgraded.length > 0) {
+    throw SubstrateError.forbidden(
+      `Field(s) ${downgraded.join(', ')} are human-only — an agent cannot remove or clear the ` +
+        `human_only flag via update_board (that would let an agent unlock its own gate). ` +
+        `Changing it is a human action: edit the board JSON directly.`,
+      { fields: downgraded },
+    );
+  }
+}
+
 export const updateBoardShape = {
   id: z.string().min(1, 'id is required'),
   version: z.number().int().nonnegative(),
@@ -98,6 +123,8 @@ export function updateBoardHandler(
       ) {
         return { result: board, next: board };
       }
+
+      if (fieldSchema !== undefined) assertNoHumanOnlyDowngrade(board.field_schema, fieldSchema);
 
       const updated: Board = {
         ...board,

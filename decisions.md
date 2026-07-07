@@ -18,7 +18,13 @@ write). **Why:** three dogfood agents (esp. the near-autonomous StackChan run) e
 `transition_guard` requiring a boolean gate field is only advisory against an agent working
 unattended — the agent can flip its own `spec_approved=true` and sail through. `human_only` +
 a guard that requires the field turns "advisory checkbox" into a real human approval gate: the
-guard blocks the move, and the agent structurally cannot satisfy it alone. **Alternatives:**
+agent's write tools refuse to *set* the field, and `update_board` refuses to *downgrade* it
+(clear the flag / delete / drop it in a full-schema replace — that would be a two-call
+self-approval), so an agent can neither set the value nor un-protect it. **Honest residual:**
+the guard policy itself is still substrate-as-code — an agent could `archive_policy`/rewrite the
+guard to escape it. That is a louder, git-visible, event-logged act than quietly ticking a box,
+not a silent bypass; extending `human_only` protection to guards that *reference* a human_only
+field is a documented future hardening. **Alternatives:**
 (a) a write-capable approval UI as the only human channel (rejected as the *first* increment —
 a CLI ships the enforcement now without the web-write surface; the UI is additive later);
 (b) provenance-by-convention, no enforcement (rejected — the whole point is that an unattended

@@ -67,7 +67,7 @@ export async function validateCommand(cwd: string): Promise<void> {
 
   if (warnings === 0) {
     process.stdout.write(
-      `✓ ${substrate.boards.length} board(s), ${policies} policies — definitions + references valid, no warnings.\n`,
+      `✓ ${substrate.boards.length} board(s), ${policies} policies — loaded; definitions parse + group refs resolve, no warnings.\n`,
     );
   } else {
     process.stdout.write(`\n${warnings} warning(s) (advisory).\n`);

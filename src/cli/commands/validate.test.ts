@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { rmrf } from '../../../tests/helpers/tmp.js';
-import { mkdtemp, mkdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeConfig } from '../../shared/config.js';
@@ -105,7 +105,7 @@ describe('validateCommand', () => {
       ]),
     );
     await validateCommand(dir);
-    expect(out.join('')).toMatch(/valid, no warnings/);
+    expect(out.join('')).toMatch(/✓.*no warnings/);
   });
 
   it('warns on a from_group === to_group guard (never fires on a real move)', async () => {
@@ -120,5 +120,15 @@ describe('validateCommand', () => {
     );
     await validateCommand(dir);
     expect(out.join('')).toMatch(/⚠.*from_group === to_group/);
+  });
+
+  it('exits non-zero on a corrupt substrate (CI-usable)', async () => {
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    const root = join(dir, '.substrate');
+    await writeConfig(root, config);
+    await mkdir(paths(root).boardsDir, { recursive: true });
+    await writeFile(join(paths(root).boardsDir, 'bad.json'), '{ not valid json', 'utf8');
+    await validateCommand(dir);
+    expect(process.exitCode).toBe(1);
   });
 });
