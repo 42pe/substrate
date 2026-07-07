@@ -63,17 +63,16 @@ describe('runTransitionGuards', () => {
     expect(fired).toEqual([]);
   });
 
-  it('lists a passed guard (informational, no message)', () => {
+  it('a passed guard is silent — not surfaced in the success envelope (B6)', () => {
     const fired = runTransitionGuards({
       board: boardWith([guard({ id: 'g', name: 'Repro Guard' })]),
       fromGroup: 'todo',
       toGroup: 'in_progress',
       candidate: candidateWithRepro,
     });
-    expect(fired).toEqual([
-      { policy_id: 'g', policy_name: 'Repro Guard', policy_type: 'transition_guard' },
-    ]);
-    expect(fired[0]).not.toHaveProperty('message');
+    // A guard that engages and PASSES enforces by not blocking; it carries no
+    // message and is dropped from `policies_fired` to keep the success path clean.
+    expect(fired).toEqual([]);
   });
 
   it('throws transition_blocked with the configured message on failure', () => {
@@ -161,14 +160,25 @@ describe('runTransitionGuards', () => {
   });
 
   it("'*' wildcard guard engages any transition", () => {
-    const wild = guard({ id: 'w', definition: { from_group: '*', to_group: '*', require: [] } });
-    const fired = runTransitionGuards({
-      board: boardWith([wild]),
-      fromGroup: 'anything',
-      toGroup: 'whatever',
-      candidate: candidateWithout,
+    // A passing wildcard is now silent (B6); prove '*' engages ANY transition by
+    // making its requirement FAIL — it must block regardless of from/to groups.
+    const wild = guard({
+      id: 'w',
+      definition: {
+        from_group: '*',
+        to_group: '*',
+        require: [{ field: 'task.custom_data.repro_steps', op: 'exists' }],
+        on_failure_message: 'blocked',
+      },
     });
-    expect(fired.map((f) => f.policy_id)).toEqual(['w']);
+    expect(() =>
+      runTransitionGuards({
+        board: boardWith([wild]),
+        fromGroup: 'anything',
+        toGroup: 'whatever',
+        candidate: candidateWithout,
+      }),
+    ).toThrow(SubstrateError);
   });
 });
 

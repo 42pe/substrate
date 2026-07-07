@@ -313,25 +313,25 @@ describe('updateTaskHandler — policy engine', () => {
     });
   });
 
-  it('passes a guarded transition when require is met (set approved in the same call) and lists it', async () => {
+  it('passes a guarded transition when require is met (set approved in the same call); the passed guard is silent (B6)', async () => {
     // C-1/N-2: group change + custom_data change in one call — guard sees the NEW value.
     const env = await updateTaskHandler(
       { id: 't1', version: 1, group_id: 'g2', custom_data: { approved: true }, agent_name: 'a' },
       deps,
     );
     if (!env.ok) throw new Error('expected success');
-    expect(env.applied.state.group_id).toBe('g2');
-    const guardEntry = {
-      policy_id: 'guard-1',
-      policy_name: 'Approval Guard',
-      policy_type: 'transition_guard',
-    };
-    expect(env.policies_fired).toContainEqual(guardEntry);
+    expect(env.applied.state.group_id).toBe('g2'); // the move succeeded
+    // B6: a guard that engages and PASSES enforces by not blocking and is NOT
+    // surfaced in the success envelope (no message → clutter).
+    expect(env.policies_fired.some((p) => p.policy_type === 'transition_guard')).toBe(false);
 
-    // The engagement is persisted in the `updated` event alongside before/after.
+    // ...nor persisted into the `updated` event.
     const { results } = await listEvents(client, 't1');
     const updatedEvent = results.find((e) => e.event_type === 'updated');
-    expect(updatedEvent?.changes['policies_fired']).toContainEqual(guardEntry);
+    const persisted = (updatedEvent?.changes['policies_fired'] as unknown[] | undefined) ?? [];
+    expect(
+      persisted.some((p) => (p as { policy_type?: string }).policy_type === 'transition_guard'),
+    ).toBe(false);
   });
 
   it('does not evaluate guards when there is no group change (even with a failing require)', async () => {
@@ -357,14 +357,14 @@ describe('updateTaskHandler — policy engine', () => {
     });
   });
 
-  it('group change to a group with no matching guard proceeds with no guard entries', async () => {
-    // g1 → g1 is not a change; use a real change with approved already set, then
-    // assert only the guard that engages is listed.
+  it('a successful guarded move surfaces no transition_guard entries (B6)', async () => {
+    // A real group change whose guard engages and passes: the move succeeds and
+    // no passed-guard entry is surfaced (B6 — passed guards are silent).
     const env = await updateTaskHandler(
       { id: 't1', version: 1, group_id: 'g2', custom_data: { approved: true }, agent_name: 'a' },
       deps,
     );
     if (!env.ok) throw new Error('expected success');
-    expect(env.policies_fired.filter((p) => p.policy_type === 'transition_guard')).toHaveLength(1);
+    expect(env.policies_fired.filter((p) => p.policy_type === 'transition_guard')).toHaveLength(0);
   });
 });

@@ -512,11 +512,12 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     expect(afterBlock.payload.version).toBe(1);
     expect(afterBlock.payload.group_id).toBe('todo');
 
-    // add repro_steps + move in the same call → succeeds; the guard is listed.
+    // add repro_steps + move in the same call → succeeds; the passed guard is
+    // silent (B6 — enforcement is by not blocking, so it's not surfaced).
     const moved = await callTool<{
       ok: boolean;
       applied: { version: number; state: { group_id: string } };
-      policies_fired: Array<{ policy_id: string }>;
+      policies_fired: Array<{ policy_id: string; policy_type: string }>;
     }>('update_task', {
       id: taskId,
       version: 1,
@@ -526,7 +527,9 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
     });
     expect(moved.payload.ok).toBe(true);
     expect(moved.payload.applied.state.group_id).toBe('in_progress');
-    expect(moved.payload.policies_fired.map((p) => p.policy_id)).toContain('guard-repro');
+    expect(moved.payload.policies_fired.some((p) => p.policy_type === 'transition_guard')).toBe(
+      false,
+    );
 
     // history shows the created, the blocked attempt (move_blocked), then the
     // ONE successful update — the block leaves a trace even though it rolled back.
