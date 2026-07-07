@@ -152,7 +152,7 @@ describe('updateTask (OCC)', () => {
     expect(updated.custom_data).toEqual({ severity: 'high', extra: 1 });
   });
 
-  it('rejects a stale version with version_mismatch (no current_version)', async () => {
+  it('rejects a stale version with version_mismatch, including current_version (B5)', async () => {
     await updateTask(client, 'task-1', 1, { title: 'first' }, NOW);
     let caught: unknown;
     try {
@@ -163,8 +163,8 @@ describe('updateTask (OCC)', () => {
     expect(SubstrateError.is(caught)).toBe(true);
     if (SubstrateError.is(caught)) {
       expect(caught.code).toBe('version_mismatch');
-      expect(caught.details).toEqual({ id: 'task-1' });
-      expect(JSON.stringify(caught.details)).not.toContain('current_version');
+      // B5: current_version now included (the message still requires a re-read).
+      expect(caught.details).toEqual({ id: 'task-1', current_version: 2 });
     }
   });
 

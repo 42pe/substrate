@@ -64,23 +64,45 @@ export function wrapToolHandler<S extends z.ZodTypeAny>(
   return async (rawInput: unknown): Promise<McpTextResult> => {
     const parsed = schema.safeParse(rawInput ?? {});
     if (!parsed.success) {
-      return jsonResult(
-        errorEnvelope(
-          SubstrateError.schemaViolation(humanReadableZodError(parsed.error), {
-            issues: parsed.error.issues,
-          }),
-        ),
-        true,
-      );
+      const err = SubstrateError.schemaViolation(humanReadableZodError(parsed.error), {
+        issues: parsed.error.issues,
+      });
+      logHandledError(toolName, err.code, err.message);
+      return jsonResult(errorEnvelope(err), true);
     }
 
     try {
       const result = await handler(parsed.data);
+      if (isErrorEnvelope(result)) {
+        const err = (result as { error?: { code?: string; message?: string } }).error;
+        logHandledError(toolName, err?.code, err?.message);
+      }
       return jsonResult(result, isErrorEnvelope(result));
     } catch (e) {
-      if (SubstrateError.is(e)) return jsonResult(errorEnvelope(e), true);
+      if (SubstrateError.is(e)) {
+        logHandledError(toolName, e.code, e.message);
+        return jsonResult(errorEnvelope(e), true);
+      }
       logger.error(`Unhandled error in ${toolName}`, { error: (e as Error).message, err: e });
       return jsonResult(errorEnvelope(SubstrateError.internalError('Internal error')), true);
     }
   };
+}
+
+/**
+ * B4 (dogfood 2026-07-07): persist handled tool errors so `substrate logs` shows
+ * an agent session's error trail (they were returned in the envelope but never
+ * logged, so the log stayed empty). Logged at WARN, EXCLUDING the expected
+ * control-flow codes — a blocked gate / stale-version OCC are normal outcomes,
+ * already surfaced via events + the envelope — to avoid flooding an autonomous
+ * pipeline's log. Unexpected failures still log at ERROR (above).
+ */
+const CONTROL_FLOW_CODES = new Set<string>(['transition_blocked', 'version_mismatch']);
+function logHandledError(
+  toolName: string,
+  code: string | undefined,
+  message: string | undefined,
+): void {
+  if (code === undefined || CONTROL_FLOW_CODES.has(code)) return;
+  logger.warn(`${toolName} returned ${code}`, { tool: toolName, code, message });
 }

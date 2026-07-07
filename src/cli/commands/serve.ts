@@ -15,6 +15,7 @@ import {
 import { SubstrateError } from '../../core/errors.js';
 import { logger, configureFileSink } from '../../shared/logger.js';
 import { isProcessAlive, identifyPortHolder } from '../../shared/process.js';
+import { warnIfFreshDbWithBoards } from '../../shared/startup-checks.js';
 
 /**
  * `npx substrate serve` — start the HTTP UI server.
@@ -65,7 +66,9 @@ export async function serveCommand(cwd: string): Promise<void> {
   }
 
   // Open the database (runs migrations, verifies schema version)
+  const dbExisted = existsSync(p.dataSqlite);
   const client = await openDatabaseAndMigrate(p.dataSqlite);
+  warnIfFreshDbWithBoards(root, dbExisted); // B7: worktree/fresh-clone empty-DB footgun
 
   // Resolve port. SUBSTRATE_PORT_OVERRIDE is test-only; validate it's
   // actually a positive integer so a typo'd `SUBSTRATE_PORT_OVERRIDE=foo`

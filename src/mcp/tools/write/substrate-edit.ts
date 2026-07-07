@@ -12,10 +12,15 @@ const VERSION_MISMATCH_MESSAGE =
   'This entity has been updated since you last read it. Re-read it, reconcile, ' +
   'then retry with the new version.';
 
-/** Throw `version_mismatch` (no `current_version`, per the Phase 2 OCC lock). */
+/**
+ * Throw `version_mismatch` when the caller's version is stale. B5 (dogfood
+ * 2026-07-07, Diego-approved): include `current_version` in details (the message
+ * still requires a re-read + reconcile) so a concurrent writer needn't fetch the
+ * integer with an extra read.
+ */
 export function assertVersion(actual: number, expected: number, id: string): void {
   if (actual !== expected) {
-    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id });
+    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id, current_version: actual });
   }
 }
 

@@ -106,4 +106,49 @@ describe('wrapToolHandler', () => {
     const result = await wrapped({ id: 'z', agent_name: 'a' });
     expect(result.isError).toBe(false);
   });
+
+  it('B4: logs a handled tool error to the file sink at WARN (trail for `substrate logs`)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const wrapped = wrapToolHandler('get_task', schema, () => {
+        throw SubstrateError.notFound('Task gone', { entity: 'task', id: 'z' });
+      });
+      await wrapped({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('WARN get_task returned not_found');
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
+
+  it('B4: excludes expected control-flow codes (version_mismatch) from the log trail', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      // A control-flow error (expected outcome) → not logged.
+      const wm = wrapToolHandler('update_task', schema, () =>
+        Promise.resolve(
+          errorEnvelope(SubstrateError.versionMismatch('stale', { id: 'z', current_version: 2 })),
+        ),
+      );
+      await wm({ id: 'z', agent_name: 'a' });
+      // A genuine handled error → logged (and creates the file).
+      const nf = wrapToolHandler('get_task', schema, () => {
+        throw SubstrateError.notFound('gone', { entity: 'task', id: 'z' });
+      });
+      await nf({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('not_found'); // the real error is in the trail
+      expect(log).not.toContain('version_mismatch'); // control-flow excluded
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
 });
