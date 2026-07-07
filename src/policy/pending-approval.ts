@@ -1,5 +1,5 @@
 import type { Board, Task } from '../core/types.js';
-import { parseGuardDefinition } from './transition-guard.js';
+import { parseGuardDefinition, guardPasses } from './transition-guard.js';
 import { evaluateCondition } from './evaluator.js';
 import type { Condition, EvalContext, LeafCondition } from './types.js';
 
@@ -37,12 +37,18 @@ export interface PendingApproval {
 
 const NOT_PENDING: PendingApproval = { pending: false, awaiting_fields: [] };
 
-/** The task custom-field NAME a leaf path targets, or null if it's not a task field. */
+/**
+ * The task custom-field NAME a leaf path targets, or null if it's not a task field.
+ * Assumes a FLAT field schema (which `field_schema.task` is): `task.custom_data.X`
+ * (explicit) or `task.X` (resolves to custom_data via the evaluator's fallback) → `X`.
+ * A deeper path (`task.custom_data.X.Y`) reports `X`; a field literally named like a
+ * task column (`task.title`) reports `title` — neither can be `human_only` in a real
+ * schema, so the human_only intersection filters them out harmlessly.
+ */
 function taskFieldName(path: string): string | null {
   if (typeof path !== 'string') return null;
   const segs = path.split('.');
   if (segs[0] !== 'task') return null;
-  // `task.custom_data.<name>` (explicit) or `task.<name>` (resolves to custom_data via fallback).
   if (segs[1] === 'custom_data') return segs[2] ?? null;
   return segs[1] ?? null;
 }
@@ -85,6 +91,13 @@ export function pendingApprovalFor(board: Board, task: Task): PendingApproval {
     if (!fromOk) continue;
     // A move to the group you're already in is a no-op the write path never gates.
     if (def.toGroup !== '*' && def.toGroup === task.group_id) continue;
+
+    // Only a guard that ACTUALLY BLOCKS the move right now can make a task pending.
+    // Evaluate the whole `require` tree (as the write path + check_transition do) —
+    // never trust a single leaf in isolation, or a guard passable via an `any_of`
+    // alternate branch (e.g. approved OR skip_approval) would falsely report the
+    // human field as awaiting on a move that's already allowed.
+    if (guardPasses(def, ctx)) continue;
 
     const awaiting: string[] = [];
     for (const leaf of collectLeaves(def.require)) {

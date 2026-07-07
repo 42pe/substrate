@@ -149,6 +149,54 @@ describe('pendingApprovalFor', () => {
     expect(pendingApprovalFor(board, makeTask()).pending).toBe(false);
   });
 
+  // Parity: never report "pending" for a move the real guard would ALLOW.
+  const anyOfGate = guard('anyof', {
+    from_group: 'todo',
+    to_group: 'done',
+    require: [
+      {
+        any_of: [
+          { field: 'task.custom_data.plan_approved', op: 'exists' },
+          { field: 'task.custom_data.skip_approval', op: 'eq', value: true },
+        ],
+      },
+    ],
+  });
+
+  it('is NOT pending when the guard passes via an alternate any_of branch (no human field needed)', () => {
+    // skip_approval satisfies the guard → the move is allowed → not pending,
+    // even though the human_only plan_approved leaf fails standalone.
+    const r = pendingApprovalFor(
+      makeBoard([anyOfGate]),
+      makeTask({ custom_data: { skip_approval: true } }),
+    );
+    expect(r.pending).toBe(false);
+  });
+
+  it('IS pending when neither any_of branch is satisfied (human field is a way through)', () => {
+    const r = pendingApprovalFor(makeBoard([anyOfGate]), makeTask());
+    expect(r.pending).toBe(true);
+    expect(r.awaiting_fields).toEqual(['plan_approved']);
+  });
+
+  it('is NOT pending when the guard blocks only on an agent field (human field already set)', () => {
+    const mixed = guard('mixed', {
+      from_group: 'todo',
+      to_group: 'done',
+      require: [
+        { field: 'task.custom_data.plan_approved', op: 'exists' },
+        { field: 'task.custom_data.tests_passing', op: 'eq', value: true },
+      ],
+    });
+    // plan_approved set (human done), tests_passing unset → guard blocks, but the
+    // block is the AGENT's, not the human's → not pending human approval.
+    const r = pendingApprovalFor(
+      makeBoard([mixed]),
+      makeTask({ custom_data: { plan_approved: true } }),
+    );
+    expect(r.pending).toBe(false);
+  });
+
   it('a wildcard from-group guard engages from any group', () => {
     const wildcard = guard('w', {
       from_group: '*',

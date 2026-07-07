@@ -164,7 +164,7 @@ test('task detail (/tasks/:id) shows the task and a sanitized comment', async ({
   // proving the "plain text / no line breaks" symptom is closed in the built app.
   await expect(page.locator('.markdown br').first()).toBeAttached();
   // t1 (todo, plan_approved unset) awaits a human gate → a pending-approval pill.
-  await expect(page.getByText('pending approval')).toBeVisible();
+  await expect(page.getByText('pending approval').first()).toBeVisible();
 
   // Comments tab → seeded comment body renders through <Markdown> (the bold
   // word "comment" becomes a real <strong>, distinct from the "Comments" tab).

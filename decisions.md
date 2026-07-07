@@ -18,11 +18,16 @@ ways off one aggregate (`listPendingApprovals`): the `list_pending_approvals` MC
 kanban columns payload and a `GET /api/tasks/:id/approval` for the detail view. The UI shows a
 distinct **violet "pending approval" pill** (its own `--pending` token — deliberately NOT the
 amber `missing_required` style, so the two signals are visually separable). **Scope decisions
-(Diego-approved plan):** (4) start simple — report every task in a human-gate's `from_group`
-with the human field unset; a `human_only` field is "awaiting" when its leaf doesn't pass
-standalone (positive `exists`/`eq` gates are exact; a `human_only` field buried in a `none_of`
-is leaf-evaluated, accepted until dogfood shows noise). Same-group no-op moves and already-past
-tasks are excluded (matches the write path / `check_transition`). (2) Pill ships on kanban card
+(Diego-approved plan):** (4) A task is pending only for a
+guard that **actually blocks the move right now** — the whole `require` tree is evaluated via
+the same `guardPasses` the write path + `check_transition` use, so the signal can never report
+"pending" for a move that's already allowed (e.g. a guard passable through an `any_of`
+alternate branch like "approved OR skip_approval"). Within a *blocking* guard, `awaiting_fields`
+lists the `human_only` leaves that fail standalone (exact for the positive `exists`/`eq` gates
+that dominate; a `human_only` field buried in a `none_of` is leaf-attributed, accepted until
+dogfood shows noise — but the block *decision* is always full-tree-correct). A guard that blocks
+only on an agent field (human field already set) is not reported. Same-group no-op moves and
+already-past tasks are excluded (matches the write path / `check_transition`). (2) Pill ships on kanban card
 + task detail; List filter / Overview roll-up deferred as nice-to-have. (3) No dedicated `/pending`
 UI route — the pill + CLI/skill cover it. **Why:** Diego's StackChan-style pipeline runs agents
 unattended to a human gate; "what's waiting on me?" must be a first-class, cross-board question,

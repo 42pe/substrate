@@ -50,9 +50,12 @@ export async function pendingApprovalCommand(cwd: string): Promise<void> {
         const fields = it.awaiting_fields.join(', ');
         process.stdout.write(
           `    • ${it.task_title} (${it.task_id})\n` +
-            `      waiting on you to set ${fields} to move ${it.group_id} → ${it.gate.to_group}\n` +
-            `      run: substrate approve ${it.task_id} ${it.awaiting_fields[0]}\n`,
+            `      waiting on you to set ${fields} to move ${it.group_id} → ${it.gate.to_group}\n`,
         );
+        // One unblock command per field — set them all to clear the gate.
+        for (const field of it.awaiting_fields) {
+          process.stdout.write(`      run: substrate approve ${it.task_id} ${field}\n`);
+        }
       }
       process.stdout.write('\n');
     }
