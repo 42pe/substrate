@@ -14,7 +14,7 @@ not agent self-report.
 
 | # | Criterion | Threshold | Current | Status |
 |---|---|---|---|---|
-| 1 | Silent bail on primary project | not stopped ≥2 consecutive wks (no external reason) | _tbd_ | ⬜ |
+| 1 | Silent bail on primary project | not stopped ≥2 consecutive wks (no external reason) | **100% using; StackChan ~autonomous** (Diego, 07-07) | 🟢 |
 | 2 | "Markdown/Linear would have failed me" moments | **≥ 3 distinct, specific** | _count from journal_ | ⬜ |
 | 3 | `agent_responsibility` engagement | **≥ 15% of writes** (measured, from event log) | _tbd_ | ⬜ |
 | 4 | Distinct policy **patterns** authored | **≥ 3 shapes** across all boards | _count_ | ⬜ |
@@ -138,8 +138,13 @@ Projects: **mailsimp** (2026-06-26, *pre* `list_tasks` summary fix), **astrology
 - **#2 (≥3 "markdown-would-have-failed" moments): ⚪ UNDER-MEASURED.** Problem-only prompts suppress
   win evidence; the one clear win surfaced is astrology `gate-closed` stopping an invalid Closed
   move. **Methodology fix: add a "where did it save you?" pass, and lean on Diego's journal for §9-2.**
-- **#1 (silent bail): ⚪ NEEDS DIEGO.** Bails observed are *tool-surface* (authoring/read → file
-  edits), not board abandonment. Usage-continuity is the real measure.
+- **#1 (silent bail): 🟢 GREEN** (Diego, 07-07). 100% using across projects; **StackChan runs
+  ~autonomously at 4am, stopping only at human-approval gates**, with a self-improvement loop. The
+  agent bails seen were *tool-surface* (authoring/read → file edits), not board abandonment.
+  Confirms PRD §1/R8: durable cross-session state is the daily value; concurrent multi-agent
+  (3 sessions) is materializing. **New v1.x demand:** atomic **task-claiming/assignee** — concurrent
+  agents can duplicate work on the same task (OCC prevents corruption, not duplication); worktrees
+  work today via `cwd`-targeting one shared `.substrate/`. See journal → missing-feature workarounds.
 
 **One good-news signal:** every error that *did* occur was recovered **from the message alone**
 (0 unrecoverable) — the actionable-error investment (`not_found`/`transition_blocked` guidance)

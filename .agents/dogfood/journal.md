@@ -12,7 +12,13 @@ Categories below map to PRD §9's capture list.
 ## ✅ "Markdown/Linear would have failed me here" (kill-criterion 2 — need ≥3 distinct, specific)
 _The load-bearing evidence. A specific caught-something moment, not "felt organized."_
 
-- _(none yet)_
+- [2026-07-07] (general value, Diego) — **durable "where is this project" tracking across heavy
+  context-switching** is the daily win; and it lets **3 concurrent sessions drive different agents
+  at different tasks**. (This confirms the PRD §1/R8 lead value — durable cross-session state — and
+  the concurrent-multi-agent trajectory. NB: this is the *value*, not a discrete "markdown would
+  have failed" **moment** — §9-2 still needs ≥3 specific caught-something incidents; keep logging them.)
+- [2026-07-07] (astrology, agent-observed) — `gate-closed` **stopped an invalid "Closed" move**
+  (missing `merged`+launch notes) that an eager agent would have skipped — a markdown checkbox wouldn't.
 
 ## 🧩 Policy patterns authored (kill-criterion 4 — need ≥3 distinct *shapes*, not instances)
 _New shapes of `transition_guard` / `agent_responsibility`. Note the shape + what it enforces._
@@ -42,7 +48,14 @@ _Times you edited markdown/Linear on the side instead of the board, or stopped u
 _Times you worked around something the tool couldn't do — **including ones you didn't consciously
 notice wanting** (the subtlest, most important signal; the "wanted `automation` but didn't realize" mode)._
 
-- _(none yet)_
+- [2026-07-07] (Diego, concurrency) — runs **3 concurrent sessions** on one project. Assumed
+  worktrees/workspaces would make agents "step on each other's toes." **Reality:** worktrees *do*
+  work if each session's `substrate mcp` is spawned with `cwd` pointed at the **main** worktree
+  (Substrate keys its root off cwd) → one shared `.substrate/`; WAL + OCC make concurrent writes
+  corruption-safe. **Real gap = no atomic task-claiming/assignee** — OCC prevents corruption but not
+  *duplicated work* if two agents grab the same task. Coordination is by-convention today (hand out
+  disjoint tasks). **v1.x demand signal:** atomic claim / "give me the next unclaimed task"
+  (neighbors the PRD multi-worktree / HTTP-MCP-transport note). Flagged for later, not a blocker.
 
 ## ⏳ Board went stale / diverged from reality (**watch hardest**)
 _The board said X, reality was Y — a write that didn't happen at the right moment. When, how
@@ -68,4 +81,8 @@ interactivity phases 13–15.)_
 ## 🎯 Gut check (log periodically)
 _If Substrate vanished tomorrow: would you miss it / shrug / be relieved? Trend over weeks._
 
-- _(none yet)_
+- [2026-07-07] **100% using it** — would miss it. **StackChan runs almost autonomously (~4am),
+  stopping only at the human-approval gates**, and even has a feedback loop to improve its own
+  substrate. This is the intended autonomous-with-human-gates shape (→ kill-criterion #1 GREEN).
+  ⚠️ Because it's autonomous, bug **B3 (honor-system gates)** is the load-bearing safety risk:
+  the gate that stops the 4am agent is currently enforceable only by the agent's cooperation.
