@@ -62,9 +62,11 @@ change as `human:<os-user>` in the event log. Pair it with a `transition_guard`
 that requires the field: the guard makes the move impossible until the field is
 set, and `human_only` makes *the agent* unable to set it — so the move genuinely
 waits on a human. Without `human_only`, a `"*" → done` gate is only advisory
-against an agent working unattended. (Residual to know: the guard *policy* is still
-substrate-as-code — an agent could rewrite/`archive_policy` the guard to escape it;
-that's a git-visible, event-logged act, not a silent bypass.)
+against an agent working unattended. (`human_only` applies to **task** fields only —
+on a `comments` field it is currently inert, since no gate reads comment metadata.
+Residual to know: the guard *policy* is still substrate-as-code — an agent could
+rewrite/`archive_policy` the guard to escape it; that's a git-visible, event-logged
+act, not a silent bypass.)
 
 ## 3. The policy DSL
 
