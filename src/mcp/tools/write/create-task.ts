@@ -77,6 +77,17 @@ export async function createTaskHandler(
     }
 
     const customData = input.custom_data ?? {};
+    // B3 (human_only): an agent cannot create a task with a human-only field
+    // pre-set — a human sets those via `substrate approve` / the UI.
+    const humanOnly = Object.keys(customData).filter(
+      (k) => board.field_schema.task[k]?.human_only === true,
+    );
+    if (humanOnly.length > 0) {
+      throw SubstrateError.forbidden(
+        `Field(s) ${humanOnly.join(', ')} are human-only — an agent cannot set them on create_task; a human sets them (e.g. \`substrate approve <task_id> ${humanOnly[0]}\`).`,
+        { fields: humanOnly },
+      );
+    }
     validateFieldSchema({
       field_schema: board.field_schema.task,
       merged_custom_data: customData,

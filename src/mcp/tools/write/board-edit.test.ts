@@ -217,6 +217,69 @@ describe('board + project edit tools', () => {
       expect(Object.keys(del.applied.state.field_schema.task)).toEqual(['area']);
     });
 
+    // B3: human_only is only a real gate if an agent can't un-protect it. An
+    // agent's update_board must refuse to clear the flag, delete the field, or
+    // drop it via a full-schema replace — else it's a two-call self-approval.
+    it('refuses to downgrade a human_only field via update_board (B3)', async () => {
+      await createBoardFile(
+        root,
+        makeBoard('hb', {
+          field_schema: {
+            task: { plan_approved: { type: 'boolean', human_only: true } },
+            comments: {},
+          },
+        }),
+      );
+
+      // (a) clear the flag via patch
+      const cleared = await updateBoardHandler(
+        {
+          id: 'hb',
+          version: 1,
+          field_schema_patch: { task: { plan_approved: { type: 'boolean', human_only: false } } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (cleared.ok) throw new Error('expected forbidden');
+      expect(cleared.error.code).toBe('forbidden');
+      expect(cleared.error.message).toContain('plan_approved');
+
+      // (b) delete the field via patch (null)
+      const deleted = await updateBoardHandler(
+        {
+          id: 'hb',
+          version: 1,
+          field_schema_patch: { task: { plan_approved: null } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (deleted.ok) throw new Error('expected forbidden');
+      expect(deleted.error.code).toBe('forbidden');
+
+      // (c) drop it via a full-schema replace
+      const replaced = await updateBoardHandler(
+        { id: 'hb', version: 1, field_schema: { task: {}, comments: {} }, agent_name: 'a' },
+        deps,
+      );
+      if (replaced.ok) throw new Error('expected forbidden');
+      expect(replaced.error.code).toBe('forbidden');
+
+      // sanity: STRENGTHENING (adding another human_only field) is allowed
+      const ok = await updateBoardHandler(
+        {
+          id: 'hb',
+          version: 1,
+          field_schema_patch: { task: { review_signed: { type: 'boolean', human_only: true } } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (!ok.ok) throw new Error('expected success');
+      expect(ok.applied.state.field_schema.task['plan_approved']?.human_only).toBe(true);
+    });
+
     it('rejects field_schema + field_schema_patch together (schema_violation)', async () => {
       const env = await updateBoardHandler(
         {

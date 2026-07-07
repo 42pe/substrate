@@ -17,7 +17,7 @@ Substrate is a local-first project-management substrate that you (the agent) and
 the human share. Boards, groups, custom fields, and policies are
 **substrate-as-code** (JSON in `.substrate/boards/*.json`, read fresh on every
 call). Tasks, comments, and an append-only event log are **runtime state** in a
-local SQLite DB. You operate it through an MCP server (29 tools); the human
+local SQLite DB. You operate it through an MCP server (30 tools); the human
 inspects the same data at `http://localhost:7475` via `substrate serve`.
 
 **If this project has a `.substrate/` directory, Substrate is the source of
@@ -237,10 +237,12 @@ the source).
 
 ---
 
-## Tool reference (29)
+## Tool reference (30)
 
-**Read (10):** `whoami`, `get_project`, `list_boards`, `get_board_substrate`,
+**Read (11):** `whoami`, `get_project`, `list_boards`, `get_board_substrate`,
 `list_tasks`, `get_task`, `get_task_history`, `list_comments`, `get_comment`,
+`check_transition` (dry-run: would moving a task to a group be allowed by the
+guards? — verify a gate without a throwaway task),
 `reverse_captcha` (an easter egg — a timed puzzle, not part of normal work).
 
 **Task & comment writes (7):** `create_task`, `update_task`, `archive_task`,

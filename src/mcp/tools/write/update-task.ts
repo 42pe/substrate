@@ -87,6 +87,18 @@ export async function updateTaskHandler(
 
       // custom_data partial merge (null deletes).
       const touched = Object.keys(input.custom_data ?? {});
+      // B3 (human_only): an agent's write tool must not set a human-only field —
+      // only a human channel (`substrate approve` / the UI) may. This is what makes
+      // a `transition_guard` requiring the field a real gate (an autonomous agent
+      // can no longer self-approve). Reject any touched human_only key.
+      const humanOnly = touched.filter((k) => board.field_schema.task[k]?.human_only === true);
+      if (humanOnly.length > 0) {
+        throw SubstrateError.forbidden(
+          `Field(s) ${humanOnly.join(', ')} are human-only — a human must set them ` +
+            `(e.g. \`substrate approve ${input.id} ${humanOnly[0]}\`). An agent cannot set them via update_task.`,
+          { fields: humanOnly },
+        );
+      }
       const merged: Record<string, unknown> = { ...existing.custom_data };
       for (const [k, v] of Object.entries(input.custom_data ?? {})) {
         if (v === null) delete merged[k];

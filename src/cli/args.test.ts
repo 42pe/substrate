@@ -65,4 +65,17 @@ describe('rejectUnknownFlags (head-compare)', () => {
     expect(() => rejectUnknownFlags('init', ['--bogus'])).toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
   });
+
+  // approve/validate take no flags — they must reject unknown ones, not no-op
+  // (a missing allowlist entry silently accepts everything).
+  it('rejects unknown flags on the no-flag commands (approve, validate)', () => {
+    vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    expect(() => rejectUnknownFlags('approve', ['t1', 'f', '--bogus'])).toThrow('exit');
+    expect(() => rejectUnknownFlags('validate', ['--bogus'])).toThrow('exit');
+    expect(() => rejectUnknownFlags('approve', ['t1', 'plan_approved'])).not.toThrow();
+    expect(() => rejectUnknownFlags('validate', [])).not.toThrow();
+  });
 });

@@ -16,6 +16,11 @@ export const FieldSchemaEntrySchema = z.object({
   required: z.boolean().optional(),
   format: z.string().optional(),
   values: z.array(z.string()).optional(),
+  // B3 (dogfood 2026-07-07): a human-only field — an agent's MCP write tools refuse
+  // to set it; only a human channel (`substrate approve` / the UI) may. Lets a
+  // `transition_guard` that requires such a field function as a real human-approval
+  // gate rather than an honor-system one an autonomous agent can self-satisfy.
+  human_only: z.boolean().optional(),
 });
 
 export const FieldSchemaSchema = z.object({
