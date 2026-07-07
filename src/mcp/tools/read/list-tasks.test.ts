@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { z } from 'zod';
 import { rmrf } from '../../../../tests/helpers/tmp.js';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -6,7 +7,7 @@ import { join } from 'node:path';
 import type { Client } from '@libsql/client';
 import { openDatabaseAndMigrate } from '../../../storage/client.js';
 import { createTask } from '../../../storage/repositories/tasks.js';
-import { listTasksToolHandler } from './list-tasks.js';
+import { listTasksToolHandler, listTasksShape } from './list-tasks.js';
 import type { ToolDeps } from '../../deps.js';
 import type { Board, Config, Task } from '../../../core/types.js';
 import { SubstrateError } from '../../../core/errors.js';
@@ -81,6 +82,54 @@ describe('listTasksToolHandler', () => {
     await createTask(client, makeTask('t2', { board_id: 'board-2' }));
     const r = await listTasksToolHandler({ filters: { board_id: 'board-1' } }, deps);
     expect(r.results.map((t) => t.id)).toEqual(['t1']);
+  });
+
+  // --- B1 (dogfood 2026-07-07): flat top-level filters, group_id sugar, strict, titles ---
+
+  it('accepts filters as TOP-LEVEL params (board_id flat, not nested) (B1)', async () => {
+    await createTask(client, makeTask('t1'));
+    await createTask(client, makeTask('t2', { board_id: 'board-2' }));
+    const r = await listTasksToolHandler({ board_id: 'board-1' }, deps);
+    expect(r.results.map((t) => t.id)).toEqual(['t1']);
+  });
+
+  it('group_id is sugar for in_groups:[group_id] (B1)', async () => {
+    await createTask(client, makeTask('a', { group_id: 'g1' }));
+    await createTask(client, makeTask('b', { group_id: 'g2' }));
+    const r = await listTasksToolHandler({ board_id: 'board-1', group_id: 'g2' }, deps);
+    expect(r.results.map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('top-level fields win over the deprecated nested filters (B1)', async () => {
+    await createTask(client, makeTask('t1'));
+    await createTask(client, makeTask('t2', { board_id: 'board-2' }));
+    // nested says board-2, flat says board-1 → flat wins
+    const r = await listTasksToolHandler(
+      { board_id: 'board-1', filters: { board_id: 'board-2' } },
+      deps,
+    );
+    expect(r.results.map((t) => t.id)).toEqual(['t1']);
+  });
+
+  it("view: 'titles' returns lean selection rows (no description/custom_data) (B1)", async () => {
+    await createTask(
+      client,
+      makeTask('t1', { description: 'D'.repeat(300), custom_data: { severity: 'low' } }),
+    );
+    const r = await listTasksToolHandler({ view: 'titles' }, deps);
+    const row = r.results[0] as Record<string, unknown>;
+    expect(row).toMatchObject({ id: 't1', title: 'Task t1', group_id: 'g1', version: 1 });
+    expect(row).not.toHaveProperty('description');
+    expect(row).not.toHaveProperty('description_excerpt');
+    expect(row).not.toHaveProperty('custom_data');
+  });
+
+  it('rejects an unknown/misspelled top-level key instead of silently ignoring it (B1)', () => {
+    const schema = z.object(listTasksShape).strict();
+    // `borad_id` (typo) used to be silently stripped → full-project dump. Now rejected.
+    expect(schema.safeParse({ borad_id: 'board-1' }).success).toBe(false);
+    // a correct flat call still parses
+    expect(schema.safeParse({ board_id: 'board-1', group_id: 'g1' }).success).toBe(true);
   });
 
   it('missing_required_fields derives required keys from the board schema', async () => {

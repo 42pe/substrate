@@ -174,6 +174,64 @@ describe('board + project edit tools', () => {
       expect(env.applied.version).toBe(2);
     });
 
+    it('field_schema_patch adds a field (merge), preserving others; null deletes (B1)', async () => {
+      const add1 = await updateBoardHandler(
+        {
+          id: 'b1',
+          version: 1,
+          field_schema_patch: { task: { priority: { type: 'string' } } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (!add1.ok) throw new Error('expected success');
+      expect(add1.applied.state.field_schema.task).toHaveProperty('priority');
+
+      // add a SECOND field without resending the first — both present (merge)
+      const add2 = await updateBoardHandler(
+        {
+          id: 'b1',
+          version: 2,
+          field_schema_patch: { task: { area: { type: 'string' } } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (!add2.ok) throw new Error('expected success');
+      expect(Object.keys(add2.applied.state.field_schema.task).sort()).toEqual([
+        'area',
+        'priority',
+      ]);
+
+      // null deletes one, leaves the other
+      const del = await updateBoardHandler(
+        {
+          id: 'b1',
+          version: 3,
+          field_schema_patch: { task: { priority: null } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (!del.ok) throw new Error('expected success');
+      expect(Object.keys(del.applied.state.field_schema.task)).toEqual(['area']);
+    });
+
+    it('rejects field_schema + field_schema_patch together (schema_violation)', async () => {
+      const env = await updateBoardHandler(
+        {
+          id: 'b1',
+          version: 1,
+          field_schema: { task: {}, comments: {} },
+          field_schema_patch: { task: { x: { type: 'string' } } },
+          agent_name: 'a',
+        },
+        deps,
+      );
+      if (env.ok) throw new Error('expected error');
+      expect(env.error.code).toBe('schema_violation');
+    });
+
     it('update_board with a stale version → version_mismatch', async () => {
       await updateBoardHandler({ id: 'b1', version: 1, name: 'A', agent_name: 'a' }, deps);
       const env = await updateBoardHandler(
