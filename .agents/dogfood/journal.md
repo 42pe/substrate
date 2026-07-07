@@ -48,14 +48,22 @@ _Times you edited markdown/Linear on the side instead of the board, or stopped u
 _Times you worked around something the tool couldn't do — **including ones you didn't consciously
 notice wanting** (the subtlest, most important signal; the "wanted `automation` but didn't realize" mode)._
 
-- [2026-07-07] (Diego, concurrency) — runs **3 concurrent sessions** on one project. Assumed
-  worktrees/workspaces would make agents "step on each other's toes." **Reality:** worktrees *do*
-  work if each session's `substrate mcp` is spawned with `cwd` pointed at the **main** worktree
-  (Substrate keys its root off cwd) → one shared `.substrate/`; WAL + OCC make concurrent writes
-  corruption-safe. **Real gap = no atomic task-claiming/assignee** — OCC prevents corruption but not
-  *duplicated work* if two agents grab the same task. Coordination is by-convention today (hand out
-  disjoint tasks). **v1.x demand signal:** atomic claim / "give me the next unclaimed task"
-  (neighbors the PRD multi-worktree / HTTP-MCP-transport note). Flagged for later, not a blocker.
+- [2026-07-07] (Diego, concurrency) — runs **3 concurrent sessions** on one project.
+  **Worktree footgun (verified in code):** task **state** (tasks, moves, comments, events) lives in
+  `data.sqlite`, which is **gitignored**; only the board **structure** (`boards/*.json`, `config.json`)
+  is committed. A `git worktree add` brings the committed structure but **never the DB**, and
+  `substrate mcp` sees the committed `.substrate/` dir (so **no "run init" error**) then libsql
+  **creates a fresh EMPTY `data.sqlite` on open** ([mcp.ts:33](../../../src/cli/commands/mcp.ts),
+  [client.ts:25](../../../src/storage/client.ts)). ⇒ **agents in separate worktrees silently get
+  their own empty, isolated task board — they do NOT see each other's moves**, with no warning
+  (a sharp "board diverges from reality" case).
+  **To share task state:** all sessions must open the *same* `data.sqlite` — spawn each session's
+  `substrate mcp` with `cwd` → the **one main** `.substrate/` (WAL makes concurrent access safe).
+  Only cross-worktree coordination path today. **v1.x fixes:** (a) **HTTP MCP transport**
+  (`localhost:7475/mcp`) so every worktree connects to one server instead of a cwd-scoped one;
+  (b) a **guard/warning** when boards exist but `data.sqlite` was just created empty (catch the
+  silent-empty-board footgun); (c) atomic **task-claiming/assignee** (OCC prevents corruption, not
+  *duplicated work* when two agents grab the same task). Flagged for later, not a blocker.
 
 ## ⏳ Board went stale / diverged from reality (**watch hardest**)
 _The board said X, reality was Y — a write that didn't happen at the right moment. When, how
