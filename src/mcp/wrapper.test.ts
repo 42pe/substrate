@@ -106,4 +106,115 @@ describe('wrapToolHandler', () => {
     const result = await wrapped({ id: 'z', agent_name: 'a' });
     expect(result.isError).toBe(false);
   });
+
+  it('B4: logs a handled tool error at ERROR so `substrate logs --errors` shows it', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const wrapped = wrapToolHandler('get_task', schema, () => {
+        throw SubstrateError.notFound('Task gone', { entity: 'task', id: 'z' });
+      });
+      await wrapped({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      // ERROR level → picked up by `substrate logs --errors` (which filters to ERROR).
+      expect(log).toContain('ERROR get_task returned not_found');
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
+
+  it('B4: excludes expected control-flow codes (version_mismatch) from the log trail', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      // A control-flow error (expected outcome) → not logged.
+      const wm = wrapToolHandler('update_task', schema, () =>
+        Promise.resolve(
+          errorEnvelope(SubstrateError.versionMismatch('stale', { id: 'z', current_version: 2 })),
+        ),
+      );
+      await wm({ id: 'z', agent_name: 'a' });
+      // A genuine handled error → logged (and creates the file).
+      const nf = wrapToolHandler('get_task', schema, () => {
+        throw SubstrateError.notFound('gone', { entity: 'task', id: 'z' });
+      });
+      await nf({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('not_found'); // the real error is in the trail
+      expect(log).not.toContain('version_mismatch'); // control-flow excluded
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
+
+  it('B4: a newline-laden value in the error message cannot forge a log line', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const evil = 'x\n2026-07-07T00:00:00.000Z ERROR forged-line';
+      const wrapped = wrapToolHandler('get_task', schema, () => {
+        throw SubstrateError.notFound(`Task ${evil} not found`, { entity: 'task', id: evil });
+      });
+      await wrapped({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      // The message rides in the JSON-serialized context (escaped), so the whole
+      // event is one line — no second, forged header.
+      const headers = log
+        .split('\n')
+        .filter((l) => /^\d{4}-\d\d-\d\dT.*\b(INFO|WARN|ERROR)\b /.test(l));
+      expect(headers).toHaveLength(1);
+      expect(log).not.toContain('\nforged-line');
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
+
+  it('B4: does not double-log internal_error (handler logs it richly already) (C1)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const wrapped = wrapToolHandler('t', schema, () => {
+        throw new Error('boom');
+      });
+      await wrapped({ id: 'z', agent_name: 'a' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('Unhandled error in t'); // the rich stack-bearing line
+      expect(log).not.toContain('returned internal_error'); // no thin duplicate (C1)
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
+
+  it('B4: attributes a handled error to the acting agent (agent_name) when present', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'substrate-wrap-'));
+    const logFile = join(dir, 'logs', 'substrate.log');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    configureFileSink(logFile);
+    try {
+      const wrapped = wrapToolHandler('update_task', schema, () =>
+        Promise.resolve(
+          errorEnvelope(SubstrateError.notFound('gone', { entity: 'task', id: 'z' })),
+        ),
+      );
+      await wrapped({ id: 'z', agent_name: 'builder-7' });
+      const log = readFileSync(logFile, 'utf-8');
+      expect(log).toContain('not_found');
+      expect(log).toContain('builder-7'); // sanitized to [builder-7] in the context
+    } finally {
+      spy.mockRestore();
+      rmrfSync(dir);
+    }
+  });
 });

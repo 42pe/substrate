@@ -141,7 +141,7 @@ describe('updateTaskHandler', () => {
     expect(env.error.code).toBe('schema_violation');
   });
 
-  it('rejects a stale version with version_mismatch (no current_version leak)', async () => {
+  it('rejects a stale version with version_mismatch, including current_version (B5)', async () => {
     await updateTaskHandler({ id: 't1', version: 1, title: 'first', agent_name: 'a' }, deps);
     const env = await updateTaskHandler(
       { id: 't1', version: 1, title: 'second', agent_name: 'a' },
@@ -149,7 +149,8 @@ describe('updateTaskHandler', () => {
     );
     if (env.ok) throw new Error('expected error');
     expect(env.error.code).toBe('version_mismatch');
-    expect(JSON.stringify(env.error)).not.toContain('current_version');
+    // B5: current_version is now provided so a concurrent writer needn't re-fetch it.
+    expect(env.error.details?.['current_version']).toBe(2);
   });
 
   it('rejects an update on an archived task with conflict', async () => {

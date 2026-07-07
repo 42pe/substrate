@@ -6,6 +6,7 @@ import { startStdioServer } from '../../mcp/server.js';
 import { loadSubstrate } from '../../substrate/loader.js';
 import { SubstrateError } from '../../core/errors.js';
 import { configureFileSink } from '../../shared/logger.js';
+import { warnIfFreshDbWithBoards } from '../../shared/startup-checks.js';
 
 /**
  * `npx substrate mcp` — start the stdio MCP server.
@@ -39,7 +40,9 @@ export async function mcpCommand(cwd: string): Promise<void> {
   // session (the agent runtime can swallow our stderr). Phase 7b.
   configureFileSink(p.logFile);
   const config = await readConfig(root);
+  const dbExisted = existsSync(p.dataSqlite);
   const client = await openDatabaseAndMigrate(p.dataSqlite);
+  warnIfFreshDbWithBoards(root, dbExisted); // B7: worktree/fresh-clone empty-DB footgun
 
   // Defense in depth: close the DB on any teardown path, including
   // uncaught exceptions inside the SDK that bypass our try/finally below.

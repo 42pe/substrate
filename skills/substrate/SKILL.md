@@ -164,6 +164,13 @@ before any other call. Then `get_board_substrate` for the board you'll work in
 - **`agent_responsibility`** attaches a SUGGESTION to matching writes via
   `policies_fired`. Surface it to the human and/or act on it; don't ignore it.
 
+### Errors & your own trail
+
+- On `version_mismatch`, re-read (the current version is in `error.details.current_version`),
+  reconcile, then retry with it. On `not_found`/`schema_violation`, the message says how to fix.
+- Your handled tool errors this session are recorded — run `substrate logs --errors` to review
+  your own error trail (routine gate blocks / stale-version retries are intentionally excluded).
+
 ### Don't
 
 - Don't invent board/group ids — resolve them from reads.

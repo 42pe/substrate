@@ -145,9 +145,11 @@ const VERSION_MISMATCH_MESSAGE =
  * Update a task with optimistic concurrency control.
  *
  * Throws `not_found` if missing, `conflict` if archived, `version_mismatch`
- * if the caller's version is stale (NO `current_version` in details — forces
- * a re-read, per PRD §6.11). Bumps `version` and `updated_at`. Returns the
- * post-update task.
+ * if the caller's version is stale. B5 (dogfood 2026-07-07, Diego-approved
+ * reversal of the PRD §6.11 lock): `version_mismatch.details.current_version` now
+ * carries the current version, while the message still requires re-read +
+ * reconcile — so a concurrent writer doesn't need a wasted `get_task` just to
+ * fetch the integer. Bumps `version` and `updated_at`. Returns the post-update task.
  *
  * Defense-in-depth OCC: a SELECT-check for clean error codes, plus a
  * version-CAS on the UPDATE (`WHERE version = ?`) so a write that slips in
@@ -169,7 +171,10 @@ export async function updateTask(
     });
   }
   if (current.version !== expectedVersion) {
-    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id });
+    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, {
+      id,
+      current_version: current.version,
+    });
   }
 
   const sets: string[] = ['version = version + 1', 'updated_at = ?'];
@@ -197,6 +202,10 @@ export async function updateTask(
     args,
   });
   if (result.rowsAffected === 0) {
+    // CAS race: a concurrent write bumped the version between the SELECT check and
+    // this UPDATE. Unlike the check site, `current` is now stale, so we omit
+    // `current_version` (there's no correct integer to report). Unreachable in a
+    // single transaction, so intentionally untested (B5).
     throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id });
   }
 
@@ -235,7 +244,10 @@ export async function archiveTask(
     return { task: current, changed: false };
   }
   if (current.version !== expectedVersion) {
-    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id });
+    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, {
+      id,
+      current_version: current.version,
+    });
   }
   const result = await exec.execute({
     sql: 'UPDATE tasks SET archived_at = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?',
@@ -265,7 +277,10 @@ export async function unarchiveTask(
     return { task: current, changed: false };
   }
   if (current.version !== expectedVersion) {
-    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, { id });
+    throw SubstrateError.versionMismatch(VERSION_MISMATCH_MESSAGE, {
+      id,
+      current_version: current.version,
+    });
   }
   const result = await exec.execute({
     sql: 'UPDATE tasks SET archived_at = NULL, version = version + 1, updated_at = ? WHERE id = ? AND version = ?',

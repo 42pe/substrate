@@ -100,12 +100,12 @@ describe('board + project edit tools', () => {
       expect(raw.version).toBe(2);
     });
 
-    it('rejects a stale version with version_mismatch (no current_version)', async () => {
+    it('rejects a stale version with version_mismatch, including current_version (B5)', async () => {
       await updateProjectHandler({ version: 1, name: 'A', agent_name: 'a' }, deps);
       const env = await updateProjectHandler({ version: 1, name: 'B', agent_name: 'a' }, deps);
       if (env.ok) throw new Error('expected error');
       expect(env.error.code).toBe('version_mismatch');
-      expect(JSON.stringify(env.error)).not.toContain('current_version');
+      expect(env.error.details?.['current_version']).toBe(2);
     });
 
     it('works through a defaulted version on a legacy config (C2)', async () => {
