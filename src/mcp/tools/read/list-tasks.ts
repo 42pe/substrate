@@ -23,11 +23,16 @@ import type { ToolDeps } from '../../deps.js';
  * nested. B1 (dogfood 2026-07-07): they used to live under a `filters: {}` object
  * and the group filter was `in_groups` only, so a natural call like
  * `list_tasks({ board_id, group_id })` had its keys silently stripped and the tool
- * returned the WHOLE project. Now: (1) filters are flat; (2) `group_id` is sugar
- * for `in_groups:[group_id]`; (3) unknown keys are REJECTED (`schema_violation`)
- * instead of ignored, so a typo can never silently widen the query; (4) the old
- * nested `filters` object is still accepted (deprecated, merged; top-level wins)
- * so existing callers — including the HTTP route — keep working.
+ * returned the WHOLE project. Now: (1) filters are flat, so the reported call
+ * works; (2) `group_id` is sugar for `in_groups:[group_id]` (union if both given);
+ * (3) the old nested `filters` object is still accepted (deprecated, merged;
+ * top-level wins) so existing callers — including the HTTP route — keep working.
+ *
+ * NOTE on unknown/misspelled keys: `.strict()` below rejects them for direct/HTTP
+ * callers, but the MCP SDK (`server.tool` → non-strict `z.object(shape)`) STRIPS
+ * unknown keys before this handler ever runs, so a pure typo over MCP is dropped,
+ * not rejected. The protection over MCP is that the real filter names are now
+ * first-class params — we do NOT claim typo-rejection on the MCP transport.
  *
  * Most filters map straight to indexed WHERE clauses in the repo. `missing_required_fields`
  * needs `board_id` (per-board schema); `custom_field` is one predicate per call.
@@ -94,9 +99,10 @@ export const listTasksShape = {
   // `titles` = just id/title/group/version (leanest — for pure selection).
   view: z.enum(['summary', 'full', 'titles']).optional(),
 };
-// `.strict()`: an unknown/misspelled top-level key (e.g. `borad_id`, or a filter
-// placed where the tool doesn't expect it) is a schema_violation — never silently
-// dropped into a full-project dump. Re-parsed authoritatively by the MCP wrapper.
+// `.strict()`: reject unknown top-level keys for DIRECT/HTTP callers (a
+// schema_violation rather than a silent widen). Caveat: over the MCP transport the
+// SDK strips unknown keys before this schema is re-parsed (see the header note), so
+// strict is a no-op there — it is not the MCP typo defense it may appear to be.
 const listTasksSchema = z.object(listTasksShape).strict();
 export type ListTasksInput = z.output<typeof listTasksSchema>;
 
@@ -202,7 +208,7 @@ export function registerListTasks(server: McpServer, deps: ToolDeps): void {
   server.tool(
     'list_tasks',
     [
-      'Query tasks with filters. Filters are TOP-LEVEL params (not nested): `board_id`, `group_id` (single group), `in_groups`/`not_in_groups`, `parent_id`, `has_subtasks`, `archived`, `created_before/after`, `updated_before/after`, `custom_field`, `missing_required_fields`, `text_search`. Paginated — pass `pagination.cursor` from the previous response to continue. Unknown/misspelled keys are rejected (they are never silently ignored).',
+      'Query tasks with filters. Filters are TOP-LEVEL params (not nested): `board_id`, `group_id` (single group; sugar for in_groups), `in_groups`/`not_in_groups`, `parent_id`, `has_subtasks`, `archived`, `created_before/after`, `updated_before/after`, `custom_field`, `missing_required_fields`, `text_search`. Use these exact names — an unrecognized key is ignored, so a filter that does not narrow the result likely means a wrong name. Paginated — pass `pagination.cursor` from the previous response to continue.',
       'Returns lightweight SUMMARY rows by default: id, title, group_id, version, timestamps, a `description_excerpt` (+ `description_truncated`), and a `custom_data` trimmed to small scalar values (gate flags, priority, …) with bulky keys listed in `custom_data_omitted`. Call `get_task(id)` for the full description + custom_data.',
       "Use `view: 'titles'` for the leanest rows (id/title/group/version — pure selection), or `view: 'full'` for complete `description` + `custom_data` on every row (heavier).",
       'Filtering is unaffected by the projection: `custom_field` and `missing_required_fields` run against the full task, so you can filter on a field even when its value is omitted from the row.',

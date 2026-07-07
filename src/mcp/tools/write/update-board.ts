@@ -68,15 +68,35 @@ export function updateBoardHandler(
           task: { ...board.field_schema.task },
           comments: { ...board.field_schema.comments },
         };
+        let changed = false;
         for (const section of ['task', 'comments'] as const) {
           const sectionPatch = patch[section];
           if (!sectionPatch) continue;
           for (const [field, entry] of Object.entries(sectionPatch)) {
-            if (entry === null) delete merged[section][field];
-            else merged[section][field] = entry as FieldSchema['task'][string];
+            if (entry === null) {
+              if (field in merged[section]) {
+                delete merged[section][field];
+                changed = true;
+              }
+            } else {
+              merged[section][field] = entry as FieldSchema['task'][string];
+              changed = true;
+            }
           }
         }
-        fieldSchema = merged;
+        // Only apply (and bump version) if the patch actually changed the schema —
+        // an empty/no-op patch must not burn an OCC version.
+        if (changed) fieldSchema = merged;
+      }
+
+      // Nothing to change → return the board untouched (mutateBoardFile skips the
+      // write when next === board, so no version bump on a no-op edit).
+      if (
+        input.name === undefined &&
+        input.description === undefined &&
+        fieldSchema === undefined
+      ) {
+        return { result: board, next: board };
       }
 
       const updated: Board = {

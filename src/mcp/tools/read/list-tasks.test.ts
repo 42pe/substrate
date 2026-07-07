@@ -124,11 +124,26 @@ describe('listTasksToolHandler', () => {
     expect(row).not.toHaveProperty('custom_data');
   });
 
-  it('rejects an unknown/misspelled top-level key instead of silently ignoring it (B1)', () => {
+  it('group_id + in_groups is a UNION, not a replace (B1)', async () => {
+    await createTask(client, makeTask('a', { group_id: 'g1' }));
+    await createTask(client, makeTask('b', { group_id: 'g2' }));
+    await createTask(client, makeTask('c', { group_id: 'g3' }));
+    const r = await listTasksToolHandler(
+      { board_id: 'board-1', group_id: 'g1', in_groups: ['g2'] },
+      deps,
+    );
+    // g1 (from group_id) ∪ g2 (from in_groups) → a and b, not c
+    expect(r.results.map((t) => t.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('the strict schema rejects unknown keys for DIRECT/HTTP callers (B1)', () => {
+    // NOTE: this validates the strict schema used by the wrapper/HTTP layer for
+    // direct callers. It does NOT reflect the MCP transport — the MCP SDK strips
+    // unknown keys before this schema runs (see the header note in list-tasks.ts),
+    // so a typo over MCP is dropped, not rejected. The through-the-wire behavior
+    // (flat filters actually filtering) is covered in mcp-bootstrap-flow.test.ts.
     const schema = z.object(listTasksShape).strict();
-    // `borad_id` (typo) used to be silently stripped → full-project dump. Now rejected.
     expect(schema.safeParse({ borad_id: 'board-1' }).success).toBe(false);
-    // a correct flat call still parses
     expect(schema.safeParse({ board_id: 'board-1', group_id: 'g1' }).success).toBe(true);
   });
 
