@@ -6,6 +6,28 @@ Format: **Decision** — Alternatives — Why — Date.
 
 ---
 
+## Dogfood fixes (2026-07-07)
+
+### `version_mismatch` now includes `current_version` (B5 — reverses the PRD §6.11 lock)
+**Decision:** `version_mismatch` errors now carry `current_version` in `error.details` (the
+message still requires "re-read and reconcile before retrying"). This **reverses** the
+Phase-2 / PRD §6.11 decision that deliberately withheld the number to force a full re-read.
+**Why:** three independent dogfood agents flagged that, with the number withheld, a
+concurrent writer must burn a wasted `get_task`/re-read just to fetch the integer before
+retrying — real cost for weak protection, since a determined agent can blind-overwrite
+anyway by reading and ignoring the diff. The honest safeguard is the message + the
+requirement to reconcile, not the missing integer. **Scope:** added at the OCC version-CHECK
+sites (`tasks.ts` update/archive/unarchive + `assertVersion` for board/group/policy/project);
+the rare CAS-race sites (`rowsAffected === 0`) keep `{id}` only (there the read value is
+already stale). **Approved by Diego 2026-07-07.** See `.agents/plans/dogfood-fix-observability.md`.
+
+### Handled tool errors are logged (B4)
+The MCP wrapper now logs handled `SubstrateError`s to the persistent log at ERROR (so
+`substrate logs --errors` shows an agent session's error trail — previously handled errors
+were returned in the envelope but never logged), **excluding** the expected control-flow
+codes `transition_blocked`/`version_mismatch` (normal outcomes, already surfaced via events
++ OCC). Agent-derived content rides in the JSON-escaped context, so it can't forge a log line.
+
 ## Architecture-review follow-ups (2026-06-22/23)
 
 ### Windows CI: best-effort temp cleanup + a few `skipIf(win32)`, libsql is the cause (2026-06-29)

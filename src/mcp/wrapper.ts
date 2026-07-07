@@ -90,12 +90,17 @@ export function wrapToolHandler<S extends z.ZodTypeAny>(
 }
 
 /**
- * B4 (dogfood 2026-07-07): persist handled tool errors so `substrate logs` shows
- * an agent session's error trail (they were returned in the envelope but never
- * logged, so the log stayed empty). Logged at WARN, EXCLUDING the expected
- * control-flow codes — a blocked gate / stale-version OCC are normal outcomes,
- * already surfaced via events + the envelope — to avoid flooding an autonomous
- * pipeline's log. Unexpected failures still log at ERROR (above).
+ * B4 (dogfood 2026-07-07): persist handled tool errors so `substrate logs --errors`
+ * shows an agent session's error trail (they were returned in the envelope but never
+ * logged, so the log stayed empty). Logged at ERROR because `logs --errors` — the
+ * command an agent reaches for — filters to error level, and from the tool-call's
+ * perspective these ARE the failures the agent hit. EXCLUDES the expected
+ * control-flow codes (a blocked gate / stale-version OCC are normal outcomes, already
+ * surfaced via events + the envelope) so an autonomous pipeline's log isn't flooded.
+ *
+ * Injection-safe: the (safe, enumerated) tool name + code go in the header; any
+ * agent-derived content (e.g. an `id` inside `message`) rides in the JSON-serialized
+ * context, which escapes control chars/newlines — it cannot forge a log line.
  */
 const CONTROL_FLOW_CODES = new Set<string>(['transition_blocked', 'version_mismatch']);
 function logHandledError(
@@ -104,5 +109,5 @@ function logHandledError(
   message: string | undefined,
 ): void {
   if (code === undefined || CONTROL_FLOW_CODES.has(code)) return;
-  logger.warn(`${toolName} returned ${code}`, { tool: toolName, code, message });
+  logger.error(`${toolName} returned ${code}`, { tool: toolName, code, message });
 }
