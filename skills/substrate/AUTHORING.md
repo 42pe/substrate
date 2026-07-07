@@ -43,13 +43,24 @@ that's the left-to-right flow. Fields: `id`, `name`, `description`, `position`,
 Custom fields each task may carry. A `FieldSchemaEntry` is:
 
 ```json
-{ "type": "string|number|boolean|enum|markdown|string_list", "required": false, "values": ["..."] }
+{ "type": "string|number|boolean|enum|markdown|string_list", "required": false, "values": ["..."], "human_only": false }
 ```
 
 `values` is required when `type` is `enum`. Add a **boolean "gate field"** for
 each exit criterion you'll enforce (e.g. `spec_approved`, `tests_passing`,
 `review_cleared`) — the agent flips these via `update_task` `custom_data` as each
 criterion is met. `field_schema.comments` works the same for comment metadata.
+
+**A gate an autonomous agent can set is a gate it can self-clear.** If a criterion
+must be signed off by a *human* — a real approval, not just a checkbox the agent
+ticks on its way past — mark that field `"human_only": true`. The agent's MCP
+write tools (`create_task`/`update_task`) then **refuse** to set it; only the human
+channel can — `substrate approve <task_id> <field> [value]` (or the UI), which
+stamps the change as `human:<os-user>` in the event log. Pair it with a
+`transition_guard` that requires the field: the guard makes the move impossible
+until the field is set, and `human_only` makes *the agent* unable to set it — so
+the move genuinely waits on a human. Without `human_only`, a `"*" → done` gate is
+only advisory against an agent working unattended.
 
 ## 3. The policy DSL
 

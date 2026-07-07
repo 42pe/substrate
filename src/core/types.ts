@@ -158,6 +158,9 @@ export interface FieldSchemaEntry {
   required?: boolean;
   format?: string;
   values?: string[];
+  /** B3: agent MCP write tools refuse to set this field; only a human channel
+   *  (`substrate approve` / the UI) may. Makes a guard requiring it a real gate. */
+  human_only?: boolean;
 }
 
 /**

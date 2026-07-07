@@ -32,7 +32,13 @@ const fixtureBoard: Board = {
   id: 'b',
   name: 'Board B',
   description: '',
-  field_schema: { task: { severity: { type: 'enum', values: ['low', 'high'] } }, comments: {} },
+  field_schema: {
+    task: {
+      severity: { type: 'enum', values: ['low', 'high'] },
+      plan_approved: { type: 'boolean', human_only: true },
+    },
+    comments: {},
+  },
   groups: [
     {
       id: 'g',
@@ -182,6 +188,19 @@ describe('createTaskHandler', () => {
     expect(env.applied.state.title).toBe('First task');
     expect(env.applied.state.created_by_agent).toBe('tester');
     expect(env.policies_fired).toEqual([]);
+  });
+
+  it('B3: an agent cannot create a task with a human_only field pre-set (forbidden)', async () => {
+    const env = await call({
+      board_id: 'b',
+      group_id: 'g',
+      title: 'Pre-approved',
+      custom_data: { plan_approved: true },
+      agent_name: 'tester',
+    });
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('forbidden');
+    expect(env.error.message).toMatch(/human-only/i);
   });
 
   it('generates a UUID for id', async () => {

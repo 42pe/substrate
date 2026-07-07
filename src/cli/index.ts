@@ -27,6 +27,8 @@ import { diagnoseCommand } from './commands/diagnose.js';
 import { explainCommand } from './commands/explain.js';
 import { logsCommand } from './commands/logs.js';
 import { addCommand } from './commands/add.js';
+import { approveCommand } from './commands/approve.js';
+import { validateCommand } from './commands/validate.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -54,6 +56,12 @@ Usage:
   substrate logs [-n <N>] [--errors]
                               Print recent log lines (default last 50;
                               --errors filters to errors) — useful for bug reports
+  substrate approve <task_id> <field> [value=true]
+                              Set a human-only field on a task, stamped as the
+                              current OS user (the human channel agents can't use)
+  substrate validate          Lint boards + policies without a server (CI-friendly):
+                              a corrupt substrate exits non-zero; logical smells
+                              (a guard that can never fire) print advisory warnings
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -155,6 +163,21 @@ Next steps:
       });
       return;
     }
+    case 'approve': {
+      rejectUnknownFlags('approve', rest);
+      const positionals = rest.filter((a) => !a.startsWith('-'));
+      const [taskId, field, value] = positionals;
+      if (taskId === undefined || field === undefined) {
+        process.stderr.write('Usage: substrate approve <task_id> <field> [value=true]\n');
+        process.exit(1);
+      }
+      await approveCommand(cwd, { taskId, field, ...(value !== undefined ? { value } : {}) });
+      return;
+    }
+    case 'validate':
+      rejectUnknownFlags('validate', rest);
+      await validateCommand(cwd);
+      return;
     case '--help':
     case '-h':
     case 'help':

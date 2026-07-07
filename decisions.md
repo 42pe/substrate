@@ -8,6 +8,42 @@ Format: **Decision** — Alternatives — Why — Date.
 
 ## Dogfood fixes (2026-07-07)
 
+### `human_only` fields — a gate an autonomous agent can't self-clear (B3)
+**Decision:** `FieldSchemaEntry` gains an optional `human_only: boolean`. When a task field is
+`human_only`, the agent-facing MCP write tools (`create_task`/`update_task`) **refuse** to set
+it (`forbidden`, naming the field + the `substrate approve` remedy); the only way to set it is
+the **human channel** — a new `substrate approve <task_id> <field> [value=true]` CLI that stamps
+the change as `human:<os-user>` in the event log (the UI is the other channel, once it can
+write). **Why:** three dogfood agents (esp. the near-autonomous StackChan run) exposed that a
+`transition_guard` requiring a boolean gate field is only advisory against an agent working
+unattended — the agent can flip its own `spec_approved=true` and sail through. `human_only` +
+a guard that requires the field turns "advisory checkbox" into a real human approval gate: the
+guard blocks the move, and the agent structurally cannot satisfy it alone. **Alternatives:**
+(a) a write-capable approval UI as the only human channel (rejected as the *first* increment —
+a CLI ships the enforcement now without the web-write surface; the UI is additive later);
+(b) provenance-by-convention, no enforcement (rejected — the whole point is that an unattended
+agent won't honor a convention). **Approved by Diego 2026-07-07 (Option A).** See
+`.agents/plans/policy-integrity.md`.
+
+### `check_transition` read tool — dry-run a gated move without a throwaway task (B3)
+**Decision:** New read-only MCP tool `check_transition({task_id, to_group})` runs the same
+`runTransitionGuards` the write path runs and returns `{allowed, from_group, to_group}` or, when
+blocked, `{allowed:false, blocked_by:{policy_id, message}}` — **writing nothing**. **Why:** the
+AUTHORING validation ritual (create a probe task, attempt the move, read the block, set the gate,
+retry, archive the probe) is the only way to confirm a gate fires, and dogfood agents kept
+leaving probe tasks behind or skipping the check. A dry-run makes "would this move be allowed?"
+a first-class question. It brings the tool count to 30.
+
+### `substrate validate` — server-less lint of boards + policies (B3)
+**Decision:** New `substrate validate` CLI loads the substrate without starting `mcp`/`serve`: a
+corrupt/unloadable substrate prints the actionable error + `fix_prompt` and **exits non-zero**
+(CI-usable); a substrate that loads additionally gets logical-smell **warnings** the load
+doesn't raise (today: a `transition_guard` whose `from_group === to_group` can never fire on a
+real move). Warnings are advisory (exit 0); only a failed load fails the command. **Why:** the
+heavy structural validation already runs on load, but the only way to trigger it was to boot a
+server; `validate` surfaces it in CI, and the lint layer catches malformed-but-loadable gates
+that would otherwise fail silently. See `.agents/plans/policy-integrity.md`.
+
 ### `version_mismatch` now includes `current_version` (B5 — reverses the PRD §6.11 lock)
 **Decision:** `version_mismatch` errors now carry `current_version` in `error.details` (the
 message still requires "re-read and reconcile before retrying"). This **reverses** the

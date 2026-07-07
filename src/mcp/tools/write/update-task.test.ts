@@ -25,7 +25,13 @@ const board: Board = {
   id: 'board-1',
   name: 'Board 1',
   description: '',
-  field_schema: { task: { severity: { type: 'enum', values: ['low', 'high'] } }, comments: {} },
+  field_schema: {
+    task: {
+      severity: { type: 'enum', values: ['low', 'high'] },
+      plan_approved: { type: 'boolean', human_only: true },
+    },
+    comments: {},
+  },
   groups: [
     {
       id: 'g1',
@@ -139,6 +145,20 @@ describe('updateTaskHandler', () => {
     );
     if (env.ok) throw new Error('expected error');
     expect(env.error.code).toBe('schema_violation');
+  });
+
+  it('B3: an agent cannot set a human_only field via update_task (forbidden)', async () => {
+    const env = await updateTaskHandler(
+      { id: 't1', version: 1, custom_data: { plan_approved: true }, agent_name: 'a' },
+      deps,
+    );
+    if (env.ok) throw new Error('expected error');
+    expect(env.error.code).toBe('forbidden');
+    expect(env.error.message).toMatch(/human-only/i);
+    // and nothing was written (version unchanged)
+    const after = await getTask(client, 't1');
+    expect(after.custom_data['plan_approved']).toBeUndefined();
+    expect(after.version).toBe(1);
   });
 
   it('rejects a stale version with version_mismatch, including current_version (B5)', async () => {

@@ -247,6 +247,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       'archive_group',
       'archive_policy',
       'archive_task',
+      'check_transition',
       'create_board',
       'create_group',
       'create_policy',
