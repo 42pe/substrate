@@ -33,11 +33,17 @@ playwright-report/
 .claude/local/
 .claude/cache/
 
-# Substrate runtime (when dogfooded later — keep just-in-case patterns now)
+# Local packaging artifacts (pnpm pack)
+*.tgz
+
+# substrate:v1:gitignore-block (managed by `substrate init`)
 .substrate/data.sqlite
 .substrate/data.sqlite-wal
 .substrate/data.sqlite-shm
 .substrate/substrate.pid
 .substrate/attachments/
 .substrate/logs/
-*.tgz
+
+# Substrate auto-backups (timestamped) — task state, local only
+.substrate/*.bak-*
+.substrate/backups/
