@@ -1,26 +1,95 @@
 {
   "id": "release",
   "name": "Release",
-  "description": "Cutting a Substrate release: promote the `dev` branch to `main` plus a version tag. **This is the ONLY flow that touches `main`.** A release candidate moves Ready → Docs Verified → Versioned → Validated → Approved → Released. Each gate carries the guideline for that step (doc verification, version bump, validation, tagging). Full runbook: RELEASING.md.",
+  "description": "Cutting a Substrate release: promote the `dev` branch to `main` plus a version tag. **This is the ONLY flow that touches `main`.** A release candidate moves Ready → Docs Verified → Versioned → Validated → Approved → Released. Each gate carries the guideline for that step (doc verification, version bump, validation, tagging). Full runbook: RELEASING.md.\n\n## Team\n\nAgents that cut a release, and what each should care about:\n\n- **Doc Auditor** (Docs Verified) — cross-checks every doc claim against the code before the version is cut. *Concerns:* stale tool counts / command lists, prd contradictions, CHANGELOG completeness, installed-skill vs binary drift.\n- **Release Engineer** (Versioned / Released) — owns the three-site version lockstep (package.json, ui/package.json, `BINARY_VERSION`), the CHANGELOG rotation, and the dev→main + tag mechanics. *Concerns:* the tag on the right commit, global reinstall + skill refresh, nothing half-cut.\n- **Validator** (Validated) — runs the full local gate (build/tsc/lint/format/test) before it reaches Diego. *Concerns:* CI is billing-blocked, so local IS the gate.\n- **Reviewers ×2** — same adversarial protocol as the dev board, lenses tuned to docs-vs-code and release mechanics. *Concerns:* a release that misstates what changed, or a broken publish/tag path.",
   "field_schema": {
     "task": {
-      "version": { "type": "string", "required": false },
-      "changes": { "type": "markdown", "required": false },
-      "docs_verified": { "type": "boolean", "required": false },
-      "version_bumped": { "type": "boolean", "required": false },
-      "validated": { "type": "boolean", "required": false },
-      "release_approved": { "type": "boolean", "human_only": true },
-      "tagged": { "type": "boolean", "required": false }
+      "version": {
+        "type": "string",
+        "required": false
+      },
+      "changes": {
+        "type": "markdown",
+        "required": false
+      },
+      "docs_verified": {
+        "type": "boolean",
+        "required": false
+      },
+      "version_bumped": {
+        "type": "boolean",
+        "required": false
+      },
+      "validated": {
+        "type": "boolean",
+        "required": false
+      },
+      "release_approved": {
+        "type": "boolean",
+        "human_only": true
+      },
+      "tagged": {
+        "type": "boolean",
+        "required": false
+      }
     },
     "comments": {}
   },
   "groups": [
-    { "id": "ready", "name": "Ready", "description": "A release is proposed. Record the target `version` (vX.Y.Z; 0.x → minor for features, patch for fixes) and, in `changes`, what has landed on `dev` since the last tag.", "position": 0, "color": null, "version": 1, "archived_at": null },
-    { "id": "docs", "name": "Docs Verified", "description": "Documentation has been audited against the code and synced. See the gate for the checklist.", "position": 1, "color": null, "version": 1, "archived_at": null },
-    { "id": "versioned", "name": "Versioned", "description": "Version bumped in all three sites and the CHANGELOG rotated (via `pnpm release`).", "position": 2, "color": null, "version": 1, "archived_at": null },
-    { "id": "validated", "name": "Validated", "description": "Full local validation is green (CI is billing-blocked).", "position": 3, "color": null, "version": 1, "archived_at": null },
-    { "id": "approved", "name": "Approved", "description": "Diego has signed off on cutting the release (dev → main + tag).", "position": 4, "color": null, "version": 1, "archived_at": null },
-    { "id": "released", "name": "Released", "description": "Tagged, `dev` merged to `main`, pushed, and the global binary reinstalled.", "position": 5, "color": null, "version": 1, "archived_at": null }
+    {
+      "id": "ready",
+      "name": "Ready",
+      "description": "A release is proposed. Record the target `version` (vX.Y.Z; 0.x → minor for features, patch for fixes) and, in `changes`, what has landed on `dev` since the last tag.",
+      "position": 0,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "docs",
+      "name": "Docs Verified",
+      "description": "Documentation has been audited against the code and synced. See the gate for the checklist.",
+      "position": 1,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "versioned",
+      "name": "Versioned",
+      "description": "Version bumped in all three sites and the CHANGELOG rotated (via `pnpm release`).",
+      "position": 2,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "validated",
+      "name": "Validated",
+      "description": "Full local validation is green (CI is billing-blocked).",
+      "position": 3,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "approved",
+      "name": "Approved",
+      "description": "Diego has signed off on cutting the release (dev → main + tag).",
+      "position": 4,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "released",
+      "name": "Released",
+      "description": "Tagged, `dev` merged to `main`, pushed, and the global binary reinstalled.",
+      "position": 5,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    }
   ],
   "policies": [
     {
@@ -31,7 +100,13 @@
       "definition": {
         "from_group": "ready",
         "to_group": "docs",
-        "require": [{ "field": "task.custom_data.docs_verified", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.custom_data.docs_verified",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Set docs_verified=true only after an audit against the CODE confirms: README tool count + command list match the registry/CLI; prd.md has no claim contradicting shipped behavior (operators, error codes, tools, version_mismatch); SKILL.md + AUTHORING.md counts/flows are current; and CHANGELOG [Unreleased] has an entry for every user-facing change since the last tag. Prefer an independent audit agent that cross-checks docs vs code."
       },
       "priority": 0,
@@ -50,7 +125,13 @@
       "definition": {
         "from_group": "docs",
         "to_group": "versioned",
-        "require": [{ "field": "task.custom_data.version_bumped", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.custom_data.version_bumped",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Set version_bumped=true after `pnpm release <spec>` bumps the THREE version sites in lockstep — package.json, ui/package.json, src/core/version.ts (BINARY_VERSION) — and renames CHANGELOG `## [Unreleased]` → `## [x.y.z] - <date>` with a fresh empty [Unreleased] above. See RELEASING.md."
       },
       "priority": 0,
@@ -69,7 +150,13 @@
       "definition": {
         "from_group": "versioned",
         "to_group": "validated",
-        "require": [{ "field": "task.custom_data.validated", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.custom_data.validated",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Set validated=true only after build + tsc + lint + format + all tests pass locally on the release commit (CI is billing-blocked, so local is the gate). `pnpm release --tag` re-runs these."
       },
       "priority": 0,
@@ -88,7 +175,12 @@
       "definition": {
         "from_group": "validated",
         "to_group": "approved",
-        "require": [{ "field": "task.custom_data.release_approved", "op": "exists" }],
+        "require": [
+          {
+            "field": "task.custom_data.release_approved",
+            "op": "exists"
+          }
+        ],
         "on_failure_message": "Diego must approve cutting the release (dev → main + tag) — run `substrate approve <task_id> release_approved`. An agent cannot set this field."
       },
       "priority": 0,
@@ -107,7 +199,13 @@
       "definition": {
         "from_group": "approved",
         "to_group": "released",
-        "require": [{ "field": "task.custom_data.tagged", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.custom_data.tagged",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Set tagged=true after: `git tag vX.Y.Z` on the release commit + push the tag; merge `dev` → `main` and push; then rebuild + reinstall the global binary (see RELEASING.md 'After a release')."
       },
       "priority": 0,
@@ -124,7 +222,13 @@
       "description": "Fires while a release candidate is in Ready — the doc audit to run before versioning.",
       "type": "agent_responsibility",
       "definition": {
-        "when": [{ "field": "task.group_id", "op": "eq", "value": "ready" }],
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "ready"
+          }
+        ],
         "message": "Before versioning, verify docs against the CODE (an independent audit agent is ideal): (1) README — tool count matches src/mcp/registry.ts, command list matches the CLI dispatcher/HELP; (2) prd.md — no claim contradicts shipped behavior (operator set vs operators.ts, error codes, read/write tool lists, version_mismatch/current_version); (3) SKILL.md + AUTHORING.md — tool counts and flows current; (4) CHANGELOG — a [Unreleased] entry exists for every user-facing change since the last tag. Fix every gap, then set docs_verified=true."
       },
       "priority": 0,
@@ -141,7 +245,13 @@
       "description": "Fires while cutting the version — the lockstep sites and tagging steps.",
       "type": "agent_responsibility",
       "definition": {
-        "when": [{ "field": "task.group_id", "op": "eq", "value": "approved" }],
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "approved"
+          }
+        ],
         "message": "Release mechanics (RELEASING.md): version lives in THREE lockstep sites — package.json, ui/package.json, src/core/version.ts. Cut with `pnpm release <spec> --tag` from a clean tree (or `pnpm release <spec>` then run the printed git steps). Tags are `vX.Y.Z` (not the phase-NN dev tags). Then merge `dev` → `main`, push both, and reinstall the global binary."
       },
       "priority": 0,
@@ -153,8 +263,8 @@
       "archived_at": null
     }
   ],
-  "version": 1,
+  "version": 2,
   "created_at": "2026-07-08T00:00:00.000Z",
-  "updated_at": "2026-07-08T00:00:00.000Z",
+  "updated_at": "2026-07-08T04:59:10.643Z",
   "archived_at": null
 }

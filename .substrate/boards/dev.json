@@ -1,24 +1,100 @@
 {
   "id": "dev",
   "name": "Substrate Dev",
-  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged. **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), which is tracked on the separate **Release** board. Two hard gates: Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.",
+  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged. **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), which is tracked on the separate **Release** board. Two hard gates: Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.\n\n## Team\n\nAgents that move a change through this board, and what each should care about:\n\n- **Planner** (Spec & Plan) — decomposes the work, weighs trade-offs, writes a crisp spec with explicit acceptance criteria. *Concerns:* scope creep, fuzzy acceptance, unhandled edge cases, over-engineering.\n- **Builder** (Build & Test) — implements in the surrounding style, tests as they go, keeps commits small and honest. *Concerns:* local green before Review (build/tsc/lint/format/tests), preserving invariants, not smuggling extra scope.\n- **Reviewers ×2, distinct adversarial lenses** (Review) — e.g. (a) correctness & security, (b) product, tests & docs. Skeptical; verify claims against the code; try to break it. *Concerns:* never rubber-stamp, catch real blockers, re-run dead reviewers, re-review the fix round, never self-grade.\n- **Integrator** (Pending Review and Approval → Merged) — folds in review findings, keeps the PR scoped to `dev`, drives to Diego's approval. *Concerns:* honest status, dev-branch hygiene, nothing merged to `main`.",
   "field_schema": {
     "task": {
-      "spec_doc": { "type": "markdown", "required": false },
-      "pr": { "type": "string", "required": false },
-      "tests_green": { "type": "boolean", "required": false },
-      "reviews_approved": { "type": "boolean", "required": false },
-      "diego_approved": { "type": "boolean", "human_only": true }
+      "spec_doc": {
+        "type": "markdown",
+        "required": false
+      },
+      "pr": {
+        "type": "string",
+        "required": false
+      },
+      "tests_green": {
+        "type": "boolean",
+        "required": false
+      },
+      "reviews_approved": {
+        "type": "boolean",
+        "required": false
+      },
+      "diego_approved": {
+        "type": "boolean",
+        "human_only": true
+      },
+      "idea_approved": {
+        "type": "boolean",
+        "human_only": true
+      }
     },
     "comments": {}
   },
   "groups": [
-    { "id": "backlog", "name": "Backlog", "description": "Captured, not yet started.", "position": 0, "color": null, "version": 1, "archived_at": null },
-    { "id": "spec", "name": "Spec & Plan", "description": "Writing the spec/plan; approved before build.", "position": 1, "color": null, "version": 1, "archived_at": null },
-    { "id": "build", "name": "Build & Test", "description": "Implementing + testing locally.", "position": 2, "color": null, "version": 1, "archived_at": null },
-    { "id": "review", "name": "Review", "description": "Independent two-reviewer gate.", "position": 3, "color": null, "version": 1, "archived_at": null },
-    { "id": "approval", "name": "Pending Review and Approval", "description": "PR open against `dev`, automated reviews passed — awaiting Diego's own review + approval.", "position": 4, "color": null, "version": 1, "archived_at": null },
-    { "id": "merged", "name": "Merged to dev", "description": "Approved + merged to the `dev` branch. (Releasing `dev` → `main` is a separate flow on the Release board.)", "position": 5, "color": null, "version": 1, "archived_at": null }
+    {
+      "id": "ideas",
+      "name": "Ideas",
+      "description": "Raw ideas, captured for later. An idea needs Diego's approval (`idea_approved`) to be promoted into Backlog — that's the intake gate. Don't spec or build from here.",
+      "position": 0,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "backlog",
+      "name": "Backlog",
+      "description": "Captured, not yet started.",
+      "position": 1,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "spec",
+      "name": "Spec & Plan",
+      "description": "Writing the spec/plan; approved before build.",
+      "position": 2,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "build",
+      "name": "Build & Test",
+      "description": "Implementing + testing locally.",
+      "position": 3,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "review",
+      "name": "Review",
+      "description": "Independent two-reviewer gate.",
+      "position": 4,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "approval",
+      "name": "Pending Review and Approval",
+      "description": "PR open against `dev`, automated reviews passed — awaiting Diego's own review + approval.",
+      "position": 5,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "merged",
+      "name": "Merged to dev",
+      "description": "Approved + merged to the `dev` branch. (Releasing `dev` → `main` is a separate flow on the Release board.)",
+      "position": 6,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    }
   ],
   "policies": [
     {
@@ -29,7 +105,13 @@
       "definition": {
         "from_group": "build",
         "to_group": "review",
-        "require": [{ "field": "task.custom_data.tests_green", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.custom_data.tests_green",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Set tests_green=true only after build + tsc + lint + format + all tests pass locally (CI is billing-blocked)."
       },
       "priority": 0,
@@ -48,7 +130,13 @@
       "definition": {
         "from_group": "review",
         "to_group": "approval",
-        "require": [{ "field": "task.custom_data.reviews_approved", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.custom_data.reviews_approved",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Set reviews_approved=true only once BOTH independent reviewers have APPROVED (never self-grade; re-run dead reviewers)."
       },
       "priority": 0,
@@ -67,7 +155,12 @@
       "definition": {
         "from_group": "approval",
         "to_group": "merged",
-        "require": [{ "field": "task.custom_data.diego_approved", "op": "exists" }],
+        "require": [
+          {
+            "field": "task.custom_data.diego_approved",
+            "op": "exists"
+          }
+        ],
         "on_failure_message": "Diego must approve before the PR merges to the `dev` branch — run `substrate approve <task_id> diego_approved`. An agent cannot set this field. (Never merge feature work to `main`; `main` moves only on a release — see the Release board.)"
       },
       "priority": 0,
@@ -84,7 +177,13 @@
       "description": "Reminds the agent how the Review gate works whenever a task is in Review.",
       "type": "agent_responsibility",
       "definition": {
-        "when": [{ "field": "task.group_id", "op": "eq", "value": "review" }],
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "review"
+          }
+        ],
         "message": "Spawn >=2 independent adversarial reviewers with distinct lenses; wait for BOTH to finish; re-run any that die; fold in every blocking finding and re-review the fix round. Both must APPROVE before you set reviews_approved. Never self-grade a review."
       },
       "priority": 0,
@@ -94,10 +193,34 @@
       "created_at": "2026-07-08T00:00:00.000Z",
       "updated_at": "2026-07-08T00:00:00.000Z",
       "archived_at": null
+    },
+    {
+      "id": "gate-ideas-backlog",
+      "name": "Ideas need approval to enter Backlog",
+      "description": "The intake gate. An idea is promoted to Backlog only after Diego approves it (human-only field). An agent cannot self-promote an idea.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "ideas",
+        "to_group": "backlog",
+        "require": [
+          {
+            "field": "task.custom_data.idea_approved",
+            "op": "exists"
+          }
+        ],
+        "on_failure_message": "Ideas need Diego's approval before entering Backlog — run `substrate approve <task_id> idea_approved`. An agent cannot set this field."
+      },
+      "priority": 0,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "claude-code",
+      "created_at": "2026-07-08T05:03:26.505Z",
+      "updated_at": "2026-07-08T05:03:26.505Z",
+      "archived_at": null
     }
   ],
-  "version": 1,
+  "version": 5,
   "created_at": "2026-07-08T00:00:00.000Z",
-  "updated_at": "2026-07-08T00:00:00.000Z",
+  "updated_at": "2026-07-08T05:03:26.505Z",
   "archived_at": null
 }
