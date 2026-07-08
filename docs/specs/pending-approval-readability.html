@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Pending-approval readability</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      .q {
+        background: #3b82f611;
+        border-left: 3px solid #3b82f6;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Pending-approval readability</h1>
+    <p class="meta">
+      dev board · task c607b04e (<code>pending-approval-readability</code>) ·
+      <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../plans/pending-approval-readability.html">plan →</a>
+    </p>
+
+    <h2>Problem</h2>
+    <p>
+      <code>substrate pending-approval</code> is the human's cross-board report of every task
+      waiting on <em>them</em> — an autonomous agent hit a <code>transition_guard</code> requiring a
+      <code>human_only</code> field it can't set, so the task sits until the human runs
+      <code>substrate approve</code>. Today the command
+      (<code>src/cli/commands/pending-approval.ts</code>) prints a nested bulleted list: per task a
+      title + id line, a free-text "waiting on you to set … to move X → Y" line, and one
+      <code>run: substrate approve …</code> line per field. That is three-to-four lines per task
+      with no vertical alignment, so with more than a couple of pending items the human can't scan
+      "what's blocked and what do I type" at a glance. There is no machine-readable form either —
+      anyone scripting off it must scrape prose.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        <strong>Scannable at a glance.</strong> Default output is an
+        <strong>aligned table</strong> (Diego's locked decision) so the eye can run down columns —
+        one row per pending task.
+      </li>
+      <li>
+        <strong>Color helps, safely.</strong> Color is applied only on an interactive TTY; output is
+        plain bytes when piped, redirected, or <code>NO_COLOR</code> is set. Color never carries
+        meaning that the plain text loses.
+      </li>
+      <li>
+        <strong>Copy-paste unblock.</strong> Each row still surfaces the exact
+        <code>substrate approve &lt;id&gt; &lt;field&gt;</code> command, verbatim and pipe-safe.
+      </li>
+      <li>
+        <strong>Machine-readable.</strong> A <code>--json</code> flag emits the structured
+        aggregate, at parity with the <code>list_pending_approvals</code> MCP tool.
+      </li>
+      <li>
+        <strong>Grouped + counted.</strong> Rows are grouped by board with a leading total count,
+        preserving today's cross-board framing.
+      </li>
+      <li>
+        <strong>No new dependency.</strong> Table layout and color come from a tiny in-repo ANSI/pad
+        helper — no <code>chalk</code>, no table lib.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <ul>
+      <li>
+        No change to <em>what</em> counts as pending — the derivation stays in
+        <code>src/policy/pending-approval.ts</code> and the shared aggregate
+        <code>listPendingApprovals</code> (<code>src/operations/list-pending-approvals.ts</code>).
+        This is a presentation change.
+      </li>
+      <li>
+        No interactivity — no paging, no cursor/keyboard, no "approve from here". It stays a
+        one-shot print. <code>substrate approve</code> remains the sole write path.
+      </li>
+      <li>
+        No new columns beyond the ask's set (Task / Move / Awaiting / Approve). No sorting/filtering
+        flags beyond <code>--json</code>.
+      </li>
+      <li>
+        No change to the MCP tool or the HTTP <code>/api/pending-approvals</code> route contract
+        (the colorized list fallback, if ever needed, is a CLI-only render).
+      </li>
+      <li>
+        No wrapping engine for arbitrarily wide content — long fields are truncated with an
+        ellipsis, not reflowed across lines.
+      </li>
+    </ul>
+
+    <h2>Scope</h2>
+    <p>One CLI command's output plus its flag plumbing:</p>
+    <ul>
+      <li>
+        <strong>Table renderer (default).</strong> Columns: <strong>Task</strong> (title truncated +
+        short id), <strong>Move</strong> (current group → target group),
+        <strong>Awaiting</strong> (the <code>human_only</code> field(s)),
+        <strong>Approve</strong> (the exact command). Grouped by board with a board sub-header; a
+        leading <code>N task(s) pending human approval in &lt;project&gt;</code> count line. Columns
+        are width-aligned to their widest visible cell; long titles are truncated to fit; narrow
+        terminals (<code>process.stdout.columns</code>) shrink the flexible Task column first.
+      </li>
+      <li>
+        <strong>Color, TTY-gated.</strong> Enabled only when <code>process.stdout.isTTY</code> and
+        <code>!process.env.NO_COLOR</code> and not <code>--json</code>. Suggested roles: board
+        header bold, the <code>approve</code> command in a distinct color, the awaiting field
+        emphasized. A tiny ANSI helper (new module) provides the escapes; alignment math measures
+        <em>visible</em> width (excludes escapes).
+      </li>
+      <li>
+        <strong>Plain fallback.</strong> When color is off, identical layout with zero escape bytes
+        — the table still aligns.
+      </li>
+      <li>
+        <strong>Empty state.</strong> Unchanged text for the no-pending case; under
+        <code>--json</code>, still valid JSON (<code>count: 0, items: []</code>).
+      </li>
+      <li>
+        <strong>Flag plumbing.</strong> <code>--json</code> added to the
+        <code>pending-approval</code> allowlist in <code>src/cli/args.ts</code> and dispatched in
+        <code>src/cli/index.ts</code>; HELP text updated to mention the table + <code>--json</code>.
+      </li>
+    </ul>
+
+    <h2>Acceptance criteria</h2>
+    <ul>
+      <li>
+        With ≥2 pending tasks across ≥1 board, default output is an aligned table: a count line,
+        then per board a header and one row per task; the Task/Move/Awaiting/Approve columns line up
+        vertically.
+      </li>
+      <li>
+        Every row contains a verbatim, runnable
+        <code>substrate approve &lt;task_id&gt; &lt;field&gt;</code> (one per awaiting field),
+        byte-identical to what <code>substrate approve</code> expects.
+      </li>
+      <li>
+        <strong
+          >Piped / redirected / <code>NO_COLOR</code> output contains no ANSI escape bytes</strong
+        >
+        (no <code>\x1b[</code>), yet stays column-aligned. (Asserted by test.)
+      </li>
+      <li>
+        On a TTY without <code>NO_COLOR</code>, output contains color escapes; stripping the escapes
+        yields exactly the plain-mode layout.
+      </li>
+      <li>
+        <code>--json</code> prints valid JSON that deep-equals the
+        <code>listPendingApprovals</code> result (same object the MCP tool returns) —
+        <strong>parity</strong>, never colorized, and honored even on a TTY. (Asserted by test.)
+      </li>
+      <li>
+        The existing empty-state message is preserved (human mode); <code>--json</code> empty state
+        is <code>{ "count": 0, "items": [] }</code>-shaped valid JSON.
+      </li>
+      <li>
+        Long titles are truncated with an ellipsis so no row exceeds the terminal width; the short
+        id remains fully visible.
+      </li>
+      <li>
+        <code>substrate pending-approval --bogus</code> still fails via
+        <code>rejectUnknownFlags</code>; <code>--json</code> is accepted.
+      </li>
+      <li>
+        Existing tests in <code>src/cli/commands/pending-approval.test.ts</code> still pass
+        (adjusted to the new layout) and new tests cover the plain/NO_COLOR and
+        <code>--json</code> criteria above.
+      </li>
+    </ul>
+
+    <h2>Open questions (for Diego)</h2>
+    <div class="q">
+      <strong>1. Group labels in the Move column.</strong> The shared aggregate carries group
+      <em>ids</em> (<code>group_id</code>, <code>gate.to_group</code>), and today's output prints
+      those raw ids (e.g. <code>build → review</code>). Show ids (zero risk, no contract change) or
+      resolve to human group <em>names</em>? Names are friendlier but need either a CLI-side board
+      lookup or an additive <code>group_name</code>/<code>to_group_name</code> on the shared item
+      (which the MCP tool + UI would also gain). Default proposed: <strong>keep ids</strong> for
+      this task; enrich later if it grates.
+    </div>
+    <div class="q">
+      <strong>2. Truncation budget.</strong> When <code>process.stdout.columns</code> is undefined
+      (non-TTY) or very narrow (&lt;~80), what's the fallback width — assume 80, or don't truncate
+      at all when width is unknown? Proposed: assume 80 when unknown, shrink Task column to a floor
+      (~24 chars) before truncating id/command.
+    </div>
+    <div class="q">
+      <strong>3. Color palette.</strong> Any preference beyond "board header bold + approve-command
+      colored + awaiting emphasized"? (e.g. dim the short id, yellow the awaiting field.) Proposed
+      defaults live in the plan; easy to tune.
+    </div>
+    <div class="q">
+      <strong>4. Fallback list.</strong> The locked decision keeps a colorized aligned
+      <em>list</em> documented only as a lean fallback if the table proves too heavy. Ship the table
+      alone now and leave the list unbuilt (documented in the plan), correct?
+    </div>
+  </body>
+</html>

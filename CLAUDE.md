@@ -21,9 +21,17 @@ This project has a `.substrate/` with a **`dev`** board and a **`release`** boar
 2. Record work as tasks and move them across the board as you go; use comments
    for decisions.
 
-The **`dev` board** models how we ship a change: **Backlog → Spec & Plan → Build &
-Test → Review → Pending Review and Approval → Merged (dev)**, with three gates:
+The **`dev` board** models how we ship a change: **Ideas → Backlog → Spec & Plan →
+Build & Test → Review → Pending Review and Approval → Merged (dev)**, with five
+gates (three human-only, marked 🔒):
 
+- 🔒 **Ideas → Backlog** requires `idea_approved` — Diego promotes an idea into
+  the backlog (`substrate approve <task_id> idea_approved`). Agents can't self-promote.
+- **Spec & Plan** — author the spec + plan as **self-contained HTML docs** in
+  `docs/specs/<slug>.html` and `docs/plans/<slug>.html`, linked from the task's
+  `spec_doc`. See `docs/README.md`.
+- 🔒 **Spec & Plan → Build & Test** requires `plan_approved` — Diego approves the
+  spec + plan before implementation (`substrate approve <task_id> plan_approved`).
 - **Build → Review** requires `tests_green` — set it only after build + tsc +
   lint + format + all tests pass **locally** (CI is billing-blocked; validate
   locally — see [memory: CI Actions billing limit]).
@@ -31,7 +39,7 @@ Test → Review → Pending Review and Approval → Merged (dev)**, with three g
   only after **both** independent reviewers APPROVE. Spawn ≥2 adversarial
   reviewers with distinct lenses, wait for both, re-run any that die, fold in
   blocking findings and re-review the fix round. **Never self-grade a review.**
-- **Pending Review and Approval → Merged (dev)** requires `diego_approved`, a
+- 🔒 **Pending Review and Approval → Merged (dev)** requires `diego_approved`, a
   **human-only** field (B3) — an agent's write tools refuse it. Diego signs off
   with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.
   Run `substrate pending-approval` to see what's waiting on him.

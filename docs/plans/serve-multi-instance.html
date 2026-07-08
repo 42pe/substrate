@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Multi-instance serve</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.7rem 0.9rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.85em;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.4rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Multi-instance serve</h1>
+    <p class="meta">
+      dev board · task <code>serve-multi-instance</code> ·
+      <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../specs/serve-multi-instance.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      Ship the MVP free-port fallback first — it fully satisfies the acceptance bar (two serves
+      coexist) and is a small, contained change to the serve lifecycle. Treat
+      <code>.local</code> stable URLs as a written recommendation; only implement if it turns out
+      cheap. The core move: stop treating a busy preferred port as a fatal <code>EADDRINUSE</code>,
+      and instead scan a bounded range for the first free port, then persist which port we bound so
+      <code>diagnose</code> and the operator can find it.
+    </p>
+
+    <h2>Step-by-step work (MVP)</h2>
+    <ol>
+      <li>
+        <strong>Add a port-range picker.</strong> New helper in
+        <code>src/shared/process.ts</code> (already the home of <code>isPortInUse</code>,
+        <code>isProcessAlive</code>, <code>identifyPortHolder</code>) — e.g.
+        <code>findFreePort(preferred, rangeStart, rangeEnd)</code> that tries
+        <code>preferred</code> first then scans, returning the first free port or throwing a clear
+        "no free port in 7475–7499" error. Prefer binding attempts over pre-probing to avoid a
+        TOCTOU gap: attempt the bind and treat <code>EADDRINUSE</code> as "try next", rather than
+        <code>isPortInUse</code>-then-bind (two processes could pass the probe and race).
+      </li>
+      <li>
+        <strong>Introduce range constants.</strong> In <code>src/http/server.ts</code> alongside
+        <code>DEFAULT_PORT</code>, add <code>PORT_RANGE_START = 7475</code> and
+        <code>PORT_RANGE_END = 7499</code> (or export a single <code>PORT_RANGE</code>). Keeps the
+        one source of truth the rest of the code imports.
+      </li>
+      <li>
+        <strong>Rework the bind in <code>serveCommand</code>.</strong> In
+        <code>src/cli/commands/serve.ts</code> (lines ~76–114), replace the single
+        <code>startHttpServer(app, port)</code> + <code>EADDRINUSE→throw</code> block with a loop:
+        for each candidate port, rebuild the
+        <code>allowedOrigins</code>/<code>allowedHosts</code>/<code>HttpConfig</code> for that port
+        (they're port-derived today, lines ~89–98), build the app, and <code>startHttpServer</code>;
+        on <code>EADDRINUSE</code> continue to the next candidate; on the first success, keep it.
+        Note: the app + allowlist must be rebuilt per attempt because the CORS/Host allowlist embeds
+        the port. If <code>SUBSTRATE_PORT_OVERRIDE</code> is set, honor it exactly as today (no scan
+        — tests pin an exact port), preserving the existing integer validation.
+      </li>
+      <li>
+        <strong>Persist the chosen port.</strong> Extend the bookkeeping that today is just the PID
+        file (<code>paths(root).pid</code> → <code>.substrate/substrate.pid</code>, currently
+        <code>writeFile(p.pid, String(process.pid), {flag:'wx'})</code> at serve.ts ~119). Pending
+        Diego's answer on format (spec open question): recommended is a single gitignored runtime
+        file <code>.substrate/serve.json</code> = <code>{ pid, port, started_at }</code>, written
+        with the same exclusive-create (<code>wx</code>) semantics after a successful bind so the
+        race guard (Reviewer C-4) is preserved. Add <code>serveRuntime</code> path(s) to
+        <code>src/shared/paths.ts</code> (<code>SubstratePaths</code>) so nobody hand-builds the
+        path.
+      </li>
+      <li>
+        <strong>Update cleanup paths.</strong> Every place that unlinks the PID file — the stale
+        reclaim (serve.ts ~65), the shutdown handler (~149), and the
+        <code>beforeExit</code> best-effort (<code>unlinkSync</code>, ~170) — must also clear the
+        new port record (or, if we merge into one <code>serve.json</code>, just that one file). Keep
+        the "PID dead ⇒ reclaim" logic keyed on the PID.
+      </li>
+      <li>
+        <strong>Teach <code>diagnose</code> the real port.</strong> In
+        <code>src/cli/commands/diagnose.ts</code> (lines ~41–47) it currently probes only
+        <code>DEFAULT_PORT</code>. Change it to read the per-project runtime record: if present and
+        its PID is alive, report "serving on port &lt;port&gt; (pid N)"; else probe the range and
+        report which slots are in use, or "no server running here". This closes the "which port is
+        this project on?" discovery gap.
+      </li>
+      <li>
+        <strong>Update the startup log + help text.</strong> The <code>logger.info</code> at
+        serve.ts ~133 already interpolates the chosen port — good. Update the header-comment flow
+        description in serve.ts (§4 says "Bind Hono to 127.0.0.1:7475") and the CLI help line in
+        <code>src/cli/index.ts</code> (~48, "default: http://localhost:7475") to mention the
+        fallback range.
+      </li>
+    </ol>
+
+    <h2>Files / touchpoints (real paths)</h2>
+    <ul>
+      <li>
+        <code>src/cli/commands/serve.ts</code> — bind loop, port persistence, cleanup on all
+        teardown paths, header-comment update.
+      </li>
+      <li>
+        <code>src/http/server.ts</code> — <code>DEFAULT_PORT</code> stays; add range constants.
+        <code>startHttpServer</code> already rejects on the async <code>'error'</code> event, so the
+        loop can <code>try/await</code> each attempt.
+      </li>
+      <li>
+        <code>src/shared/process.ts</code> — new <code>findFreePort</code> / range-scan helper next
+        to the existing port helpers.
+      </li>
+      <li>
+        <code>src/shared/paths.ts</code> — add the runtime-record path to
+        <code>SubstratePaths</code> (and <code>paths()</code>).
+      </li>
+      <li>
+        <code>src/cli/commands/diagnose.ts</code> — read the runtime record; report actual port(s).
+      </li>
+      <li><code>src/cli/index.ts</code> — help text (~48).</li>
+      <li>
+        <code>.gitignore</code> — currently ignores <code>.substrate/substrate.pid</code>; add the
+        new runtime file (or keep the merged <code>serve.json</code> ignored).
+      </li>
+      <li>
+        <code>tests/smoke/ui-seed-and-serve.ts</code> — unchanged behavior (still sets
+        <code>SUBSTRATE_PORT_OVERRIDE</code> to pin an exact port); verify the override path still
+        bypasses the scan.
+      </li>
+      <li>Docs: <code>README.md</code> (~25) and any serve mention should note the fallback.</li>
+    </ul>
+
+    <h2>The <code>.local</code> options, assessed</h2>
+    <table>
+      <tr>
+        <th>Option</th>
+        <th>UX</th>
+        <th>Setup cost</th>
+        <th>Solves port?</th>
+        <th>Verdict</th>
+      </tr>
+      <tr>
+        <td><code>/etc/hosts</code> per project</td>
+        <td>Stable name, but sudo + manual edit each project; and a name can't carry a port</td>
+        <td>Per-project sudo</td>
+        <td>No — still points at one IP, not a port</td>
+        <td>Reject (worst UX)</td>
+      </tr>
+      <tr>
+        <td><code>dnsmasq</code> + <code>/etc/resolver/substrate.local</code> wildcard</td>
+        <td>One-time wildcard, no per-project sudo</td>
+        <td>One-time: install dnsmasq, resolver file (sudo once)</td>
+        <td>
+          No by itself — resolves <code>*.substrate.local→127.0.0.1</code> but every project would
+          still need a distinct port
+        </td>
+        <td>Only useful paired with a proxy</td>
+      </tr>
+      <tr>
+        <td>Always-on reverse proxy (slug→port)</td>
+        <td>
+          Stable <code>slug.substrate.local</code> URL that actually routes to the right serve
+        </td>
+        <td>
+          A long-running proxy process + name resolution (hosts or dnsmasq) + reading each project's
+          port record
+        </td>
+        <td>Yes</td>
+        <td>The only complete solution — but it's a whole new always-on component</td>
+      </tr>
+    </table>
+    <h3>Recommendation</h3>
+    <p>
+      <strong>Defer <code>.local</code> for now; ship the MVP.</strong> A bare
+      <code>.local</code> name (hosts or dnsmasq) does not solve the actual problem — routing to the
+      <em>right port</em> — so it's cosmetic unless we also stand up an always-on reverse proxy that
+      reads each project's persisted port and maps <code>slug → 127.0.0.1:port</code>. That proxy is
+      a new supervised component (lifecycle, port-record watching, restart, staleness) — out of
+      proportion to the MVP and to the acceptance bar. The MVP already makes multi-serve "just
+      work"; combined with <code>diagnose</code> listing the port, discovery is solved without new
+      infrastructure. Revisit the proxy as a separate task if shifting ports prove annoying in daily
+      use; if so, dnsmasq + resolver (no per-project sudo) is the right name layer to pair with it,
+      and the slug should derive from <code>project_id</code> to avoid
+      <code>basename(cwd)</code> collisions.
+    </p>
+
+    <h2>Risks</h2>
+    <ul>
+      <li>
+        <strong>TOCTOU on port selection.</strong> Probe-then-bind lets two racing serves pick the
+        same port. Mitigation: drive selection by attempting the bind and catching
+        <code>EADDRINUSE</code> to advance, not by pre-checking with <code>isPortInUse</code>.
+      </li>
+      <li>
+        <strong>Stale port record.</strong> A crash could leave a runtime file pointing at a port no
+        longer served. Mitigation: gate reads on <code>isProcessAlive(pid)</code> (already used for
+        PID reclaim) — a dead PID means the record is stale and should be ignored/reclaimed, same as
+        the PID file today.
+      </li>
+      <li>
+        <strong>Format migration.</strong> If we fold PID+port into one <code>serve.json</code>, an
+        in-flight old bare-<code>substrate.pid</code> from a previous binary could exist.
+        Mitigation: on read, tolerate the legacy bare-PID file (treat as pid-only, port unknown); on
+        write, always emit the new format. Low risk — the file is runtime-only and gitignored, never
+        shared.
+      </li>
+      <li>
+        <strong>Discovery across many projects.</strong> With N serves on N ports, "which is which"
+        is only answerable per-project via <code>diagnose</code>. Acceptable for MVP; a future
+        <code>substrate serve --list</code> or the proxy would centralize it. Out of scope here.
+      </li>
+      <li>
+        <strong>Allowlist correctness.</strong> The origin/Host allowlist is port-derived;
+        rebuilding it per bind attempt must use the port actually bound, or CORS/Host checks reject
+        the browser. Covered by rebuilding <code>HttpConfig</code> inside the loop.
+      </li>
+      <li>
+        <strong>Range exhaustion.</strong> 25 concurrent serves is unlikely, but the error must name
+        the range tried and suggest stopping an instance.
+      </li>
+    </ul>
+
+    <h2>Test strategy</h2>
+    <ul>
+      <li>
+        <strong>Unit:</strong> <code>findFreePort</code> — returns preferred when free; skips an
+        occupied preferred to the next; throws a named error when the whole range is bound. Bind
+        real ephemeral servers in the test to occupy slots (mirrors <code>isPortInUse</code>'s own
+        approach with <code>node:net</code>).
+      </li>
+      <li>
+        <strong>Integration / smoke:</strong> extend the pattern in
+        <code>tests/smoke/ui-seed-and-serve.ts</code> — start one serve on the preferred port, then
+        a second project's serve <em>without</em> <code>SUBSTRATE_PORT_OVERRIDE</code> (or with the
+        override cleared) and assert it comes up on a different in-range port and its
+        <code>/health</code> answers. Confirms the acceptance criterion (two coexisting serves,
+        neither errors).
+      </li>
+      <li>
+        <strong>diagnose:</strong> extend <code>src/cli/commands/diagnose.test.ts</code> — with a
+        live runtime record, diagnose reports the actual port; with a stale (dead-PID) record, it
+        reports no server / probes the range.
+      </li>
+      <li>
+        <strong>Regression:</strong> single serve with <code>7475</code> free still binds
+        <code>7475</code>; <code>SUBSTRATE_PORT_OVERRIDE</code> still pins exactly and bypasses the
+        scan (guards the existing test fixture); shutdown + stale reclaim remove both PID and port
+        records.
+      </li>
+      <li>
+        <strong>Local gate:</strong> per CLAUDE.md, run build + tsc + lint + format + full tests
+        locally (CI is billing-blocked) before setting <code>tests_green</code>.
+      </li>
+    </ul>
+
+    <h2>Rollout</h2>
+    <ul>
+      <li>
+        Backward compatible: the common single-serve case is unchanged (still <code>7475</code>);
+        the fallback only triggers on conflict. No config or schema migration — the runtime record
+        is gitignored and regenerated each serve.
+      </li>
+      <li>
+        Ship MVP under this task on a feature branch off <code>dev</code>, PR into
+        <code>dev</code> per the branching model; <code>.local</code> proxy, if pursued, is a
+        follow-up task with its own spec/plan.
+      </li>
+      <li>
+        Docs: update <code>README.md</code>, the serve help line, and the serve.ts header comment in
+        the same PR so the documented behavior matches. Version bump / release handled later via the
+        <code>release</code> board.
+      </li>
+    </ul>
+  </body>
+</html>

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Board name in top bar</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Board name in top bar</h1>
+    <p class="meta">
+      dev board · task <code>board-name-top-bar</code> ·
+      <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../plans/board-name-top-bar.html">plan →</a>
+    </p>
+
+    <h2>Problem</h2>
+    <p>
+      The read-only inspector (<code>ui/</code>, served at <code>localhost:7475</code>) has a single
+      global header (<code>ui/src/routes/Layout.tsx</code> → <code>Shell</code>) that never changes
+      between routes: a fixed <em>Substrate</em> wordmark, the primary nav (Overview / Boards /
+      Activity), and a theme toggle. Once you click into a board or a task, nothing in that
+      persistent chrome tells you <strong>which board you are looking at</strong> or
+      <strong>which project</strong> you are in. You have to read it off the page
+      <code>&lt;h1&gt;</code> (present on <code>BoardDetail</code>, but on
+      <code>TaskDetail</code> the only board affordance is a raw <code>board_id</code> back-link —
+      <code>← main</code>, not the human name) or infer it from the URL. The bare route reads poorly
+      and the board <em>name</em> — which the data already carries — is never surfaced in a stable
+      spot.
+    </p>
+    <p>
+      The data is already there: <code>getProject()</code> returns <code>project_name</code>,
+      <code>getBoard(id)</code> returns <code>board.name</code>, and every task from
+      <code>getTask(id)</code> carries a <code>board_id</code> (<code>ui/src/lib/api.ts</code>).
+      This is purely a UI-surfacing task — no schema or API change.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        A persistent app header that always shows the <strong>project name</strong> (linking to
+        Overview <code>/</code>).
+      </li>
+      <li>
+        When on a board route (<code>/boards/:id</code>) or a task route (<code>/tasks/:id</code>),
+        the header also shows the <strong>active board's human name</strong> (not its id), and
+        clicking it navigates to that board.
+      </li>
+      <li>
+        The header updates correctly on client-side navigation (board → task → another board →
+        Overview) with no stale name.
+      </li>
+      <li>
+        Works across all three deep routes: <strong>board (kanban)</strong>,
+        <strong>board (list)</strong>, and <strong>task detail</strong>.
+      </li>
+      <li>
+        Stays read-only, responsive, and theme-aware; does not crowd or displace the existing
+        live-polling indicator (<code>LiveIndicator</code>), which lives in page body sections, not
+        the header.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <ul>
+      <li>
+        No board <em>switcher</em>/dropdown in the header — just a name (and its link). A picker is
+        a separate follow-up.
+      </li>
+      <li>
+        No new server endpoint or aggregate route; reuse the existing <code>getProject</code> /
+        <code>getBoard</code> / <code>getTask</code> GETs.
+      </li>
+      <li>
+        No schema change — boards already carry <code>name</code>, projects already carry
+        <code>project_name</code>.
+      </li>
+      <li>
+        No change to the page-level <code>&lt;h1&gt;</code> on
+        <code>BoardDetail</code>/<code>TaskDetail</code>, to the nav items, or to the live
+        indicator's placement/behavior.
+      </li>
+      <li>
+        No breadcrumb of group/task title in the header (out of scope; the board name is the ask).
+      </li>
+    </ul>
+
+    <h2>Scope</h2>
+    <ul>
+      <li>
+        <strong>Touched surface:</strong> the shared header inside
+        <code>ui/src/routes/Layout.tsx</code> (the <code>Shell</code> component), plus a small new
+        header component/hook and its unit test. All four routes render through
+        <code>Layout</code>'s <code>&lt;Outlet/&gt;</code> (see <code>ui/src/main.tsx</code>), so a
+        header change applies everywhere at once.
+      </li>
+      <li>
+        <strong>Header contents, left→right:</strong> <em>Substrate</em> wordmark (unchanged, →
+        <code>/</code>) · project name (→ <code>/</code>) · when on a board/task route, a separator
+        + the active board name (→ that board). Primary nav and the theme toggle stay where they
+        are.
+      </li>
+      <li>
+        <strong>Data sourcing:</strong> project name from <code>getProject()</code>. Active board
+        name resolved from the route: on <code>/boards/:id</code> directly via
+        <code>getBoard(id)</code>; on <code>/tasks/:id</code> via <code>getTask(id)</code> →
+        <code>board_id</code> → <code>getBoard(board_id)</code> (the acknowledged extra fetch).
+        Details of reuse-vs-refetch are a plan/implementation decision — see the plan.
+      </li>
+    </ul>
+
+    <h2>Acceptance criteria</h2>
+    <ul>
+      <li>
+        On Overview (<code>/</code>), Boards (<code>/boards</code>), and Activity
+        (<code>/activity</code>): the header shows the project name linking to Overview; no board
+        segment is shown.
+      </li>
+      <li>
+        On <code>/boards/:id</code> (both <code>?view=kanban</code> and <code>?view=list</code>):
+        the header shows <code>project · &lt;board name&gt;</code>, and the board name links to that
+        board.
+      </li>
+      <li>
+        On <code>/tasks/:id</code>: the header shows <code>project · &lt;board name&gt;</code> for
+        the task's own board (resolved from <code>board_id</code>), with the name — not the raw id.
+      </li>
+      <li>
+        Navigating between routes updates the board segment immediately; leaving a board/task route
+        clears it. No stale board name.
+      </li>
+      <li>
+        The header is responsive (wraps/truncates gracefully on narrow widths) and does not overlap
+        or crowd the live indicator.
+      </li>
+      <li>
+        While the board name is loading or fails to resolve, the header degrades gracefully (see
+        open questions) — it never shows a raw error or a jarring layout jump.
+      </li>
+      <li>
+        <strong>Tests updated:</strong> a new component test for the header (project always shown;
+        board name shown on board/task routes, absent elsewhere; updates on navigation), and the
+        Playwright smoke (<code>tests/smoke/ui.spec.ts</code>) asserts the header board name
+        (<code>Roadmap</code>) is visible on <code>/boards/main</code> and <code>/tasks/t1</code>.
+      </li>
+    </ul>
+
+    <h2>Open questions (for Diego)</h2>
+    <ul>
+      <li>
+        <strong>Exact header contents per route.</strong> Proposed: wordmark +
+        <code>project · board</code> (project always a link to Overview). Is the
+        <em>Substrate</em> wordmark + project name redundant — should the wordmark be dropped in
+        favor of just the project name, or kept as the app identity? And on the plain routes
+        (Overview/Boards/Activity), show project name only, or nothing extra?
+      </li>
+      <li>
+        <strong>Separator/format.</strong> <code>Project · Board</code> vs a breadcrumb chevron
+        (<code>Project ⟩ Board</code>) vs two distinct pills. Any preference to match the existing
+        badge/muted-text vocabulary?
+      </li>
+      <li>
+        <strong>Task route board fetch.</strong> Acceptable to do the extra
+        <code>getBoard(board_id)</code> on task detail (simplest, decoupled), or should we thread
+        the already-fetched board data up to the header to avoid it (more coupling, slight flash on
+        first paint)? See plan Risks.
+      </li>
+      <li>
+        <strong>Loading/failure behavior.</strong> While the board name resolves (or if
+        <code>getBoard</code> 404s/errors), should the header (a) show nothing for the board
+        segment, (b) fall back to showing the board <code>id</code>, or (c) show a subtle skeleton?
+        Preference to avoid layout shift.
+      </li>
+      <li>
+        <strong>Mobile behavior.</strong> At the narrowest widths the header already wraps (nav +
+        toggle). Should the board name truncate with an ellipsis on one line, wrap to a second line,
+        or be hidden below a breakpoint (kept only as the page <code>&lt;h1&gt;</code>)?
+      </li>
+      <li>
+        <strong>Archived boards.</strong> Should the header board segment carry the
+        <em>archived</em> marker (as <code>BoardDetail</code>'s <code>&lt;h1&gt;</code> does), or
+        stay name-only to keep the bar slim?
+      </li>
+    </ul>
+  </body>
+</html>

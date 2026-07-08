@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Skill/binary sync</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Skill/binary sync</h1>
+    <p class="meta">
+      dev board · task aa08a050 · <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../plans/skill-sync-substrate-update.html">plan →</a>
+    </p>
+
+    <h2>Problem</h2>
+    <p>
+      The globally-installed agent skill (<code>~/.claude/skills/substrate</code>) and the global
+      <code>substrate</code> binary drift apart. There is no coupling between them: updating
+      Substrate means rebuild + reinstall the binary (<code>pnpm build</code> then
+      <code>pnpm add -g …</code>, per <code>RELEASING.md</code> "After a release")
+      <em>and</em> separately <code>cp -R skills/substrate ~/.claude/skills/substrate</code>. The
+      copy step is manual and easy to forget — it just bit us: four tool clusters shipped in the
+      binary while the installed <code>SKILL.md</code> still advertised the old tool count until a
+      human noticed. Every agent session in the meantime reads the stale skill and reasons from
+      wrong facts (tool counts, command lists, conventions).
+    </p>
+    <p>
+      Two structural facts make this worse. (1) The skill source lives only in this repo
+      (<code>skills/substrate/</code>); it is <strong>not</strong> in the npm package's
+      <code>files</code> allowlist (<code>package.json</code> ships only
+      <code>["dist", "README.md", "LICENSE", "CHANGELOG.md"]</code>), so post-npm there is no repo
+      to <code>cp</code> from. (2) Nothing stamps or checks the installed skill's version, so drift
+      is silent — it is discovered by a human reading, not by a tool.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        <strong>Ship the skill inside the package.</strong> The installed package carries its own
+        canonical skill source, so a refresh has a source of truth even after npm publish (no repo
+        checkout required).
+      </li>
+      <li>
+        <strong>A first-class refresh command.</strong> One command copies the packaged skill into
+        <code>~/.claude/skills/substrate</code> idempotently and version-stamped, so re-running is
+        safe and drift is repairable.
+      </li>
+      <li>
+        <strong>Drift is detectable, not just fixable.</strong> A <code>--check</code> mode reports
+        drift and exits non-zero (for CI / diagnose); <code>substrate diagnose</code> (and possibly
+        <code>whoami</code>) surfaces a warning when the installed skill's stamped version ≠ the
+        binary's <code>BINARY_VERSION</code>.
+      </li>
+      <li>
+        <strong>Release wiring.</strong> The "refresh the skill" step is documented alongside
+        "reinstall the binary" in <code>RELEASING.md</code> and encoded in the
+        <code>release</code> board's Released gate — so it is part of the ritual, not a thing to
+        remember.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <ul>
+      <li>
+        <strong>Not</strong> auto-installing the skill via an npm <code>postinstall</code> hook.
+        Global <code>postinstall</code> scripts are fragile (silent failure, sandboxed installs, no
+        TTY, permission surprises) and would write into <code>~/.claude</code> without consent. An
+        explicit command is the default posture. (Left as an open question below in case Diego
+        disagrees.)
+      </li>
+      <li>
+        <strong>Not</strong> managing arbitrary third-party skills — this command owns exactly the
+        <code>substrate</code> skill it ships.
+      </li>
+      <li>
+        <strong>Not</strong> a network fetch. Consistent with the rest of the CLI (templates are
+        network-free; the agent does any cloning), the refresh copies from the local installed
+        package only.
+      </li>
+      <li>
+        <strong>Not</strong> touching how the skill's <em>content</em> is authored
+        (<code>AUTHORING.md</code>, the SKILL.md prose) — only how it is distributed, stamped, and
+        synced.
+      </li>
+      <li>
+        <strong>Out of scope for v1 (decide later):</strong> whether the command also self-updates
+        the <em>binary</em> (see open questions) — v1 scopes to the skill only.
+      </li>
+    </ul>
+
+    <h2>Scope</h2>
+    <ul>
+      <li>
+        <strong>Packaging.</strong> Add <code>skills</code> to the <code>files</code> allowlist in
+        <code>package.json</code> (and update the mirror list in <code>RELEASING.md</code>'s
+        "Publishing to npm" note) so <code>skills/substrate/</code> ships in the tarball.
+      </li>
+      <li>
+        <strong>Version stamp.</strong> A machine-readable stamp on the installed skill recording
+        which <code>BINARY_VERSION</code> produced it, plus a runtime reader the binary uses to
+        compare. (Frontmatter field vs sibling <code>.version</code> file — open question.)
+      </li>
+      <li>
+        <strong>New CLI command.</strong> <code>substrate update</code> (or
+        <code>install-skill</code> — naming is an open question) that: resolves the packaged skill
+        from its own install location; copies it to <code>~/.claude/skills/substrate</code>; writes
+        the version stamp; is idempotent. A <code>--check</code> flag reports drift and exits
+        non-zero without writing. Wired into <code>src/cli/index.ts</code> dispatch, the
+        <code>HELP</code> text, and the <code>ALLOWED_FLAGS_BY_COMMAND</code> allowlist in
+        <code>src/cli/args.ts</code>.
+      </li>
+      <li>
+        <strong>Diagnostics.</strong> <code>src/cli/commands/diagnose.ts</code> gains a probe: read
+        the installed skill's stamp, compare to <code>BINARY_VERSION</code>; a mismatch (or a
+        missing skill) prints a <code>✗</code>/advisory line. Possibly a hint in
+        <code>whoami</code> (<code>src/mcp/tools/read/whoami.ts</code>).
+      </li>
+      <li>
+        <strong>Release ritual.</strong> <code>RELEASING.md</code> "After a release" adds the
+        skill-refresh command; the <code>release</code> board's <code>rel-gate-tagged</code> policy
+        <code>on_failure_message</code> in <code>.substrate/boards/release.json</code> changes from
+        "reinstall the global binary" to "reinstall the binary <em>and</em> refresh the skill".
+      </li>
+    </ul>
+
+    <h2>Acceptance criteria</h2>
+    <ul>
+      <li>
+        <code>npm pack</code> / <code>pnpm pack</code> includes
+        <code>skills/substrate/SKILL.md</code> and <code>skills/substrate/AUTHORING.md</code> in the
+        tarball.
+      </li>
+      <li>
+        Running the new command with a stale or absent
+        <code>~/.claude/skills/substrate</code> leaves it byte-identical to the packaged skill and
+        writes a stamp equal to <code>BINARY_VERSION</code>; running it again is a no-op
+        (idempotent) and reports "already current".
+      </li>
+      <li>
+        The command resolves the packaged skill from the binary's <em>own</em> install path (works
+        when invoked as a global install, not just from the repo).
+      </li>
+      <li>
+        <code>&lt;cmd&gt; --check</code> exits <code>0</code> when the installed stamp matches
+        <code>BINARY_VERSION</code> and content matches; exits non-zero (with a clear message) when
+        the skill is missing or stamped at a different version. It does not modify the filesystem.
+      </li>
+      <li>
+        <code>substrate diagnose</code> prints a skill-sync line and its exit code reflects a
+        drift/missing state consistent with the existing <code>problems</code> convention.
+      </li>
+      <li>
+        An unknown flag on the new command is rejected via <code>rejectUnknownFlags</code>;
+        <code>--help</code> lists the command with <code>BINARY_VERSION</code> in the header
+        (existing behavior preserved).
+      </li>
+      <li>
+        <code>RELEASING.md</code> and <code>.substrate/boards/release.json</code> both instruct
+        "refresh the skill" as part of the post-release / Released step.
+      </li>
+      <li>
+        The whole change validates locally (build + tsc + lint + format + test), since CI is
+        billing-blocked.
+      </li>
+    </ul>
+
+    <h2>Open questions (for Diego)</h2>
+    <ul>
+      <li>
+        <strong>Command name &amp; shape.</strong> <code>substrate update</code> vs
+        <code>substrate install-skill</code>. <code>update</code> reads broader (implies it might
+        also touch the binary); <code>install-skill</code> is precise about what it does.
+        Recommendation: <code>install-skill</code> now (narrow, honest), reserve
+        <code>update</code> for if/when it also self-updates the binary.
+      </li>
+      <li>
+        <strong>Explicit command vs npm <code>postinstall</code>.</strong> Spec assumes
+        explicit-command-only (postinstall is a non-goal). Confirm — or do you want a
+        <em>best-effort</em> postinstall that just prints "run <code>substrate install-skill</code>"
+        rather than writing files?
+      </li>
+      <li>
+        <strong>How to stamp the version.</strong> (a) A frontmatter field in
+        <code>SKILL.md</code> (e.g. <code>x-substrate-version</code>) — travels inside the file the
+        agent reads, but mutates the canonical source and the frontmatter is agent-facing. (b) A
+        sibling <code>.version</code> file written on install — keeps <code>SKILL.md</code> pristine
+        and is trivial to read/compare, but is a second artifact that can be deleted independently.
+        Recommendation: sibling <code>.version</code> (or <code>.substrate-skill-version</code>)
+        file — simplest to read from <code>diagnose</code>/<code>--check</code> and does not touch
+        the authored content.
+      </li>
+      <li>
+        <strong>Does <code>update</code> also self-update the binary, or only the skill?</strong> v1
+        proposes skill-only. If you want a true "update everything" verb, that pulls in reinstalling
+        the global binary (a <code>pnpm add -g</code> / npm reinstall), which is a bigger,
+        environment-specific surface — recommend deferring.
+      </li>
+      <li>
+        <strong>Where does the binary read the packaged skill at runtime?</strong> Note: the CLI
+        currently has <em>no</em> install-path resolution (<code>import.meta.url</code>/<code
+          >fileURLToPath</code
+        >
+        appear nowhere in <code>src/</code> — templates are compiled to JS modules, not read from
+        disk). This command introduces the first "find my own package root" logic. Options: read
+        from <code>&lt;pkgRoot&gt;/skills/substrate</code> (requires <code>skills</code> in
+        <code>files</code>), or copy the skill into <code>dist/</code> at build time and read from
+        there. Recommendation captured in the plan.
+      </li>
+    </ul>
+  </body>
+</html>
