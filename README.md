@@ -54,7 +54,7 @@ npx @diegoferreyra/substrate add <clone-dir> --yes    # apply into the existing 
 
 The CLI is network-free (it never fetches); the agent does the clone. Applying forks the workflow in — you own the copy. See [`examples/web-delivery`](examples/) for a template you can apply today.
 
-Other commands: `substrate backup`, `substrate export <path>`, `substrate import <path>`, `substrate diagnose` (prints environment + substrate health — include its output in bug reports), `substrate logs [--errors]` (prints recent error-log lines — useful for bug reports). Run `npx @diegoferreyra/substrate --help` for the full list.
+Other commands: `substrate backup`, `substrate export <path>`, `substrate import <path>`, `substrate diagnose` (prints environment + substrate health — include its output in bug reports), `substrate logs [--errors]` (prints recent error-log lines — useful for bug reports), `substrate validate` (server-less lint of boards + policies — corrupt substrate exits non-zero, CI-friendly), `substrate pending-approval` (lists every task waiting on a human sign-off), and `substrate approve <task_id> <field>` (the human channel for setting a `human_only` gate field — see [gates](#what-gates-do-and-dont-do)). Run `npx @diegoferreyra/substrate --help` for the full list.
 
 The long-lived `mcp`/`serve` processes record warnings and errors to `.substrate/logs/substrate.log` (gitignored, local-only) so a problem is diagnosable after the fact.
 
@@ -67,11 +67,17 @@ The long-lived `mcp`/`serve` processes record warnings and errors to `.substrate
 - **Two policy classes (v1).** `transition_guard` (block disallowed group transitions) and `agent_responsibility` (attach suggestions to matching writes). Every write returns an envelope listing the policies that fired.
 - **One read-only web UI.** `substrate serve` hosts a localhost-only inspector. Boards render as a **live kanban** — columns by workflow group, with a List view a click away — and the Overview shows every board as a wall you can scan at once. It **auto-refreshes**, so when an agent moves a task between groups the board reflects it within seconds (the UI only observes — it never writes; there's no drag-and-drop). Author-supplied markdown is rendered through a single sanitized path.
 
+### Worktrees & fresh clones
+
+`.substrate/boards/*.json` (the workflow) is committed to git, but `.substrate/data.sqlite` (the tasks, comments, and event log) is **gitignored** — runtime state doesn't travel with the repo. So a **git worktree or a fresh clone checks out the boards but starts with an empty task database** (libsql creates a fresh empty one on open). An agent working in that worktree silently operates on its own empty board, not the one in your main checkout. Substrate **warns** on startup when it opens a `.substrate/` that has boards but just created an empty database, so this doesn't bite silently. Until a shared-DB pointer lands, the fix is to run Substrate (`mcp`/`serve`) with its working directory pointed at the **main checkout's** `.substrate/`, or use `substrate export`/`import` to move task state deliberately. Stick to one checkout per project for now.
+
 ## What gates do and don't do
 
 A `transition_guard` is a real, structural rail: it blocks a group transition when a required field isn't set and returns `transition_blocked` to the agent **at write time**. But the field it checks is **self-attested** — the agent sets `tests_passing: true` itself; nothing runs the tests. A gate is a *confession step*, not a control: it records the agent's claim and blocks until the claim is made, but it doesn't verify the claim is true. An agent that would skip review under pressure can also set the flag under pressure.
 
 That's still useful — a perfectly-timed hard rail beats advisory prose an agent has drifted from — but it's worth being precise about. (Gates backed by **verifiable evidence** — command exit codes, CI status, file existence — is where enforcement becomes real; it's a roadmap item, not v1.)
+
+**Human-approval gates are the exception.** Mark a `field_schema.task` field `human_only` and it becomes a field an agent's write tools *refuse* to set (and `update_board` refuses to un-protect) — only a human can, via `substrate approve <task_id> <field>` (or the UI). A `transition_guard` requiring a `human_only` field is therefore a real human sign-off gate an unattended agent structurally cannot self-clear. Tasks stuck at such a gate are reported by `substrate pending-approval` / the `list_pending_approvals` tool and flagged with a "pending approval" pill in the UI. (The guard *policy* is still substrate-as-code an agent could rewrite — a visible, git-tracked act, not a silent bypass.)
 
 ## Using Substrate with a coding agent
 
@@ -96,7 +102,7 @@ say:
 
 > Track our work in Substrate.
 
-and it takes over — driving Substrate's 29 MCP tools by a documented set of
+and it takes over — driving Substrate's 31 MCP tools by a documented set of
 conventions (`whoami` first, optimistic-concurrency updates, read the policy
 envelope, …). The full guide is [`skills/substrate/SKILL.md`](skills/substrate/SKILL.md).
 

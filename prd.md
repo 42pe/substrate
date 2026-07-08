@@ -174,11 +174,13 @@ No tokens, no per-install secrets in v1. (Deferred.)
 - `get_project()`
 - `list_boards(filters?, pagination?)`
 - `get_board_substrate(board_id)` → board + groups + field_schema + policies in one payload.
-- `list_tasks(filters, sort?, pagination?)` — full filter set per design doc.
+- `list_tasks(filters, sort?, pagination?)` — full filter set per design doc. *(updated 2026-07-07: filters are now top-level params (not nested); returns lightweight summary rows by default — `view: 'titles' | 'full'` for leaner/complete rows.)*
 - `get_task(id)`
 - `get_task_history(task_id, filters?, pagination?)`
 - `list_comments(task_id, filters?, pagination?)`
 - `get_comment(id)`
+- **`check_transition(task_id, to_group)`** *(added 2026-07-07: dry-runs whether a group move would be allowed by the guards — writes nothing, no throwaway task.)*
+- **`list_pending_approvals(board_id?)`** *(added 2026-07-07: every task whose move is blocked on an unset `human_only` gate field — board + gate + `awaiting_fields`.)*
 
 `list_projects` removed (always one project).
 
@@ -198,17 +200,18 @@ No tokens, no per-install secrets in v1. (Deferred.)
 
 Policy reference semantics: `from_group` / `to_group` reference **group IDs**, not names. Robust to renames.
 
-### 6.9 Operator set (v1, trimmed)
+### 6.9 Operator set (v1)
 ```
 Existence:   exists, not_exists, is_empty, not_empty
 Equality:    eq, neq
 Sets:        in, not_in
 Numeric:     gt, gte, lt, lte
-String:      contains
+String:      contains, not_contains, starts_with, ends_with, matches_regex, matches_any_keyword
+Array:       has_any, has_all
 ```
 Compound: `all_of`, `any_of`, `none_of`.
 
-Other operators from the original design (`matches_regex`, `matches_any_keyword`, `starts_with`, `ends_with`, `has_any`, `has_all`) **cut from v1**. Add when a real policy demands one.
+*(updated 2026-07-07: the string + array operators the earlier draft listed as "cut from v1" (`not_contains`, `starts_with`, `ends_with`, `matches_regex`, `matches_any_keyword`, `has_any`, `has_all`) are in fact implemented and available — see `src/policy/operators.ts` and the operator table in `AUTHORING.md`. The list above is the real shipped set.)*
 
 Field reference: dot notation with implicit `custom_data` nesting (`task.custom_data.priority`).
 
@@ -216,7 +219,7 @@ Field reference: dot notation with implicit `custom_data` nesting (`task.custom_
 Lazy validation on touched fields against `field_schema`. Schema changes never reject existing data. `list_tasks(missing_required_fields: true)` available. (design doc §*Schema validation: lazy*.)
 
 ### 6.11 Concurrency
-Optimistic concurrency on `version` int. Per-task version in SQLite. Per-board/group/policy version stored inside each JSON file, bumps on save. Substrate-edit writes use atomic write-temp-and-rename pattern with version CAS. `version_mismatch` does not return current version — forces re-read.
+Optimistic concurrency on `version` int. Per-task version in SQLite. Per-board/group/policy version stored inside each JSON file, bumps on save. Substrate-edit writes use atomic write-temp-and-rename pattern with version CAS. `version_mismatch` returns the current version in `error.details.current_version` *(reversed 2026-07-07 (B5): three dogfood agents flagged that withholding it forced a wasted re-read just to fetch the integer; the message still requires re-read + reconcile before retrying — the honest safeguard is the requirement, not the missing number).*
 
 SQLite WAL mode handles concurrent agent writes natively.
 
@@ -233,13 +236,19 @@ Browser at `http://localhost:7475`. Read-only views only:
 **No authoring forms in v1.** Substrate is authored via editor + setup-agent only. Eliminates UI gravitational pull.
 
 ### 6.14 CLI surface (v1)
-- `npx substrate init [--no-starter-board]`
+- `npx substrate init [--no-starter-board] [--template <name-or-path>]`
 - `npx substrate` (alias: `npx substrate serve`) — HTTP UI server.
 - `npx substrate mcp` — stdio MCP server.
+- `npx substrate add <path> [--yes] [--as <id>]` — apply a shared substrate template into an existing `.substrate/` (dry-run unless `--yes`).
 - `npx substrate backup [--out path]` — tarball `.substrate/`.
-- `npx substrate export [--format json]` — text dump of all substrate + runtime state.
-- `npx substrate import <path>` — restore from export.
+- `npx substrate export <path>` — write a `.tar.gz` archive of the substrate + runtime state.
+- `npx substrate import <path>` — restore from an archive (`--force` to overwrite).
+- `npx substrate explain [--out <file>]` — write a self-contained HTML map of the substrate.
 - `npx substrate diagnose` — prints Node version, OS, port-conflict checks, schema version, file integrity, paths. (For OSS support.)
+- `npx substrate logs [-n <N>] [--errors]` — print recent log lines (`--errors` filters to the error trail).
+- `npx substrate approve <task_id> <field> [value]` *(added 2026-07-07: the human channel for setting a `human_only` gate field — agents' write tools refuse these; stamped `human:<user>`.)*
+- `npx substrate validate` *(added 2026-07-07: server-less lint of boards + policies — corrupt substrate exits non-zero (CI-friendly), plus advisory warnings on dead guards.)*
+- `npx substrate pending-approval` *(added 2026-07-07: list every task waiting on a human sign-off, grouped by board, with the unblock command.)*
 
 ### 6.15 Easter egg
 `reverse_captcha` MCP tool. `whoami` hints at it. (design doc §*Easter egg*.)
@@ -287,7 +296,7 @@ Stack locked 2026-05-09:
 - **R1: `agent_responsibility`-as-load-bearing is an untested bet.** v1 hinges on this class being useful. If it turns out agents ignore envelope suggestions, the v1 cut is wrong and we shipped a worse Linear.
 - **R2: persona broad enough to fail.** "Technical user with an agent fleet" is wide. Some users will be Claude-Code-with-MCP; others will be custom Python orchestrators. v1 optimizes for the former; the latter may have a rougher edge.
 - **R3: policy mental model heavy even at two classes.** If guards + responsibility don't get used, simplify in v1.x.
-- **R4: `version_mismatch` UX with no `current_version`.** Naive agents may livelock. Watch for retry storms.
+- **R4: `version_mismatch` UX. ~~with no `current_version`~~ — RESOLVED 2026-07-07 (B5).** `version_mismatch` now returns `current_version` in `details` (see §6.11), removing the wasted re-read a retrying agent needed; the message still requires re-read + reconcile, so blind-overwrite livelock isn't invited. Watch retry patterns in the dogfood.
 - **R5: SQLite native-dep install friction.** First OSS user on Windows or an exotic platform may file an `npm install` failure. Mitigation: documented in SUPPORT.md; revisit if frequent.
 - **R6: Schema migration robustness.** Forward-only, transactional, with auto-backup — but the first breaking migration must be done with care.
 - **R7: OSS support burden.** Solo dev + public repo. Triage cadence + issue template + SUPPORT.md are the mitigations.

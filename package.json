@@ -1,6 +1,6 @@
 {
   "name": "@diegoferreyra/substrate",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Local-first, per-project agent-collaborative substrate exposed via MCP.",
   "type": "module",
   "license": "MIT",
@@ -38,7 +38,8 @@
     "test:smoke:ui": "pnpm build:ui && playwright test",
     "lint": "eslint .",
     "format:check": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.0.4",

@@ -6,6 +6,10 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.6.0] - 2026-07-07
+
 ### Changed
 
 - **`list_tasks` now returns lightweight summary rows by default.** A list of a
@@ -14,9 +18,13 @@ in `.agents/audits/phase-{N}-audit.md`.
   now a summary: the small fields verbatim, a bounded `description_excerpt`
   (+ `description_truncated`), and a `custom_data` trimmed to small scalar
   values, with bulky keys listed in `custom_data_omitted`. Read a task in full
-  with `get_task(id)`, or pass `view: 'full'` (MCP) / `?view=full` (HTTP) to get
-  the complete rows. Filtering is unaffected — `custom_field` and
-  `missing_required_fields` still run against the full task.
+  with `get_task(id)`, pass `view: 'titles'` for the leanest id/title/group rows,
+  or `view: 'full'` (MCP) / `?view=full` (HTTP) for the complete rows. Filters are
+  now **top-level params** (`board_id`, `group_id`, `in_groups`, `text_search`,
+  `custom_field`, `missing_required_fields`, …) rather than nested under a
+  `filters` object (the nested form still works, deprecated). Filtering is
+  unaffected — `custom_field` and `missing_required_fields` still run against the
+  full task.
 
 ### Added
 
@@ -32,6 +40,12 @@ in `.agents/audits/phase-{N}-audit.md`.
   Also new: **`check_transition`** (dry-run whether a move would pass the guards,
   without a throwaway task) and **`substrate validate`** (lint boards + policies
   without a server; corrupt → non-zero exit for CI).
+- **A fresh worktree / clone now warns instead of silently diverging.** Because
+  `.substrate/data.sqlite` is gitignored, a git worktree or fresh clone checks out
+  the boards but starts with an empty task database — an agent there would operate
+  on an empty board it doesn't share with your main checkout. `mcp`/`serve` now
+  warn loudly on startup when they open a `.substrate/` that has boards but just
+  created an empty database. (See the README's "Worktrees & fresh clones".)
 - **The inspector now shows agent activity and schema gaps.** Two additions make
   enforcement and data quality visible to the human:
   - A new **Activity** page (and `GET /api/activity`) — a live, cross-board feed
@@ -86,6 +100,21 @@ in `.agents/audits/phase-{N}-audit.md`.
   loading and silently never engaging. If you have parked a half-written policy
   on disk, fix its shape or remove it. (Whole-substrate load behavior is
   otherwise unchanged; per-board degradation is tracked separately.)
+- **`version_mismatch` now returns the current version.** The error's `details`
+  carry `current_version`, so a concurrent writer no longer needs a wasted
+  `get_task` / re-read just to fetch the integer before retrying. The message
+  still requires re-read + reconcile before retrying — the safeguard is the
+  requirement, not the withheld number. (Reverses the earlier deliberate
+  omission.)
+- **Edit one field on a board without resending the whole schema.**
+  `update_board` accepts a **`field_schema_patch`** — merge/add the given fields;
+  a `null` value deletes one — instead of requiring the entire `field_schema`.
+- **Your own error trail is now reviewable with `substrate logs --errors`.**
+  Handled tool errors (schema violations, forbidden writes, not-found, …) are now
+  recorded to the persistent log as they happen, so an agent session's mistakes
+  are diagnosable after the fact. Routine control-flow outcomes
+  (`transition_blocked`, `version_mismatch`) are intentionally excluded, and the
+  agent/client still only ever receives the generic scrubbed error envelope.
 
 ## [0.5.0]
 
