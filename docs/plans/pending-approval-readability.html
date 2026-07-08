@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Pending-approval readability</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      ol {
+        padding-left: 1.3rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Pending-approval readability</h1>
+    <p class="meta">
+      dev board · task c607b04e (<code>pending-approval-readability</code>) ·
+      <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../specs/pending-approval-readability.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      Keep the derivation untouched — the CLI already fetches the shared aggregate via
+      <code>listPendingApprovals({ client, loadSubstrate })</code>
+      (<code>src/operations/list-pending-approvals.ts</code>), which is also what the
+      <code>list_pending_approvals</code> MCP tool and the HTTP route return. This task rewrites
+      only the <em>rendering</em> half of <code>src/cli/commands/pending-approval.ts</code>, plus a
+      small flag addition.
+    </p>
+    <p>
+      The core move is to <strong>extract rendering into a pure function</strong> —
+      <code>renderPendingApprovals(result, { color })</code> returning a <code>string</code> — so
+      the command becomes "fetch → decide color → render → write", and the table/color logic is
+      unit-testable without stubbing <code>process.stdout</code> or a TTY. Color is produced by a
+      new <strong>tiny ANSI helper</strong> (no dependency). Alignment math measures
+      <em>visible</em> width so escapes never throw off the columns: build plain cells, compute
+      column widths and truncate on the plain text, pad, <em>then</em> wrap the padded cell in
+      color. <code>--json</code> short-circuits before any rendering and prints
+      <code>JSON.stringify(result, null, 2)</code> for exact parity with the MCP tool.
+    </p>
+
+    <h3>Target layout (plain mode)</h3>
+    <pre>
+3 task(s) pending human approval in Substrate:
+
+dev
+  Task                          Move              Awaiting        Approve
+  Ship the table   (c607b04e)   build → review    plan_approved   substrate approve c607b04e plan_approved
+  Harden markdown  (aae8d88f)   review → pending   reviews_appr…   substrate approve aae8d88f reviews_approved
+
+release
+  Cut v0.7.0       (12ab34cd)   versioned → appr   release_appr…   substrate approve 12ab34cd release_approved</pre
+    >
+    <p>
+      On a TTY the board name is bold, the <code>substrate approve …</code> cell is colored, and the
+      awaiting field is emphasized; stripping the escapes reproduces the block above byte-for-byte.
+    </p>
+
+    <h2>Step-by-step work</h2>
+    <ol>
+      <li>
+        <strong>Add a tiny ANSI helper.</strong> New module
+        <code>src/cli/color.ts</code> (CLI-local; the only consumer). Exports: a small set of
+        wrappers (<code>bold</code>, <code>dim</code>, <code>cyan</code>/<code>yellow</code>, etc.)
+        each taking <code>(s, enabled)</code> and returning <code>s</code> unchanged when
+        <code>enabled === false</code>; a <code>stripAnsi(s)</code> (used by tests + width math);
+        and <code>colorEnabled()</code> that returns
+        <code>process.stdout.isTTY === true &amp;&amp; !process.env.NO_COLOR</code>. Escapes are raw
+        string literals (<code>\x1b[1m</code> … <code>\x1b[0m</code>) — no dependency.
+      </li>
+      <li>
+        <strong>Add a text/width helper.</strong> Small pure helpers (colocate in
+        <code>color.ts</code> or a sibling <code>src/cli/table.ts</code>):
+        <code>visibleWidth(s)</code> = <code>stripAnsi(s).length</code>;
+        <code>truncate(s, max)</code> = ellipsis-clamp on the plain string;
+        <code>padEnd(s, width)</code> that pads by visible width. A minimal column-layout function
+        that, given rows of plain cells + a terminal width, computes per-column widths and shrinks
+        the flexible <strong>Task</strong> column first (floor ~24, then ellipsis) so no row exceeds
+        the width.
+      </li>
+      <li>
+        <strong>Extract the renderer.</strong> In <code>pending-approval.ts</code>, add
+        <code
+          >renderPendingApprovals(result: PendingApprovalsResult, opts: { color: boolean; columns?:
+          number }): string</code
+        >. It reproduces today's grouping (build the <code>Map&lt;board_id, items[]&gt;</code>),
+        emits the count line, then per board a bold header and the aligned rows. Cell contents:
+        <strong>Task</strong> = truncated title + <code>(shortId)</code>; <strong>Move</strong> =
+        <code>${it.group_id} → ${it.gate.to_group}</code>; <strong>Awaiting</strong> =
+        <code>it.awaiting_fields.join(', ')</code>; <strong>Approve</strong> = the first field's
+        command (with a note/extra rows if multiple — keep one <code>approve</code> line per
+        awaiting field, matching today's guarantee). Short id = first 8 chars of
+        <code>task_id</code> (or full if already short).
+      </li>
+      <li>
+        <strong>Rewire the command.</strong>
+        <code>pendingApprovalCommand(cwd, opts: { json?: boolean })</code>: keep the
+        <code>.substrate</code> existence check, sink config, DB open, and
+        <code>listPendingApprovals</code> call. Then: if <code>opts.json</code> →
+        <code>process.stdout.write(JSON.stringify(result, null, 2) + '\n')</code> and return (works
+        for the empty case too). Else if <code>result.count === 0</code> → today's empty-state line.
+        Else →
+        <code
+          >process.stdout.write(renderPendingApprovals(result, { color: colorEnabled(), columns:
+          process.stdout.columns }))</code
+        >. Keep the <code>client.close()</code> in <code>finally</code>.
+      </li>
+      <li>
+        <strong>Flag plumbing — args.</strong> In <code>src/cli/args.ts</code>, change the
+        <code>'pending-approval'</code> entry from <code>new Set()</code> to
+        <code>new Set(['--json'])</code> so <code>rejectUnknownFlags</code> accepts it (and still
+        rejects anything else).
+      </li>
+      <li>
+        <strong>Flag plumbing — dispatch.</strong> In <code>src/cli/index.ts</code>, the
+        <code>case 'pending-approval'</code>: compute
+        <code>const json = rest.includes('--json')</code> before/after
+        <code>rejectUnknownFlags('pending-approval', rest)</code>, then
+        <code>await pendingApprovalCommand(cwd, { json })</code>. (Mirrors how
+        <code>logs</code> reads <code>--errors</code> via <code>rest.includes</code>.)
+      </li>
+      <li>
+        <strong>HELP text.</strong> Update the <code>pending-approval</code> line in the
+        <code>HELP</code> block of <code>index.ts</code> to note the aligned-table output and
+        <code>[--json]</code>.
+      </li>
+      <li>
+        <strong>Tests.</strong> Extend
+        <code>src/cli/commands/pending-approval.test.ts</code> (details below) and, if
+        <code>color.ts</code> grows non-trivial helpers, add <code>src/cli/color.test.ts</code>.
+      </li>
+      <li>
+        <strong>Local gate.</strong> Run tsc + lint + format + full test suite locally (CI is
+        billing-blocked — validate locally) before setting <code>tests_green</code>.
+      </li>
+    </ol>
+
+    <h2>Files / touchpoints</h2>
+    <table>
+      <tr>
+        <th>Path</th>
+        <th>Change</th>
+      </tr>
+      <tr>
+        <td><code>src/cli/color.ts</code> <em>(new)</em></td>
+        <td>
+          Tiny ANSI helper: <code>bold/dim/…</code>, <code>stripAnsi</code>,
+          <code>colorEnabled()</code>, width/truncate/pad + column layout (or split into
+          <code>src/cli/table.ts</code>).
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/pending-approval.ts</code></td>
+        <td>
+          Extract pure <code>renderPendingApprovals()</code>; command gains
+          <code>{ json }</code> opts; JSON short-circuit; table replaces the bulleted list.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/args.ts</code></td>
+        <td><code>'pending-approval'</code> allowlist → <code>new Set(['--json'])</code>.</td>
+      </tr>
+      <tr>
+        <td><code>src/cli/index.ts</code></td>
+        <td>
+          <code>case 'pending-approval'</code>: read <code>--json</code>, pass opts; update
+          <code>HELP</code> line.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/pending-approval.test.ts</code></td>
+        <td>
+          Update existing assertions to new layout; add plain/NO_COLOR + <code>--json</code> parity
+          tests.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/color.test.ts</code> <em>(new, optional)</em></td>
+        <td>
+          Unit-test <code>stripAnsi</code>, <code>truncate</code>, visible-width padding, column
+          shrink.
+        </td>
+      </tr>
+    </table>
+    <p>
+      Unchanged by design: <code>src/operations/list-pending-approvals.ts</code>,
+      <code>src/policy/pending-approval.ts</code>, the MCP tool
+      <code>src/mcp/tools/read/list-pending-approvals.ts</code>, and the HTTP route — the aggregate
+      contract is shared and stays put (see open question 1 re: group names).
+    </p>
+
+    <h2>Risks</h2>
+    <ul>
+      <li>
+        <strong>Alignment vs. color escapes.</strong> Padding by raw string length would be thrown
+        off by escape bytes. Mitigation: compute widths/truncation on plain cells, colorize only
+        after padding; <code>visibleWidth</code> uses <code>stripAnsi</code>. A test strips ANSI and
+        re-checks alignment.
+      </li>
+      <li>
+        <strong>Wide-character / unicode titles.</strong> <code>.length</code> counts code units,
+        not display columns; a CJK/emoji title could misalign. Accepted for v1 (matches the
+        codebase's plain-ASCII assumptions elsewhere); note it, don't pull in a grapheme library
+        (would violate "no new dependency").
+      </li>
+      <li>
+        <strong>Unknown terminal width.</strong> <code>process.stdout.columns</code> is
+        <code>undefined</code> when piped. Mitigation: fall back to 80 (open question 2); truncation
+        still bounded and deterministic for tests.
+      </li>
+      <li>
+        <strong>Breaking scripts that scrape the old prose.</strong> The list format changes.
+        Mitigation: <code>--json</code> is the stable machine surface going forward; the human
+        format is explicitly not a contract.
+      </li>
+      <li>
+        <strong>Multiple awaiting fields per task.</strong> Keep one <code>approve</code> command
+        per field (today's guarantee) so the table may carry a stacked/secondary line for
+        multi-field tasks — verify the row stays aligned. Most gates are single-field.
+      </li>
+      <li>
+        <strong>Test flakiness from real TTY.</strong> Vitest runs non-TTY, so
+        <code>colorEnabled()</code> is naturally false; color-on tests call the pure renderer with
+        <code>{ color: true }</code> rather than faking a TTY.
+      </li>
+    </ul>
+
+    <h2>Test strategy</h2>
+    <p>
+      Prefer testing the <strong>pure renderer</strong> directly (no stdout/TTY mocking) plus a
+      couple of command-level integration tests that keep the existing
+      <code>process.stdout.write</code> spy harness in <code>pending-approval.test.ts</code>.
+    </p>
+    <ul>
+      <li>
+        <strong>Layout.</strong> With ≥2 pending tasks across 2 boards,
+        <code>renderPendingApprovals(result, { color: false })</code> contains the count line, both
+        board headers, and each row; assert the column header row and a data row share the same
+        column start offsets (alignment).
+      </li>
+      <li>
+        <strong>Plain / NO_COLOR is escape-free (required).</strong> Assert
+        <code>renderPendingApprovals(result, { color: false })</code> contains no
+        <code>\x1b[</code>. Plus a command-level test that sets
+        <code>process.env.NO_COLOR='1'</code> (restored in <code>afterEach</code>) and asserts the
+        captured stdout has no escape bytes — proving the TTY gate wires through
+        <code>colorEnabled()</code>.
+      </li>
+      <li>
+        <strong>Color mode.</strong>
+        <code>renderPendingApprovals(result, { color: true })</code> contains escapes, and
+        <code>stripAnsi(colored)</code> deep-equals the <code>{ color: false }</code> render — color
+        adds nothing the plain text loses.
+      </li>
+      <li>
+        <strong>--json parity (required).</strong> Run the command with <code>{ json: true }</code>;
+        <code>JSON.parse</code> the captured stdout and assert it deep-equals the value returned by
+        <code>listPendingApprovals</code> for the same fixture (same shape as the MCP tool). Assert
+        the JSON output contains no escape bytes even when forced <code>color: true</code> upstream
+        (JSON never colorizes).
+      </li>
+      <li>
+        <strong>--json empty state.</strong> With no pending tasks, <code>--json</code> yields valid
+        JSON with <code>count: 0, items: []</code>; without <code>--json</code>, the existing "No
+        tasks pending human approval" line is preserved.
+      </li>
+      <li>
+        <strong>Runnable command cell.</strong> Assert a row's Approve cell equals exactly
+        <code>substrate approve &lt;task_id&gt; &lt;field&gt;</code> for the fixture (verbatim, one
+        per awaiting field) — the copy-paste guarantee.
+      </li>
+      <li>
+        <strong>Truncation.</strong> A very long title at a narrow <code>columns</code> is clamped
+        with an ellipsis and the short id stays intact; no rendered line exceeds the width.
+      </li>
+      <li>
+        <strong>Flag rejection.</strong> Keep/extend an <code>args.ts</code> test that
+        <code>--json</code> is accepted for <code>pending-approval</code> and an unknown flag still
+        exits non-zero.
+      </li>
+    </ul>
+
+    <h2>Rollout</h2>
+    <ul>
+      <li>
+        Single PR into <code>dev</code> off a feature branch (per the branching model) — pure
+        additive UX + one new flag; no migration, no schema change, no data touched.
+      </li>
+      <li>
+        Passes the <strong>Build → Review</strong> gate only after local tsc + lint + format + full
+        test suite are green (CI billing-blocked → validate locally).
+      </li>
+      <li>
+        Two independent adversarial reviewers (distinct lenses, e.g. "pipe-safety / escape leakage"
+        and "alignment / truncation edge cases") must both APPROVE before
+        <strong>Review → Pending Review and Approval</strong>; then Diego's
+        <code>diego_approved</code> merges to <code>dev</code>.
+      </li>
+      <li>
+        Ships to users on the next <code>release</code>-board cut (docs already note the command;
+        HELP updated in this PR). The colorized-list fallback stays
+        <em>documented but unbuilt</em> — revisit only if the table proves too heavy in dogfood.
+      </li>
+    </ul>
+  </body>
+</html>

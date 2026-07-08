@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Multi-instance serve</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Multi-instance serve</h1>
+    <p class="meta">
+      dev board · task <code>serve-multi-instance</code> ·
+      <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../plans/serve-multi-instance.html">plan →</a>
+    </p>
+
+    <h2>Problem</h2>
+    <p>
+      <code>substrate serve</code> binds a single pinned port and refuses to start when it's taken.
+      In <code>src/cli/commands/serve.ts</code> the port is
+      <code>DEFAULT_PORT</code> (<code>7475</code>, from <code>src/http/server.ts</code>) unless the
+      test-only <code>SUBSTRATE_PORT_OVERRIDE</code> env var is set. When
+      <code>startHttpServer</code> gets <code>EADDRINUSE</code>, serve throws
+      <code
+        >SubstrateError.conflict("Port 7475 is already in use … Stop that process or change the
+        port.")</code
+      >
+      and exits. There is no <code>--port</code> flag (the header comment notes it's deferred to a
+      future v1.x), so a second project's inspector cannot run while the first is up.
+    </p>
+    <p>
+      Working across several projects at once is a normal dogfooding case (Substrate tracks its own
+      <code>dev</code> and <code>release</code> boards, and Diego runs it against other repos).
+      Today that means stopping one inspector to look at another. Two serves should just coexist.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        <strong>Coexistence (MVP).</strong> A second <code>substrate serve</code> in another project
+        starts successfully even when <code>7475</code> is occupied, by auto-selecting a free port
+        from a small range.
+      </li>
+      <li>
+        <strong>Discoverability.</strong> Each serve prints the actual URL it bound (it already logs
+        <code>Substrate running on http://localhost:&lt;port&gt;</code>), and the chosen port is
+        recorded so <code>diagnose</code> and the operator can find which port a project is on.
+      </li>
+      <li>
+        <strong>No new footguns.</strong> The PID-file lifecycle
+        (single-owner-per-<code>.substrate/</code>, stale-PID reclaim, clean shutdown) keeps
+        working; port bookkeeping is cleaned up on the same paths.
+      </li>
+      <li>
+        <strong>Stable-URL exploration.</strong> Assess a
+        <code>&lt;project&gt;.substrate.local</code> scheme and recommend whether to implement now
+        or defer, with rationale and setup cost.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <ul>
+      <li>
+        Remote access. Serve stays bound to <code>127.0.0.1</code> only (per the origin/Host
+        allowlist and <code>startHttpServer</code>'s hardcoded hostname). Nothing here listens on
+        <code>0.0.0.0</code>.
+      </li>
+      <li>
+        A user-facing <code>--port</code> flag is not required by this task (may fall out of the
+        work, but the acceptance bar is the automatic fallback, not manual port selection).
+      </li>
+      <li>A central daemon / service manager that supervises all running serves.</li>
+      <li>
+        Multiple serves against the <em>same</em> <code>.substrate/</code>. That stays forbidden —
+        the single-PID-per-directory guard is intentional (one SQLite writer/owner per checkout).
+      </li>
+      <li>
+        Changing the default port away from <code>7475</code>, or Windows-specific behavior beyond
+        what <code>identifyPortHolder</code> already branches on.
+      </li>
+    </ul>
+
+    <h2>Scope</h2>
+    <p>
+      <strong>MVP — free-port fallback (must ship).</strong> When the preferred port
+      (<code>7475</code>) is taken, serve scans upward through a bounded range (e.g.
+      <code>7475–7499</code>) for the first free port and binds it. It prints/logs the chosen URL,
+      writes the chosen port into the per-project bookkeeping next to the PID file, and
+      <code>diagnose</code> reports the actual served port rather than only probing the fixed
+      <code>7475</code>. If the whole range is exhausted, fail with a clear, actionable error. This
+      alone satisfies the acceptance criteria.
+    </p>
+    <p>
+      <strong
+        >Stretch — <code>&lt;slug&gt;.substrate.local</code> stable URLs (explore; implement only if
+        cheap).</strong
+      >
+      Give each project a stable hostname instead of a shifting port. Options to weigh (detailed in
+      the plan): (a) <code>/etc/hosts</code> entries — needs sudo and is per-host manual; (b) a
+      loopback DNS resolver — <code>dnsmasq</code> answering
+      <code>*.substrate.local → 127.0.0.1</code> plus a one-time macOS
+      <code>/etc/resolver/substrate.local</code> file (wildcard, no per-project sudo, but still
+      leaves the port problem — a name alone doesn't route to the right port); (c) a small always-on
+      reverse proxy that maps <code>slug → port</code> using the per-project bookkeeping and listens
+      on a single fixed port. The spec's position: the <code>.local</code> name only becomes
+      genuinely useful when paired with a proxy that routes name→port; otherwise it's a cosmetic
+      alias over a port that still changes. Recommend accordingly.
+    </p>
+
+    <h2>Acceptance criteria</h2>
+    <ul>
+      <li>
+        With a server already bound to <code>7475</code>, running <code>substrate serve</code> in a
+        second project starts without error, selects a free port in-range, and prints its URL.
+      </li>
+      <li>
+        Two projects can serve simultaneously; each prints its own URL; neither throws
+        <code>EADDRINUSE</code>.
+      </li>
+      <li>
+        A single serve with <code>7475</code> free still binds <code>7475</code> (no behavior change
+        for the common case).
+      </li>
+      <li>
+        The chosen port is recorded per project and surfaced by <code>diagnose</code> (operator can
+        answer "which port is this project on?" without <code>lsof</code>).
+      </li>
+      <li>Range exhaustion yields a clear error naming the range that was tried.</li>
+      <li>
+        Shutdown (SIGINT/SIGTERM) and stale-PID reclaim still clean up both the PID file and the new
+        port record.
+      </li>
+      <li>
+        The <code>.local</code> domain is written up as a recommendation in the plan; implemented if
+        it lands cheaply, otherwise deferred with explicit rationale.
+      </li>
+    </ul>
+
+    <h2>Open questions (for Diego)</h2>
+    <ul>
+      <li>
+        <strong>Preferred-port-then-scan?</strong> Keep <code>7475</code> as the always-first-tried
+        default and only scan <code>7476…7499</code> on conflict (proposed), so the first/primary
+        project keeps the memorable URL — agreed?
+      </li>
+      <li>
+        <strong>Where to persist the chosen port?</strong> Options: (a) extend the existing PID file
+        to hold <code>pid + port</code> (e.g. two lines or JSON at
+        <code>.substrate/substrate.pid</code>); (b) a sibling
+        <code>.substrate/substrate.port</code> file; (c) fold both into a small
+        <code>.substrate/serve.json</code> runtime file. All stay gitignored. Preference? (Leaning
+        toward a single JSON runtime file for extensibility, migrating the current bare-PID format.)
+      </li>
+      <li>
+        <strong>Range + size.</strong> Is <code>7475–7499</code> (25 slots) the right window, or
+        wider/narrower?
+      </li>
+      <li>
+        <strong>Is <code>.local</code> worth the setup?</strong> A no-sudo wildcard needs
+        <code>dnsmasq</code> + a resolver file (one-time, but still an install), and to actually be
+        useful needs a reverse proxy to map slug→port. Do you want stable URLs enough to run an
+        always-on proxy, or is "serve prints its URL + diagnose lists it" good enough for now?
+      </li>
+      <li>
+        <strong>Slug source.</strong> If we do <code>.local</code>, the slug would derive from
+        <code>config.project_name</code> (itself defaulted from <code>basename(cwd)</code> at init)
+        — collisions across two same-named checkouts are possible. Slug from
+        <code>project_id</code> (UUID) instead, or name-with-dedup?
+      </li>
+    </ul>
+  </body>
+</html>

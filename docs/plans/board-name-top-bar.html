@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Board name in top bar</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      ol {
+        padding-left: 1.2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Board name in top bar</h1>
+    <p class="meta">
+      dev board · task <code>board-name-top-bar</code> ·
+      <span class="status">Draft — awaiting plan_approved</span> ·
+      <a href="../specs/board-name-top-bar.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      All four routes render inside <code>Layout</code>'s
+      <code>&lt;Outlet/&gt;</code> (<code>ui/src/main.tsx</code>), and the persistent chrome is the
+      <code>Shell</code> component in <code>ui/src/routes/Layout.tsx</code>. So the header is the
+      single right place to surface identity. Add an <code>AppHeader</code> content block to
+      <code>Shell</code> that shows the <strong>project name</strong> (always) and, when the current
+      URL is a board or task route, the <strong>active board name</strong>.
+    </p>
+    <p>
+      The header derives the active board from the route with React Router's
+      <code>useMatch</code> (unambiguous, works in the layout ancestor — no reliance on
+      <code>useParams</code> bubbling), then fetches names with the app's existing per-component
+      <code>useResource</code> hook (<code>ui/src/lib/useResource.ts</code>) over the typed client
+      in <code>ui/src/lib/api.ts</code>. No new endpoint, no global store, no TanStack — consistent
+      with how <code>Overview</code>/<code>BoardDetail</code>/<code>TaskDetail</code> already fetch.
+      The board name is static per id and <strong>not polled</strong> (unlike columns), so a plain
+      <code>useResource</code> is correct.
+    </p>
+    <p><strong>Recommended default (header-owned fetch, decoupled):</strong></p>
+    <ul>
+      <li>
+        <code>useMatch('/boards/:id')</code> → have <code>id</code> → <code>getBoard(id)</code> →
+        <code>board.name</code>.
+      </li>
+      <li>
+        <code>useMatch('/tasks/:id')</code> → <code>getTask(id)</code> → <code>board_id</code> →
+        chained <code>getBoard(board_id)</code> → <code>board.name</code> (the acknowledged extra
+        fetch on task detail).
+      </li>
+      <li>Otherwise (Overview/Boards/Activity/unknown) → no board segment.</li>
+      <li>Project name: one <code>useResource(() =&gt; getProject(), [])</code> in the header.</li>
+    </ul>
+    <p>
+      This keeps the header fully self-contained and side-effect-free. It does duplicate
+      <code>getBoard</code> on the board route (which <code>BoardDetail</code> also fetches) and
+      <code>getTask</code> on the task route — see Risks for the reuse alternative, which is an open
+      question for Diego.
+    </p>
+
+    <h2>Step-by-step work</h2>
+    <ol>
+      <li>
+        <strong>New hook</strong> <code>ui/src/lib/useActiveBoard.ts</code>: returns
+        <code>{ name: string | null; id: string | null; loading: boolean }</code>. Internally uses
+        <code>useMatch('/boards/:id')</code> and <code>useMatch('/tasks/:id')</code>; for the board
+        route calls <code>getBoard(id)</code>; for the task route chains <code>getTask(id)</code> →
+        <code>getBoard(board_id)</code>. Returns nulls on non-board routes. Keeps all fetching logic
+        testable in one place.
+      </li>
+      <li>
+        <strong>New component</strong> <code>ui/src/components/AppHeader.tsx</code> (or an inline
+        <code>HeaderIdentity</code> block if kept tiny): renders the project-name link (→
+        <code>/</code>) and, when <code>useActiveBoard()</code> yields a name, a separator + the
+        board-name link (→ <code>/boards/&lt;id&gt;</code>). Uses the existing muted-foreground /
+        <code>&lt;Link&gt;</code> styling vocabulary already in <code>Shell</code>. Truncation via
+        Tailwind (<code>truncate max-w-[…]</code>) for narrow widths.
+      </li>
+      <li>
+        <strong>Wire into <code>Shell</code></strong> (<code>ui/src/routes/Layout.tsx</code>):
+        insert the identity block into the existing <code>&lt;header&gt;</code> row, next to /
+        replacing the bare <em>Substrate</em> wordmark line (exact layout per the spec's open
+        question), leaving the primary <code>&lt;nav&gt;</code> and the <code>ThemeToggle</code> (in
+        the <code>ml-auto</code> cluster) untouched. Do <em>not</em> touch
+        <code>LiveIndicator</code> — it stays in page-body sections (<code>Overview</code> board
+        wall, <code>BoardDetail</code> kanban), not the header.
+      </li>
+      <li>
+        <strong>Project fetch:</strong> add <code>getProject()</code> via
+        <code>useResource</code> in the header. Render the project segment only once resolved (or
+        show the wordmark alone meanwhile) to avoid a flash.
+      </li>
+      <li>
+        <strong>Graceful states:</strong> while the board name loads or if
+        <code>getBoard</code> errors/404s, render nothing (or the chosen fallback) for the board
+        segment — never surface an error card in the header. Reserve/allow space so the row doesn't
+        jump (open question: skeleton vs. nothing).
+      </li>
+      <li><strong>Tests</strong> (see Test strategy).</li>
+      <li>
+        <strong>Validate locally:</strong> build + <code>tsc</code> + lint + format + unit + smoke
+        all green before moving Build → Review (CI is billing-blocked — validate locally per the
+        repo's CI memory).
+      </li>
+    </ol>
+
+    <h2>Files / touchpoints (real paths)</h2>
+    <ul>
+      <li>
+        <code>ui/src/routes/Layout.tsx</code> — <code>Shell</code>'s <code>&lt;header&gt;</code>;
+        insert the identity block. Primary edit site.
+      </li>
+      <li>
+        <code>ui/src/components/AppHeader.tsx</code> — <em>new</em> header identity component
+        (project link + active board link).
+      </li>
+      <li>
+        <code>ui/src/lib/useActiveBoard.ts</code> — <em>new</em> route-aware hook resolving the
+        active board name/id.
+      </li>
+      <li>
+        <code>ui/src/lib/api.ts</code> — <em>read-only reuse</em>: <code>getProject</code> (→
+        <code>project_name</code>), <code>getBoard</code> (→ <code>board.name</code>),
+        <code>getTask</code> (→ <code>board_id</code>). No changes expected.
+      </li>
+      <li>
+        <code>ui/src/main.tsx</code> — router route table; reference only (no change) — confirms all
+        routes nest under <code>Layout</code>.
+      </li>
+      <li>
+        <code>ui/src/components/LiveIndicator.tsx</code> — reference only; must remain untouched and
+        un-crowded.
+      </li>
+      <li>
+        <code>ui/src/components/AppHeader.test.tsx</code> (or <code>Layout.test.tsx</code>) —
+        <em>new</em> unit test.
+      </li>
+      <li>
+        <code>tests/smoke/ui.spec.ts</code> — extend board-detail and task-detail smoke cases with a
+        header-board-name assertion.
+      </li>
+    </ul>
+
+    <h2>Risks</h2>
+    <ul>
+      <li>
+        <strong>Extra board fetch on task detail.</strong> The default resolves the board via
+        <code>getTask</code> → <code>getBoard</code>, duplicating <code>TaskDetail</code>'s own
+        <code>getTask</code> and adding a <code>getBoard</code> the page doesn't do today. These are
+        cheap, same-origin, un-polled GETs, so acceptable. <em>Alternative</em> (open question):
+        have <code>BoardDetail</code>/ <code>TaskDetail</code> publish the already-fetched board
+        into a Layout-level context that the header reads — avoids the extra fetch but couples
+        routes to the header and pushes state up via an effect (brief empty→filled flash on first
+        paint).
+      </li>
+      <li>
+        <strong>Layout shift.</strong> The board segment appears after its async resolve, so the
+        header can jump when the name lands. Mitigate by reserving space / a subtle skeleton, and by
+        keeping the segment on one truncating line.
+      </li>
+      <li>
+        <strong>Crowding the header on narrow widths.</strong> The row already wraps (wordmark, nav,
+        muted "read-only inspector" label, toggle). Adding project + board risks a cramped mobile
+        bar. Mitigate with truncation and the mobile open question (truncate vs. hide below a
+        breakpoint). Must not push or overlap anything.
+      </li>
+      <li>
+        <strong>Stale name across navigation.</strong> <code>useMatch</code> +
+        <code>useResource</code> re-key on the route param, so the name refetches on nav; verify
+        board→task→board and task→Overview clear/refresh correctly (covered by the component test).
+      </li>
+      <li>
+        <strong>StrictMode double-invoke</strong> (app runs in <code>&lt;StrictMode&gt;</code>):
+        ensure the hook's chained fetch is guarded by <code>useResource</code>'s active-flag pattern
+        (it already ignores stale/unmounted resolutions).
+      </li>
+    </ul>
+
+    <h2>Test strategy</h2>
+    <ul>
+      <li>
+        <strong>Component tests</strong> (Vitest + Testing Library + <code>MemoryRouter</code>,
+        mirroring <code>ui/src/routes/BoardDetail.test.tsx</code>'s
+        <code>vi.mock('../lib/api.js')</code> pattern): render the header inside a
+        <code>MemoryRouter</code> at each route and assert —
+        <ul>
+          <li>
+            <code>/</code>, <code>/boards</code>, <code>/activity</code>: project name shown (link
+            to <code>/</code>); no board segment.
+          </li>
+          <li>
+            <code>/boards/b1</code>: board name (<code>Roadmap</code>) shown and links to
+            <code>/boards/b1</code>; <code>getBoard</code> called with <code>b1</code>.
+          </li>
+          <li>
+            <code>/tasks/t1</code>: <code>getTask</code> → <code>board_id</code> →
+            <code>getBoard</code> resolves the name; header shows the name, not the id.
+          </li>
+          <li>Re-render at a different route updates/clears the board segment (no stale name).</li>
+          <li>
+            Loading / <code>getBoard</code>-error path degrades to the chosen fallback without
+            throwing.
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>Playwright smoke</strong> (<code>tests/smoke/ui.spec.ts</code>, real built stack
+        over the seeded <code>.substrate/</code>): extend the existing <em>board detail</em> case
+        (<code>/boards/main</code>) and <em>task detail</em> case (<code>/tasks/t1</code>) to assert
+        the header shows the board name <code>Roadmap</code> (scoped to
+        <code>&lt;header&gt;</code> so it doesn't collide with the page <code>&lt;h1&gt;</code> or
+        the boards list), and that Overview/Boards/Activity headers show no board segment. Keep the
+        existing zero-console-error assertion.
+      </li>
+      <li>
+        <strong>Local gate:</strong> <code>build + tsc + lint + format + unit + smoke</code> all
+        green locally before Build → Review (sets <code>tests_green</code>); CI is billing-blocked,
+        so local is the source of truth.
+      </li>
+    </ul>
+
+    <h2>Rollout</h2>
+    <ul>
+      <li>
+        Pure additive UI change behind no flag — ships whenever the release board next advances
+        <code>dev</code> → <code>main</code>; no migration, no server change, no data change.
+      </li>
+      <li>
+        Single PR into <code>dev</code> off a feature branch (per <code>CLAUDE.md</code> branching
+        model). Move the task across the <code>dev</code> board: Build &amp; Test → Review (needs
+        <code>tests_green</code>) → Pending Review and Approval (needs two independent adversarial
+        reviewer APPROVEs) → Merged, gated on Diego's <code>diego_approved</code>.
+      </li>
+      <li>
+        Reviewer lenses to assign: (1) accessibility/responsive — header landmark, truncation, no
+        crowding of the live indicator, theme parity; (2) data/architecture — the extra task-detail
+        fetch vs. reuse trade-off, stale-name-on-nav, StrictMode safety.
+      </li>
+      <li>No rollback machinery needed; reverting the PR fully removes the header segment.</li>
+    </ul>
+  </body>
+</html>
