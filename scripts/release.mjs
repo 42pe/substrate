@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Cut a Substrate release: bump the version in all three sources of truth,
- * rotate the CHANGELOG, and (optionally) commit + tag. Run it ON `main` after
- * the release's features have merged.
+ * rotate the CHANGELOG, and (optionally) commit + tag. Run it ON `dev` (where
+ * feature work integrates), then fast-forward `main` to the tagged commit — see
+ * RELEASING.md. `main` only advances on a release.
  *
  *   node scripts/release.mjs <version>     # e.g. 0.7.0
  *   node scripts/release.mjs minor|patch|major
@@ -68,8 +69,10 @@ const dirty = execSync('git status --porcelain', { cwd: ROOT }).toString().trim(
 if (dirty && doTag)
   fail('Working tree is dirty — commit or stash first (or drop --tag to only edit files).');
 const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: ROOT }).toString().trim();
-if (branch !== 'main')
-  console.warn(`⚠ On branch '${branch}', not 'main'. Releases are normally cut on main.`);
+if (branch !== 'dev' && branch !== 'main')
+  console.warn(
+    `⚠ On branch '${branch}', not 'dev'/'main'. Releases are cut on 'dev', then promoted to 'main' (see RELEASING.md).`,
+  );
 
 console.log(`Releasing ${current} → ${version}${doTag ? ' (will commit + tag)' : ''}`);
 
