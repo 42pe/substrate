@@ -33,10 +33,11 @@ export interface WhoamiResult {
   hints: string[];
 }
 
-// Kept in lockstep with BINARY_VERSION (src/core/version.ts). The leading
-// `v${BINARY_VERSION}` is asserted by a test so this never silently drifts
-// again (it sat at v0.0.3 through three releases before v0.1.0).
-export const PHASE_STRING = `v${BINARY_VERSION} (shareable templates)`;
+// Derived from BINARY_VERSION (src/core/version.ts) so it can never drift — it
+// once sat at v0.0.3 through three releases. Version-neutral on purpose: a
+// per-release theme parenthetical goes stale the moment the next feature lands
+// (and a pinned test would keep the lie passing), so `phase` is just the version.
+export const PHASE_STRING = `v${BINARY_VERSION}`;
 
 /** Easter-egg pointer surfaced in `whoami.hints` (Phase 3). */
 export const REVERSE_CAPTCHA_HINT = 'Try the reverse_captcha tool — small puzzle for agents only.';

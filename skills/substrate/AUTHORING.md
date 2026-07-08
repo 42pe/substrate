@@ -61,8 +61,8 @@ ticks on its way past — mark that field `"human_only": true`. The agent's MCP
 write tools (`create_task`/`update_task`) then **refuse** to set it, and
 `update_board` refuses to **downgrade** it (clear the flag or delete the field) —
 so an agent can neither set the value nor un-protect it. The human channel sets it:
-`substrate approve <task_id> <field> [value=true]` (or the UI), which stamps the
-change as `human:<os-user>` in the event log. Pair it with a `transition_guard`
+`substrate approve <task_id> <field> [value=true]` (the CLI is the write channel;
+the web UI is read-only), which stamps the change as `human:<os-user>` in the event log. Pair it with a `transition_guard`
 that requires the field: the guard makes the move impossible until the field is
 set, and `human_only` makes *the agent* unable to set it — so the move genuinely
 waits on a human. Without `human_only`, a `"*" → done` gate is only advisory

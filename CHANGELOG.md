@@ -40,6 +40,10 @@ _Nothing yet._
   Also new: **`check_transition`** (dry-run whether a move would pass the guards,
   without a throwaway task) and **`substrate validate`** (lint boards + policies
   without a server; corrupt → non-zero exit for CI).
+- **Task-detail markdown rendering hardened.** Removed a redundant class-nesting in
+  the task-detail description/comment views that could double-apply the markdown
+  styles; a UI smoke test now asserts bold + line breaks render in the built app so
+  the sanitized-markdown path can't silently regress.
 - **A fresh worktree / clone now warns instead of silently diverging.** Because
   `.substrate/data.sqlite` is gitignored, a git worktree or fresh clone checks out
   the boards but starts with an empty task database — an agent there would operate

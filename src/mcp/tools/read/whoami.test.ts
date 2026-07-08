@@ -74,7 +74,6 @@ describe('whoamiHandler', () => {
     // Drift guard: the phase string MUST embed the binary version. This caught
     // nothing for three releases because it didn't exist; now it does.
     expect(result.phase).toContain(`v${BINARY_VERSION}`);
-    expect(result.phase).toMatch(/shareable templates/);
   });
 
   it('does not leak unexpected fields', async () => {

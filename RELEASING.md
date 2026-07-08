@@ -27,21 +27,28 @@ Releases are cut **on `main`, after the release's features have merged** (CI is
 billing-blocked, so this runs locally). The release commit is mechanical — just
 the version bump + changelog rotation — so it doesn't need its own review.
 
+Pick **one** of these (don't combine them — running the preview first leaves a
+dirty tree that the `--tag` run refuses):
+
 ```sh
 git checkout main && git pull
 
-# Preview: bump the three version sites + rotate the CHANGELOG, print git steps.
-pnpm release minor            # or: patch | major | an explicit 0.7.0
-
-# Eyeball the diff, then commit + tag in one shot (re-runs validation):
-pnpm release minor --tag
+# Option A — one shot (from a clean tree): validate, bump, rotate, commit + tag.
+pnpm release minor --tag      # or: patch | major | an explicit 0.7.0
 git push && git push origin vX.Y.Z
+
+# Option B — preview first, then finish by hand:
+pnpm release minor            # edits the 4 files, prints the exact git commands
+git diff                      # eyeball it
+#   …then run the git add / commit / tag / push lines the script printed.
 ```
 
 `pnpm release <spec>` validates (build + tsc + lint + format + test), bumps the
 three version files, renames `## [Unreleased]` → `## [x.y.z] - <today>`, and
-inserts a fresh empty `## [Unreleased]`. Add `--tag` to also `git commit` +
-`git tag vX.Y.Z`; add `--skip-validate` only if you've just validated by hand.
+inserts a fresh empty `## [Unreleased]`. Without `--tag` it stops there and prints
+the git steps; with `--tag` (which requires a clean starting tree) it also
+`git commit`s + `git tag vX.Y.Z`. Add `--skip-validate` only if you've just
+validated by hand.
 
 Tags are `vX.Y.Z` (distinct from the historical `phase-NN-complete` dev-milestone
 tags). After tagging, reinstall the global copy so day-to-day work uses the

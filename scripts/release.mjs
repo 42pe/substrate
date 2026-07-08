@@ -54,6 +54,15 @@ function nextVersion(cur, spec) {
 const version = nextVersion(current, target);
 const tag = `v${version}`;
 
+// Refuse a no-op / downgrade before touching any file (avoids partial edits on an
+// idempotent re-run — e.g. running the preview twice — or a typo'd lower version).
+if (version === current) fail(`Already at ${version} — nothing to release.`);
+const [na, nb, nc] = version.split('.').map(Number);
+const [ca, cb, cc] = current.split('.').map(Number);
+const isDowngrade = na < ca || (na === ca && (nb < cb || (nb === cb && nc < cc)));
+if (isDowngrade)
+  fail(`Target ${version} is lower than current ${current} — refusing to downgrade.`);
+
 // Guard: clean working tree (the release commit should be just the bump).
 const dirty = execSync('git status --porcelain', { cwd: ROOT }).toString().trim();
 if (dirty && doTag)
@@ -103,6 +112,8 @@ const rotated = changelog.replace(
   /##\s*\[Unreleased\]\s*\n(\s*\n)?(_Nothing yet\._\s*\n\s*\n)?/,
   `## [Unreleased]\n\n_Nothing yet._\n\n## [${version}] - ${today}\n\n`,
 );
+if (rotated === changelog)
+  fail('CHANGELOG rotation matched nothing — is the [Unreleased] heading well-formed?');
 write('CHANGELOG.md', rotated);
 
 console.log(
