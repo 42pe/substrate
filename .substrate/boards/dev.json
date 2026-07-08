@@ -1,7 +1,7 @@
 {
   "id": "dev",
   "name": "Substrate Dev",
-  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Awaiting Diego → Merged. Two hard gates: Build→Review needs `tests_green`, Review→Awaiting-Diego needs `reviews_approved` (both independent reviewers APPROVE). The final Awaiting-Diego→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`.",
+  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged. **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), which is tracked on the separate **Release** board. Two hard gates: Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.",
   "field_schema": {
     "task": {
       "spec_doc": { "type": "markdown", "required": false },
@@ -17,8 +17,8 @@
     { "id": "spec", "name": "Spec & Plan", "description": "Writing the spec/plan; approved before build.", "position": 1, "color": null, "version": 1, "archived_at": null },
     { "id": "build", "name": "Build & Test", "description": "Implementing + testing locally.", "position": 2, "color": null, "version": 1, "archived_at": null },
     { "id": "review", "name": "Review", "description": "Independent two-reviewer gate.", "position": 3, "color": null, "version": 1, "archived_at": null },
-    { "id": "approval", "name": "Awaiting Diego", "description": "PR open, reviews passed, waiting on Diego's sign-off.", "position": 4, "color": null, "version": 1, "archived_at": null },
-    { "id": "merged", "name": "Merged", "description": "Approved + merged to main.", "position": 5, "color": null, "version": 1, "archived_at": null }
+    { "id": "approval", "name": "Pending Review and Approval", "description": "PR open against `dev`, automated reviews passed — awaiting Diego's own review + approval.", "position": 4, "color": null, "version": 1, "archived_at": null },
+    { "id": "merged", "name": "Merged to dev", "description": "Approved + merged to the `dev` branch. (Releasing `dev` → `main` is a separate flow on the Release board.)", "position": 5, "color": null, "version": 1, "archived_at": null }
   ],
   "policies": [
     {
@@ -68,7 +68,7 @@
         "from_group": "approval",
         "to_group": "merged",
         "require": [{ "field": "task.custom_data.diego_approved", "op": "exists" }],
-        "on_failure_message": "Diego must approve before merge — run `substrate approve <task_id> diego_approved`. An agent cannot set this field."
+        "on_failure_message": "Diego must approve before the PR merges to the `dev` branch — run `substrate approve <task_id> diego_approved`. An agent cannot set this field. (Never merge feature work to `main`; `main` moves only on a release — see the Release board.)"
       },
       "priority": 0,
       "enabled": true,
