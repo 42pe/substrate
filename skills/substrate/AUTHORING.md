@@ -51,14 +51,18 @@ each exit criterion you'll enforce (e.g. `spec_approved`, `tests_passing`,
 `review_cleared`) — the agent flips these via `update_task` `custom_data` as each
 criterion is met. `field_schema.comments` works the same for comment metadata.
 
+To add or change **one field** on an existing board without resending the whole
+schema, use `update_board`'s **`field_schema_patch`** (merge the given fields; a
+`null` value deletes a field) instead of the full-`field_schema` replace.
+
 **A gate an autonomous agent can set is a gate it can self-clear.** If a criterion
 must be signed off by a *human* — a real approval, not just a checkbox the agent
 ticks on its way past — mark that field `"human_only": true`. The agent's MCP
 write tools (`create_task`/`update_task`) then **refuse** to set it, and
 `update_board` refuses to **downgrade** it (clear the flag or delete the field) —
 so an agent can neither set the value nor un-protect it. The human channel sets it:
-`substrate approve <task_id> <field> [value=true]` (or the UI), which stamps the
-change as `human:<os-user>` in the event log. Pair it with a `transition_guard`
+`substrate approve <task_id> <field> [value=true]` (the CLI is the write channel;
+the web UI is read-only), which stamps the change as `human:<os-user>` in the event log. Pair it with a `transition_guard`
 that requires the field: the guard makes the move impossible until the field is
 set, and `human_only` makes *the agent* unable to set it — so the move genuinely
 waits on a human. Without `human_only`, a `"*" → done` gate is only advisory
@@ -153,7 +157,11 @@ _true_: the agent self-attests `tests_passing` etc.; nothing here runs the tests
 "Enforceable" means the rail fires on demand, not that the work was checked — so
 "validate" below means _prove the rail fires_, not _prove the work happened_.
 
-Policies fail **silently** if malformed, so prove them before declaring done:
+Policies fail **silently** if malformed, so prove them before declaring done.
+First, a cheap static check: run **`substrate validate`** — it loads the boards +
+policies without a server and exits non-zero on a corrupt/unparseable substrate
+(and warns on a logically-dead guard, e.g. `from_group === to_group`). It's a
+structural lint, not a behavioral one, so still do the live probe below:
 
 1. `create_task` on the new board in the stage before a gate, with the gate field
    unset/false.
@@ -167,6 +175,11 @@ Policies fail **silently** if malformed, so prove them before declaring done:
 
 If a guard didn't block when it should have, the `definition` is wrong (check
 `from_group`/`to_group` ids and the `field` paths) — re-read §3.
+
+To spot-check a gate **without** a throwaway task, the `check_transition` read
+tool dry-runs "would moving task X to group Y be allowed?" against the real
+guards and writes nothing — handy for confirming a gate is live on an existing
+task, or seeing exactly what a move needs.
 
 ## Tips
 

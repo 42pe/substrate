@@ -33,7 +33,7 @@ export function warnIfFreshDbWithBoards(root: string, dbExistedBeforeOpen: boole
       `${p.dataSqlite}. If this is a git worktree or fresh clone, its task state is NOT shared ` +
       `with your main checkout (data.sqlite is gitignored, so it doesn't travel with a worktree). ` +
       `To share the board, run substrate with its working directory pointed at the main checkout's ` +
-      `.substrate/ (see docs on multi-worktree usage).`,
+      `.substrate/ (see the README's "Worktrees & fresh clones" section).`,
     { root, data_sqlite: p.dataSqlite },
   );
 }
