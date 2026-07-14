@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — submit_feedback MCP tool</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      ol {
+        padding-left: 1.3rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — <code>submit_feedback</code> MCP tool</h1>
+    <p class="meta">
+      dev board · task 06d6dd55 (<code>submit-feedback</code>) ·
+      <span class="status">Draft v1 — awaiting plan_approved</span> ·
+      <a href="../specs/submit-feedback.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      This is a small, additive, dependency-free tool. The whole feature is a
+      <strong>pure function</strong> that maps <code>{ title, body, agent_name? }</code> to a
+      prefilled GitHub <code>issues/new</code> URL, wrapped in the same tool scaffolding as
+      <code>whoami</code> and <code>reverse_captcha</code>. No storage, no network, no event, no new
+      dependency (URL assembly uses the built-in <code>URL</code>/<code>URLSearchParams</code> or
+      <code>encodeURIComponent</code>). Because it touches nothing stateful, the risk surface is the
+      string assembly itself: correct encoding, the title prefix, and the version stamp.
+    </p>
+    <p>
+      The handler is exported separately from the <code>register…</code> function so the unit test
+      calls the pure handler directly (no MCP server, no stdio) — matching how
+      <code>reverseCaptchaHandler</code> is tested. <code>BINARY_VERSION</code> is imported from
+      <code>src/core/version.ts</code> so the version stamp can never drift.
+    </p>
+
+    <h3>Handler sketch (illustrative, not final code)</h3>
+    <pre>
+export const REPO = '42pe/substrate';
+const TITLE_PREFIX = 'Substrate Feedback: ';
+
+export function submitFeedbackHandler(input: SubmitFeedbackInput): SubmitFeedbackResult {
+  const issue_title = TITLE_PREFIX + input.title;
+  const footerLines = [`Filed via Substrate v${BINARY_VERSION}`];
+  if (input.agent_name) footerLines.push(`Agent: ${input.agent_name}`);
+  const body = `${input.body}\n\n---\n${footerLines.join('\n')}`;
+  const params = new URLSearchParams({ title: issue_title, body, labels: 'feedback' });
+  const url = `https://github.com/${REPO}/issues/new?${params.toString()}`;
+  return {
+    result: 'feedback_url',
+    url,
+    issue_title,
+    repo: REPO,
+    instructions:
+      "Open this URL in a browser and click 'Submit new issue' to file it. Nothing was sent automatically.",
+  };
+}</pre>
+    <p>
+      Note: <code>URLSearchParams</code> encodes spaces as <code>+</code> in the query string, which
+      GitHub decodes correctly; if the tests prefer <code>%20</code>, swap to explicit
+      <code>encodeURIComponent</code> concatenation. Either is acceptable — the acceptance test
+      asserts <em>round-trip via decode</em>, not the exact escape byte, to avoid brittleness.
+    </p>
+
+    <h2>Step-by-step work</h2>
+    <ol>
+      <li>
+        <strong>Author the handler + schema.</strong> Create
+        <code>src/mcp/tools/read/submit-feedback.ts</code>: define
+        <code>submitFeedbackShape</code> (<code>title</code>, <code>body</code>,
+        <code>agent_name?</code> with the caps from the spec), the
+        <code>SubmitFeedbackInput</code>/<code>SubmitFeedbackResult</code> types, the pure
+        <code>submitFeedbackHandler</code>, and <code>registerSubmitFeedback(server, deps)</code>
+        wiring it with <code>wrapToolHandler('submit_feedback', schema, …)</code>. Copy the
+        structure of <code>reverse-captcha.ts</code> (exported handler, exported shape/schema,
+        register fn). The handler needs no <code>deps</code> (like <code>reverse_captcha</code>) — it
+        is pure input → output.
+      </li>
+      <li>
+        <strong>Wire the registry.</strong> Import
+        <code>registerSubmitFeedback</code> in <code>src/mcp/registry.ts</code> and call it in the
+        read-tools block (next to <code>registerReverseCaptcha</code>). Registration order only
+        affects <code>tools/list</code> order; the test sorts, so placement is cosmetic.
+      </li>
+      <li>
+        <strong>Update the tool-surface test.</strong> Add <code>'submit_feedback'</code> to the
+        sorted expected array in
+        <code>tests/integration/mcp-bootstrap-flow.test.ts</code> (it sorts in between
+        <code>reverse_captcha</code> and <code>unarchive_board</code>), taking the surface 31 → 32.
+      </li>
+      <li>
+        <strong>Write the unit test.</strong>
+        <code>src/mcp/tools/read/submit-feedback.test.ts</code> — see test strategy below.
+      </li>
+      <li>
+        <strong>Docs.</strong> Update the substrate skill's tool reference to list
+        <code>submit_feedback</code> and bump its stated count 31 → 32; add a one-line mention where
+        the tool surface is enumerated in <code>README</code> / <code>AGENTS</code>. Record the
+        one-time <code>feedback</code>-label prerequisite (resolved question 2) near the tool docs.
+      </li>
+      <li>
+        <strong>Local green gate.</strong> In the worktree:
+        <code>pnpm install &amp;&amp; pnpm build &amp;&amp; pnpm lint &amp;&amp; pnpm format:check
+        &amp;&amp; pnpm test</code> (CI is billing-blocked — local is the gate). Only then set
+        <code>tests_green</code> and move Build → Review.
+      </li>
+    </ol>
+
+    <h2>Files / touchpoints</h2>
+    <table>
+      <tr>
+        <th>Path</th>
+        <th>Change</th>
+      </tr>
+      <tr>
+        <td><code>src/mcp/tools/read/submit-feedback.ts</code> <em>(new)</em></td>
+        <td>Pure handler, zod shape/schema, <code>registerSubmitFeedback</code>.</td>
+      </tr>
+      <tr>
+        <td><code>src/mcp/tools/read/submit-feedback.test.ts</code> <em>(new)</em></td>
+        <td>Unit tests for URL assembly, prefix, version stamp, encoding, attribution, caps.</td>
+      </tr>
+      <tr>
+        <td><code>src/mcp/registry.ts</code></td>
+        <td>Import + register the tool in the read block.</td>
+      </tr>
+      <tr>
+        <td><code>tests/integration/mcp-bootstrap-flow.test.ts</code></td>
+        <td>Add <code>submit_feedback</code> to the asserted <code>tools/list</code> array (→ 32).</td>
+      </tr>
+      <tr>
+        <td>substrate skill tool reference · <code>README</code> / <code>AGENTS</code></td>
+        <td>List the new tool; bump the 31 → 32 count; note the label prerequisite.</td>
+      </tr>
+    </table>
+    <p>
+      Unchanged by design: <code>src/core/version.ts</code> (imported, not edited), the storage
+      layer, the policy layer, the HTTP API (read-only), and every other tool.
+    </p>
+
+    <h2>Risks</h2>
+    <ul>
+      <li>
+        <strong>URL length under percent-encoding.</strong> A 4096-char body of high-entropy or
+        multibyte content can inflate past GitHub's ~8 KB prefill guideline. Mitigation: schema caps
+        bound the input; typical ASCII feedback stays well under. Accepted for v1; if it bites,
+        follow up with a lower body cap or an output-side length guard that returns a distinct
+        <code>result</code> variant. Documented, not silently truncated.
+      </li>
+      <li>
+        <strong><code>feedback</code> label may not exist.</strong> Mitigation: one-time maintainer
+        step to create it (resolved question 2). Absence is a cosmetic GitHub banner, not a failure,
+        so the tool is robust either way; the title prefix is the always-present tag.
+      </li>
+      <li>
+        <strong>Encoding correctness.</strong> Ampersands, hashes, and newlines in
+        <code>body</code>/<code>title</code> must not break the query string. Mitigation: use
+        <code>URLSearchParams</code>/<code>encodeURIComponent</code> (never manual concatenation) and
+        assert round-trip decode in tests.
+      </li>
+      <li>
+        <strong>Version-stamp drift.</strong> Mitigation: import <code>BINARY_VERSION</code>; the
+        test asserts the footer contains the imported value, not a literal — mirroring the
+        <code>whoami</code> phase-string discipline.
+      </li>
+      <li>
+        <strong>Scope creep.</strong> <code>category</code>, environment capture, and API submission
+        are explicit non-goals; the reviewer should reject any of them sneaking in.
+      </li>
+    </ul>
+
+    <h2>Test strategy</h2>
+    <p>
+      Test the <strong>pure handler</strong> directly (no server, no stdio, no network) plus the one
+      integration assertion on the tool surface. Deterministic — no <code>Date.now</code>/network to
+      stub.
+    </p>
+    <ul>
+      <li>
+        <strong>Happy path.</strong> Given a title and body, assert
+        <code>result === 'feedback_url'</code>, <code>repo === '42pe/substrate'</code>,
+        <code>issue_title === 'Substrate Feedback: ' + title</code>, and that <code>url</code> starts
+        with <code>https://github.com/42pe/substrate/issues/new?</code> and contains
+        <code>labels=feedback</code>.
+      </li>
+      <li>
+        <strong>Encoding round-trip.</strong> Parse <code>url</code> with <code>new URL()</code>;
+        assert <code>searchParams.get('title')</code> equals the prefixed title and
+        <code>searchParams.get('body')</code> equals the composed body — using a body containing
+        <code>&amp;</code>, <code>#</code>, and newlines to prove escaping.
+      </li>
+      <li>
+        <strong>Version stamp.</strong> Assert the decoded body contains
+        <code>`Substrate v${BINARY_VERSION}`</code> (import the constant into the test, don't
+        hardcode).
+      </li>
+      <li>
+        <strong>Attribution.</strong> With <code>agent_name</code>, the decoded body footer contains
+        <code>Agent: &lt;name&gt;</code>; without it, the body contains no <code>Agent:</code> line.
+      </li>
+      <li>
+        <strong>Schema caps.</strong> Parsing the schema with a 121-char title, a 4097-char body, or
+        an empty title/body fails (<code>schema.safeParse(...).success === false</code>) — proving
+        <code>wrapToolHandler</code> would emit <code>schema_violation</code> rather than a URL.
+      </li>
+      <li>
+        <strong>No <code>ok</code> field.</strong> Assert the result object has no <code>ok</code>
+        key (so the wrapper reports <code>isError: false</code>), matching
+        <code>whoami</code>/<code>reverse_captcha</code>.
+      </li>
+      <li>
+        <strong>Surface test.</strong> The updated
+        <code>mcp-bootstrap-flow.test.ts</code> assertion lists 32 tools including
+        <code>submit_feedback</code>, and (optionally) a <code>tools/call</code> smoke test returns a
+        non-error envelope with a <code>github.com</code> URL.
+      </li>
+    </ul>
+
+    <h2>Rollout</h2>
+    <ul>
+      <li>
+        Single PR into <code>dev</code> off a feature branch — purely additive, no migration, no
+        schema change, no data touched.
+      </li>
+      <li>
+        Passes the <strong>Build → Review</strong> gate only after local tsc + lint + format + full
+        test suite are green (CI billing-blocked → validate locally).
+      </li>
+      <li>
+        Two independent adversarial reviewers (distinct lenses — e.g. "encoding / URL-safety /
+        privacy-egress" and "product / tests / docs &amp; tool-surface count") must both APPROVE
+        before <strong>Review → Pending Review and Approval</strong>; then Diego's human sign-off
+        merges to <code>dev</code>.
+      </li>
+      <li>
+        One-time maintainer prerequisite before or alongside merge: create the
+        <code>feedback</code> label on <code>42pe/substrate</code> so the prefilled link shows no
+        banner.
+      </li>
+    </ul>
+  </body>
+</html>
