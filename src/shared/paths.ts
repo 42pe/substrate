@@ -12,10 +12,12 @@ export interface SubstratePaths {
   readonly dataSqliteShm: string;
   readonly pid: string;
   readonly boardsDir: string;
+  readonly membersDir: string;
   readonly attachmentsDir: string;
   readonly logsDir: string;
   readonly logFile: string;
   boardJson: (boardId: string) => string;
+  memberJson: (memberId: string) => string;
   attachmentTaskDir: (taskId: string) => string;
 }
 
@@ -29,10 +31,12 @@ export function paths(root: string): SubstratePaths {
     dataSqliteShm: `${dataSqlite}-shm`,
     pid: join(root, 'substrate.pid'),
     boardsDir: join(root, 'boards'),
+    membersDir: join(root, 'members'),
     attachmentsDir: join(root, 'attachments'),
     logsDir: join(root, 'logs'),
     logFile: join(root, 'logs', 'substrate.log'),
     boardJson: (boardId: string) => join(root, 'boards', `${boardId}.json`),
+    memberJson: (memberId: string) => join(root, 'members', `${memberId}.json`),
     attachmentTaskDir: (taskId: string) => join(root, 'attachments', taskId),
   };
 }

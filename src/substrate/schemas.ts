@@ -53,6 +53,31 @@ export const PolicySchema = z.object({
   archived_at: z.string().nullable(),
 });
 
+/**
+ * A project-level member registry entry (`.substrate/members/<id>.json`). Only
+ * `id` + `name` are required; the rest is optional prose/metadata. Used strictly
+ * (`.parse`) for Substrate's OWN shipped default members (the template gate) and
+ * leniently (`.safeParse`, warn+skip) for user-project member files at runtime.
+ */
+export const MemberSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  full_description: z.string().optional(),
+  traits: z.array(z.string()).optional(),
+  concerns: z.array(z.string()).optional(),
+  memory_dir: z.string().optional(),
+});
+
+/**
+ * A board's reference to a registry member plus its advisory group associations
+ * ON THAT board. `member` is required; `groups` is optional (an unresolved
+ * `member` or a dangling `groups` id is an integrity WARNING, not a parse error).
+ */
+export const TeamBindingSchema = z.object({
+  member: z.string().min(1),
+  groups: z.array(z.string()).optional(),
+});
+
 export const BoardSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -60,6 +85,8 @@ export const BoardSchema = z.object({
   field_schema: FieldSchemaSchema,
   groups: z.array(GroupSchema),
   policies: z.array(PolicySchema),
+  // Optional → a board with no `team` (older boards, prose rosters) still parses.
+  team: z.array(TeamBindingSchema).optional(),
   version: z.number().int(),
   created_at: z.string(),
   updated_at: z.string(),

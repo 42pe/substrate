@@ -1,4 +1,4 @@
-import type { Task, Comment, TaskEvent, Board, Group, Policy } from '@core/types';
+import type { Task, Comment, TaskEvent, Board, Group, Policy, Member } from '@core/types';
 
 /**
  * Typed read-only client over the Phase 5a HTTP API. Same-origin (the app is
@@ -98,6 +98,13 @@ export interface BoardSummary {
   version: number;
 }
 
+/** A board team binding with member identity resolved from the registry.
+ *  Mirrors the server `ResolvedTeamMember` (get-board-substrate). `unresolved`
+ *  carries only the referenced id (dangling ref — surfaced, not dropped). */
+export type ResolvedTeamMember =
+  | { unresolved: false; member: Member; groups: string[] }
+  | { unresolved: true; member: { id: string }; groups: string[] };
+
 export interface BoardSubstrate {
   board: {
     id: string;
@@ -111,6 +118,8 @@ export interface BoardSubstrate {
   groups: Group[];
   field_schema: Board['field_schema'];
   policies: Policy[];
+  /** Resolved team roster (advisory metadata). Empty when no team is declared. */
+  team: ResolvedTeamMember[];
 }
 
 function qs(params: Record<string, string | number | boolean | undefined>): string {

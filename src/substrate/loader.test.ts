@@ -151,4 +151,76 @@ describe('loadSubstrate', () => {
     await rm(paths(root).config, { force: true });
     await expect(loadSubstrate(root)).rejects.toMatchObject({ code: 'not_found' });
   });
+
+  // --- Member registry: LENIENT loading (warn + skip, never fatal) ---
+
+  async function writeMemberFile(filename: string, content: unknown): Promise<void> {
+    const membersDir = paths(root).membersDir;
+    await mkdir(membersDir, { recursive: true });
+    await writeFile(
+      join(membersDir, filename),
+      typeof content === 'string' ? content : JSON.stringify(content, null, 2),
+      'utf-8',
+    );
+  }
+
+  it('populates Substrate.members from members/*.json', async () => {
+    await writeBoardFile('board-a.json', makeBoard('board-a'));
+    await writeMemberFile('alice.json', { id: 'alice', name: 'Alice', traits: ['x'] });
+    await writeMemberFile('bob.json', { id: 'bob', name: 'Bob' });
+
+    const substrate = await loadSubstrate(root);
+    expect(substrate.members.map((m) => m.id).sort()).toEqual(['alice', 'bob']);
+    expect(substrate.warnings).toEqual([]);
+  });
+
+  it('returns members: [] when members/ is missing', async () => {
+    await writeBoardFile('board-a.json', makeBoard('board-a'));
+    const substrate = await loadSubstrate(root);
+    expect(substrate.members).toEqual([]);
+    expect(substrate.warnings).toEqual([]);
+  });
+
+  it('warns + skips a malformed member file (bad JSON) — load still succeeds', async () => {
+    await writeBoardFile('board-a.json', makeBoard('board-a'));
+    await writeMemberFile('good.json', { id: 'good', name: 'Good' });
+    await writeMemberFile('broken.json', '{not valid json');
+
+    const substrate = await loadSubstrate(root);
+    expect(substrate.members.map((m) => m.id)).toEqual(['good']);
+    expect(substrate.warnings.some((w) => w.includes('members/broken.json'))).toBe(true);
+  });
+
+  it('warns + skips a member missing required fields — load still succeeds', async () => {
+    await writeBoardFile('board-a.json', makeBoard('board-a'));
+    await writeMemberFile('nameless.json', { id: 'nameless' }); // no name
+    const substrate = await loadSubstrate(root);
+    expect(substrate.members).toEqual([]);
+    expect(substrate.warnings.some((w) => w.includes('members/nameless.json'))).toBe(true);
+  });
+
+  it('warns + skips a member whose filename does not match its id', async () => {
+    await writeBoardFile('board-a.json', makeBoard('board-a'));
+    await writeMemberFile('wrong-name.json', { id: 'actual', name: 'Actual' });
+    const substrate = await loadSubstrate(root);
+    expect(substrate.members).toEqual([]);
+    expect(substrate.warnings.some((w) => w.includes('members/wrong-name.json'))).toBe(true);
+  });
+
+  it('loads members even when boards/ is missing', async () => {
+    await writeMemberFile('solo.json', { id: 'solo', name: 'Solo' });
+    const substrate = await loadSubstrate(root);
+    expect(substrate.boards).toEqual([]);
+    expect(substrate.members.map((m) => m.id)).toEqual(['solo']);
+  });
+
+  it('warns (does NOT throw) on a board team referencing an unknown member', async () => {
+    await writeBoardFile(
+      'board-a.json',
+      makeBoard('board-a', { team: [{ member: 'ghost', groups: ['g1'] }] }),
+    );
+    const substrate = await loadSubstrate(root);
+    expect(substrate.boards).toHaveLength(1); // still loaded
+    expect(substrate.warnings.some((w) => w.includes('ghost'))).toBe(true);
+  });
 });

@@ -93,9 +93,10 @@ function ViewToggle({ view }: { view: View }) {
 /** Description + field schema + policies, demoted into a collapsed disclosure so
  *  the columns lead. `<details>` is native + accessible; collapsed by default. */
 function BoardDetailsDisclosure({ data }: { data: BoardSubstrate }) {
-  const { board, field_schema, policies } = data;
+  const { board, field_schema, policies, groups, team } = data;
   const taskFields = Object.entries(field_schema.task);
   const commentFields = Object.entries(field_schema.comments);
+  const groupName = (gid: string) => groups.find((g) => g.id === gid)?.name ?? gid;
   return (
     <details className="group mt-3 rounded-lg border border-border bg-card">
       <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground">
@@ -146,9 +147,74 @@ function BoardDetailsDisclosure({ data }: { data: BoardSubstrate }) {
               )}
             </CardContent>
           </Card>
+          <TeamCard team={team} groupName={groupName} />
         </div>
       </div>
     </details>
+  );
+}
+
+/** The board's roster, resolved from the member registry. `groups` render as
+ *  ADVISORY assignment badges (group id → name); traits + concerns as chip-ish
+ *  lines; full_description as a secondary line. An unresolved member (dangling
+ *  ref) shows its id with a muted "unresolved" marker rather than disappearing.
+ *  An empty team shows a muted empty state (matching "No policies."). */
+function TeamCard({
+  team,
+  groupName,
+}: {
+  team: BoardSubstrate['team'];
+  groupName: (gid: string) => string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Team ({team.length})</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {team.length === 0 ? (
+          <p className="text-muted-foreground">No team declared.</p>
+        ) : (
+          team.map((entry) => (
+            <div
+              key={entry.member.id}
+              className="border-b border-border pb-2 last:border-0 last:pb-0"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {entry.unresolved ? (
+                  <>
+                    <span className="font-mono text-xs">{entry.member.id}</span>
+                    <Badge variant="muted">unresolved</Badge>
+                  </>
+                ) : (
+                  <span className="font-medium">{entry.member.name}</span>
+                )}
+                {entry.groups.map((gid) => (
+                  <Badge key={gid} variant="outline">
+                    {groupName(gid)}
+                  </Badge>
+                ))}
+              </div>
+              {!entry.unresolved && entry.member.full_description ? (
+                <p className="mt-1 text-muted-foreground">{entry.member.full_description}</p>
+              ) : null}
+              {!entry.unresolved && entry.member.traits && entry.member.traits.length > 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  <span className="uppercase tracking-wide">Traits:</span>{' '}
+                  {entry.member.traits.join(', ')}
+                </p>
+              ) : null}
+              {!entry.unresolved && entry.member.concerns && entry.member.concerns.length > 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  <span className="uppercase tracking-wide">Concerns:</span>{' '}
+                  {entry.member.concerns.join(', ')}
+                </p>
+              ) : null}
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

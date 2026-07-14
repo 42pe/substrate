@@ -7,9 +7,11 @@ import {
 } from '../../../core/envelope.js';
 import type { Board, FieldSchema } from '../../../core/types.js';
 import { mutateBoardFile } from '../../../substrate/writer.js';
+import { loadMembers } from '../../../substrate/loader.js';
 import { validateBoardStructure } from '../../../substrate/validator.js';
 import { FieldSchemaSchema, FieldSchemaEntrySchema } from '../../../substrate/schemas.js';
 import { SubstrateError } from '../../../core/errors.js';
+import { logger } from '../../../shared/logger.js';
 import { wrapToolHandler } from '../../wrapper.js';
 import type { ToolDeps } from '../../deps.js';
 import { assertVersion, runEdit } from './substrate-edit.js';
@@ -81,6 +83,13 @@ export function updateBoardHandler(
         { fields: ['field_schema', 'field_schema_patch'] },
       );
     }
+    // Registry ids for the advisory team-integrity pass (v1 has no team WRITE,
+    // but a hand-authored `team` already on disk is re-checked here so the write
+    // path surfaces the same warnings the load path does — never fatal). Read
+    // once, leniently; a member-load hiccup must not fail a board edit.
+    const teamWarnings: string[] = [];
+    const memberIds = new Set((await loadMembers(deps.root, [])).map((m) => m.id));
+
     const next = await mutateBoardFile(deps.root, input.id, (board) => {
       assertVersion(board.version, input.version, board.id);
 
@@ -134,9 +143,23 @@ export function updateBoardHandler(
         version: board.version + 1,
         updated_at: now,
       };
-      validateBoardStructure(updated); // schema_violation before commit
+      // schema_violation (structural) before commit; team integrity is advisory
+      // (appends to teamWarnings, never throws).
+      validateBoardStructure(updated, {
+        memberIds,
+        warn: (w) => teamWarnings.push(w),
+      });
       return { result: updated, next: updated };
     });
+    // Surface member/team advisories through the server's warning channel (the
+    // same non-blocking route the load path / `substrate validate` uses). The
+    // write already succeeded — these never block it.
+    if (teamWarnings.length > 0) {
+      logger.warn('update_board: board team has integrity warnings', {
+        board_id: next.id,
+        warnings: teamWarnings,
+      });
+    }
     return successEnvelope<Board>({
       entity: 'board',
       id: next.id,

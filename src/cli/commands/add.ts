@@ -86,9 +86,13 @@ export async function addCommand(
 
   // 5. Combined-validity (forward-compat scaffolding; today re-confirms only
   //    board-id uniqueness across the merged set, which step 4 already enforces).
+  // Member/team integrity is advisory (warnings sink); a throwaway list here —
+  // `add` only re-confirms board-id uniqueness across the merged set.
   validateSubstrate({
     config: existing.config,
     boards: [...existing.boards, ...incoming],
+    members: existing.members,
+    warnings: [],
   });
 
   // 6. Branch on --yes.

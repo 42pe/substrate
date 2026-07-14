@@ -65,9 +65,17 @@ export async function validateCommand(cwd: string): Promise<void> {
     }
   }
 
+  // Advisory member/team integrity diagnostics accumulated during the load
+  // (malformed member files, dangling member/group references, duplicates).
+  // Same non-blocking channel as the policy smells above — printed, exit 0.
+  for (const w of substrate.warnings) {
+    warnings += 1;
+    process.stdout.write(`  ⚠ ${w}\n`);
+  }
+
   if (warnings === 0) {
     process.stdout.write(
-      `✓ ${substrate.boards.length} board(s), ${policies} policies — loaded; definitions parse + group refs resolve, no warnings.\n`,
+      `✓ ${substrate.boards.length} board(s), ${policies} policies, ${substrate.members.length} member(s) — loaded; definitions parse + group refs resolve, no warnings.\n`,
     );
   } else {
     process.stdout.write(`\n${warnings} warning(s) (advisory).\n`);

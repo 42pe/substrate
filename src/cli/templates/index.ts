@@ -1,14 +1,18 @@
-import { BoardSchema } from '../../substrate/schemas.js';
-import type { Board } from '../../core/types.js';
+import { BoardSchema, MemberSchema } from '../../substrate/schemas.js';
+import type { Board, Member } from '../../core/types.js';
 import { WEB_DELIVERY_BOARD } from './web-delivery.board.js';
+import { WEB_DELIVERY_MEMBERS } from './web-delivery.members.js';
 
 /**
  * Starter-board templates for `substrate init --template <name>`. Adding a
  * template is a one-entry change: add a `*.board.ts` module + a registry entry.
+ * A template ships a board plus a default `members` registry (both scaffolded by
+ * `init`).
  */
 export const TEMPLATES = {
   'web-delivery': {
     board: WEB_DELIVERY_BOARD,
+    members: WEB_DELIVERY_MEMBERS,
     summary: 'Spec → Plan → Build → Review → QA → Done, with policy gates',
   },
 } as const;
@@ -34,4 +38,16 @@ export function loadTemplateBoard(name: TemplateName): Board {
   // which `exactOptionalPropertyTypes` rejects against the hand-written
   // interface. The loader (substrate/loader.ts) uses the same cast.
   return BoardSchema.parse(TEMPLATES[name].board) as Board;
+}
+
+/**
+ * Return the fresh, STRICTLY-validated default member registry for the named
+ * template. `MemberSchema.parse` throws on a corrupt shipped default — this is a
+ * build-time invariant on Substrate's OWN artifacts, deliberately distinct from
+ * the LENIENT (warn+skip) runtime path for user-project member files
+ * (substrate/loader.ts `loadMembers`). Loosening one must not loosen the other.
+ */
+export function loadTemplateMembers(name: TemplateName): Member[] {
+  // `as Member`: same Zod-optional widening bridge as loadTemplateBoard.
+  return TEMPLATES[name].members.map((m) => MemberSchema.parse(m) as Member);
 }

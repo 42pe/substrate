@@ -7,7 +7,7 @@ import type { Hono } from 'hono';
 import { createApp, defaultHttpConfig } from '../../server.js';
 import { writeConfig } from '../../../shared/config.js';
 import { paths } from '../../../shared/paths.js';
-import { createBoardFile } from '../../../substrate/writer.js';
+import { createBoardFile, createMemberFile } from '../../../substrate/writer.js';
 import { loadSubstrate } from '../../../substrate/loader.js';
 import { openDatabaseAndMigrate } from '../../../storage/client.js';
 import { createTask } from '../../../storage/repositories/tasks.js';
@@ -42,6 +42,7 @@ const board: Board = {
     },
   ],
   policies: [],
+  team: [{ member: 'planner', groups: ['g1'] }],
   version: 1,
   created_at: '2026-05-09T00:00:00.000Z',
   updated_at: '2026-05-09T00:00:00.000Z',
@@ -92,6 +93,8 @@ describe('HTTP read API', () => {
     await writeConfig(root, config);
     await mkdir(paths(root).boardsDir, { recursive: true });
     await createBoardFile(root, board);
+    await mkdir(paths(root).membersDir, { recursive: true });
+    await createMemberFile(root, { id: 'planner', name: 'Planner', traits: ['plans'] });
     client = await openDatabaseAndMigrate(paths(root).dataSqlite);
     await createTask(client, makeTask('1'));
     await createTask(client, makeTask('2'));
@@ -129,12 +132,20 @@ describe('HTTP read API', () => {
     expect(body.results.map((b) => b.id)).toEqual(['b1']);
   });
 
-  it('GET /api/boards/:id returns the board substrate', async () => {
+  it('GET /api/boards/:id returns the board substrate incl. resolved team', async () => {
     const res = await app.request('/api/boards/b1');
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { board: { id: string }; groups: Array<{ id: string }> };
+    const body = (await res.json()) as {
+      board: { id: string };
+      groups: Array<{ id: string }>;
+      team: Array<{ unresolved: boolean; member: { id: string; name?: string }; groups: string[] }>;
+    };
     expect(body.board.id).toBe('b1');
     expect(body.groups.map((g) => g.id)).toEqual(['g1']);
+    expect(body.team).toHaveLength(1);
+    expect(body.team[0]!.unresolved).toBe(false);
+    expect(body.team[0]!.member.name).toBe('Planner');
+    expect(body.team[0]!.groups).toEqual(['g1']);
   });
 
   it('GET /api/boards/:id unknown → 404', async () => {

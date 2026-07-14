@@ -125,6 +125,25 @@ describe('initCommand', () => {
       expect(substrate.boards.map((b) => b.id)).toContain('delivery');
     });
 
+    it('--template web-delivery also writes the default member registry', async () => {
+      const { root } = await initCommand(cwd, { template: 'web-delivery' });
+      expect(existsSync(join(root, 'members', 'planner.json'))).toBe(true);
+      const substrate = await loadSubstrate(root);
+      // Members written, bindings resolve, and the substrate validates cleanly.
+      expect(substrate.members.map((m) => m.id).sort()).toEqual([
+        'builder',
+        'planner',
+        'qa',
+        'reviewer',
+      ]);
+      expect(substrate.warnings).toEqual([]);
+    });
+
+    it('bare init writes NO members/ directory', async () => {
+      const { root } = await initCommand(cwd);
+      expect(existsSync(join(root, 'members'))).toBe(false);
+    });
+
     it('unknown template errors AND does not create .substrate/', async () => {
       let caught: unknown;
       try {
