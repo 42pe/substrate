@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Data structures for per-board team composition</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      .q {
+        background: #3b82f611;
+        border-left: 3px solid #3b82f6;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .rec {
+        background: #22c55e14;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .warn {
+        background: #f5a62314;
+        border-left: 3px solid #f5a623;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Data structures for per-board team composition</h1>
+    <p class="meta">
+      dev board · task 9a5af742 (<code>board-team-composition</code>) ·
+      <span class="status">Draft v4 — awaiting plan_approved</span> ·
+      <a href="../plans/board-team-composition.html">plan →</a>
+    </p>
+
+    <h2>Problem</h2>
+    <p>
+      A board's <strong>team</strong> — the members that work it, each with traits and "Concerns" —
+      lives today as free markdown prose inside the board's <code>description</code> field, under a
+      <code>## Team</code> heading. See it live in <code>.substrate/boards/dev.json</code> (Planner /
+      Builder / Reviewers ×2 / Integrator) and <code>.substrate/boards/release.json</code> (Doc
+      Auditor / Release Engineer / Validator / Reviewers ×2). Because it is prose baked into one big
+      markdown blob, the team is:
+    </p>
+    <ul>
+      <li>
+        <strong>Not queryable.</strong> Nothing can answer "which members work the Review group?" or
+        "list the Planner's concerns" without a human re-reading the paragraph. The
+        <code>get_board_substrate</code> payload returns groups, field_schema, and policies as
+        structured data, but the team hides inside a description string.
+      </li>
+      <li>
+        <strong>Not renderable as data.</strong> The UI (<code>ui/src/routes/BoardDetail.tsx</code>)
+        renders the description as one markdown block; it cannot show which members are associated with
+        which groups, cross-link a member to a group, or present the roster as a first-class card the
+        way it already does for field schema and policies.
+      </li>
+      <li>
+        <strong>Not a persistent identity.</strong> This is the decisive gap. A prose line under a
+        board's description is <em>local to that board</em>. But a member can deliberately span
+        <strong>multiple boards and multiple stages under one shared identity and one shared
+        memory</strong>. A per-board roster line simply cannot express that.
+      </li>
+      <li>
+        <strong>Prone to drift.</strong> The prose roster and the board's
+        <code>agent_responsibility</code> policies (<code>src/policy/agent-responsibility.ts</code>)
+        both describe "who works in which group", in two places, with nothing keeping them consistent.
+      </li>
+    </ul>
+
+    <h3>The motivating case: a persistent, cross-stage member</h3>
+    <p>
+      Consider an <strong>Oversight</strong> member that authors the spec at the <em>start</em> of a
+      change (targeting the <code>spec</code> group) and then returns at the <em>end</em> to review the
+      implementation (targeting the <code>review</code> group) — the <em>same</em> identity, drawing on
+      the <em>same</em> memory pool, specifically so it can catch drift between the built thing and the
+      goal it originally wrote down. That member may also sit on other boards. A team line nested in
+      one board's JSON cannot model a cross-board, cross-stage identity with continuity; that demands a
+      <strong>first-class member entity</strong> that exists once, at the project level, and is
+      <em>referenced</em> by boards. That is the core of this proposal.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        <strong>A first-class member entity, project-level.</strong> A member (id, name, description,
+        traits, concerns, a memory pointer) is defined <em>once</em> in a project-level registry and
+        can be referenced by any number of boards — one shared identity across boards and stages.
+      </li>
+      <li>
+        <strong>A thin board-level binding.</strong> Each board declares its team as references to
+        members plus the part that is genuinely board-specific: which group(s) the member is
+        associated with <em>on that board</em>.
+      </li>
+      <li>
+        <strong>Structured &amp; queryable + renderable.</strong> Both layers are machine-readable and
+        joined on read so the UI/agents see resolved members (name, description, group-assignment
+        badges), not bare ids.
+      </li>
+      <li>
+        <strong>Shared memory falls out for free.</strong> Because a member is one entity with one
+        memory pointer, two boards that bind the same member share that member's memory by
+        construction.
+      </li>
+      <li>
+        <strong>Fully optional &amp; additive.</strong> The whole member layer is opt-in: a project may
+        keep its roster in the board <code>description</code> prose and never adopt the registry.
+        Integrity mismatches are non-blocking warnings, never failures (see below).
+      </li>
+      <li>
+        <strong>Descriptive, not enforced.</strong> The registry and bindings describe intent for
+        humans, UI, and orchestrators; Substrate gates nothing on them.
+      </li>
+      <li>
+        <strong>Single source of truth (when adopted).</strong> After migration the roster lives only
+        in the registry + bindings; the prose <code>## Team</code> section is removed from the
+        description.
+      </li>
+      <li>
+        <strong>New projects get a real team out of the box.</strong> <code>substrate init</code> and
+        the bundled template ship a coherent members registry + bindings, not an empty team.
+      </li>
+      <li>
+        <strong>Backward compatible.</strong> The registry and a board's <code>team</code> are both
+        optional: boards with no team, projects with no registry, and older boards all parse and
+        behave exactly as today.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <ul>
+      <li>
+        <strong>No hard failure on member/team integrity.</strong> A dangling member reference, a
+        binding pointing at a nonexistent group, a duplicate, or even a malformed member file never
+        fails board loading, <code>substrate validate</code>, or a write. These surface as advisory
+        warnings (see "Integrity is advisory"). The member layer is optional; breaking it must never
+        break a project that is mostly (or entirely) using prose.
+      </li>
+      <li>
+        <strong><code>groups</code> is not authorization.</strong> A member's <code>groups</code> is
+        <em>advisory</em> — a hint for orchestration and UI, not an access restriction. There is no
+        per-member write gating: Substrate has no authenticated principals, only the free-form
+        <code>created_by_agent</code> actor label. Nothing about who may act in which group is enforced
+        by this data. (The plain noun <code>groups</code>, not
+        <code>owns_</code>/<code>allowed_</code>/<code>restricted_to_</code>, is itself the first signal
+        that it is not a permission.)
+      </li>
+      <li>
+        <strong>No memory runtime behavior.</strong> Substrate <em>stores the pointer</em>
+        (<code>memory_dir</code>) and nothing more. Whether a spawned agent reads that folder on start
+        or writes learnings on exit is <strong>up to the agent</strong> — Substrate enforces no spawn
+        ritual and no read/write of memory content. Reading-on-spawn / writing-on-exit is a possible
+        fast-follow (or never); it is explicitly not in this task.
+      </li>
+      <li>
+        <strong>No memory content in JSON.</strong> The registry stores a folder <em>path</em>; the
+        memory lives as files on disk (git-committed), never inline in the entity.
+      </li>
+      <li>
+        <strong>"Member" is not "agent" (the actor).</strong> A member is a persona/role identity;
+        the existing <code>created_by_agent</code> / <code>agent_name</code> on writes is an
+        <em>actor</em> audit tag on a specific mutation. These are different concepts and stay
+        separate. Unifying them (binding a write's actor to a member id) is an explicit non-goal here
+        — noted as a possible future direction, not part of this task.
+      </li>
+      <li>
+        <strong>No member <em>write</em> tools in v1.</strong> No <code>create_member</code> /
+        <code>update_member</code> / board-binding MCP tools. Registry files and bindings are authored
+        as code (hand-edited JSON), matching how <code>groups</code>/<code>policies</code> content is
+        edited today. Write tooling is an explicit fast-follow.
+      </li>
+      <li>
+        <strong>No behavior change.</strong> Team data is inert: it does not gate transitions, fire
+        messages, assign tasks, or substitute for <code>agent_responsibility</code> policies.
+      </li>
+      <li>
+        <strong>No change to <code>whoami</code>'s payload shape.</strong> The bootstrap call stays a
+        lean board summary; the team rides on <code>get_board_substrate</code>. (Any surface that
+        <em>does</em> show team must resolve member identity from the registry — see below.)
+      </li>
+    </ul>
+
+    <h2>Scope</h2>
+    <p>Eight thin slices, no engine work:</p>
+    <ul>
+      <li>
+        <strong>Types.</strong> A <code>Member</code> interface (registry entity) and a
+        <code>TeamBinding</code> interface (board reference) in <code>src/core/types.ts</code>; an
+        optional <code>team?: TeamBinding[]</code> on <code>Board</code> and a
+        <code>members: Member[]</code> on <code>Substrate</code>.
+      </li>
+      <li>
+        <strong>Registry loading + schema.</strong> Load <code>.substrate/members/*.json</code> into
+        the <code>Substrate</code> (loader), with a <code>MemberSchema</code> and a
+        <code>TeamBindingSchema</code> in <code>src/substrate/schemas.ts</code>. Missing directory ⇒
+        empty registry; a <strong>malformed member file is warned and skipped</strong>, not fatal
+        (backward compat + "optional layer").
+      </li>
+      <li>
+        <strong>Cross-file integrity as warnings.</strong> In
+        <code>src/substrate/validator.ts</code> (or the loader's diagnostics pass): a
+        <code>team[].member</code> that doesn't resolve to a registry member, a <code>groups</code> id
+        that isn't a group on the board, and duplicate <code>member</code>/<code>id</code> all produce
+        <strong>advisory warnings</strong> routed through Substrate's existing warning channel — never
+        an error, on either the load or write path.
+      </li>
+      <li>
+        <strong>Read-surface resolution.</strong> <code>getBoardSubstrateHandler</code> JOINs registry
+        identity into the board's team so consumers get resolved members, not bare ids (an unresolved
+        member is surfaced, not dropped — see UI). One handler feeds the MCP tool and the HTTP
+        <code>GET /api/boards/:id</code> route → UI.
+      </li>
+      <li>
+        <strong>UI render.</strong> A "Team" card in the board-details disclosure grid resolving
+        member id → name/description with group-assignment badges.
+      </li>
+      <li>
+        <strong>Migrate the two live boards.</strong> Extract the <code>## Team</code> prose into
+        per-member registry files + board bindings, remove the section from each description, bump each
+        board's <code>version</code>. <strong>Reviewers ×2</strong> becomes the first genuinely shared
+        member — one registry file referenced by both boards.
+      </li>
+      <li>
+        <strong>Update the default scaffolding.</strong> The bundled <code>web-delivery</code> starter
+        template gains a <code>team</code> binding plus default member registry files, and
+        <code>substrate init</code> writes <code>.substrate/members/*.json</code> alongside the board.
+        <strong>The bundled template stays strictly validated</strong> (see "Strict exception").
+      </li>
+      <li>
+        <strong>Sync the model docs.</strong> Update the docs that describe the board/team model so
+        they match the structured members (mirrors how the release board treats doc verification).
+      </li>
+    </ul>
+
+    <h2>Data structure — two layers</h2>
+    <p>
+      The design splits <strong>identity</strong> (project-level, shared) from
+      <strong>assignment</strong> (board-level, specific).
+    </p>
+
+    <h3>Layer 1 — the member registry (identity, project-level)</h3>
+    <p>
+      One file per member at <code>.substrate/members/&lt;id&gt;.json</code>. This holds everything
+      about <em>who the member is</em>, defined once:
+    </p>
+    <pre>
+// .substrate/members/oversight.json
+{
+  "id": "oversight",                 // stable key; filename matches
+  "name": "Oversight",               // display name
+  "full_description": "Holds fidelity between what was specified and what shipped. Authors the spec up front, then returns at Review to check the implementation against the original goal, catching drift the builders can't see.",   // NEW: prose brief
+  "traits": ["holds the original intent", "reads the diff against the spec"],
+  "concerns": ["scope drift", "spec↔implementation fidelity"],
+  "memory_dir": ".substrate/members/oversight/memory"   // NEW: pointer to a folder
+}
+
+// src/core/types.ts
+export interface Member {
+  id: string;                 // unique across the registry; matches filename
+  name: string;               // display name
+  full_description?: string;  // prose role brief — complements traits/concerns
+  traits?: string[];          // short descriptors (chips / query)
+  concerns?: string[];        // what the member watches for
+  memory_dir?: string;        // path to a git-committed memory folder (pointer only)
+}</pre
+    >
+    <p>
+      <strong><code>full_description</code></strong> complements — does not replace —
+      <code>traits</code>/<code>concerns</code>: the structured arrays drive chips and queries, the
+      prose gives depth. <strong><code>memory_dir</code></strong> is a <em>pointer</em> to an on-disk
+      folder (default convention <code>.substrate/members/&lt;id&gt;/memory</code>), committed to git
+      so it is persistent, shared, and travels with the repo. The memory content never lives in the
+      JSON. Only <code>id</code> and <code>name</code> are required.
+    </p>
+
+    <h3>Layer 2 — the board team binding (assignment, board-level)</h3>
+    <p>
+      Each board nests a thin <code>team</code>: a reference to a member plus the one thing that is
+      genuinely board-specific — the group(s) that member is associated with <em>on this board</em>.
+    </p>
+    <pre>
+// .substrate/boards/dev.json
+"team": [
+  { "member": "oversight", "groups": ["spec", "review"] },
+  { "member": "builder",   "groups": ["build"] }
+]
+
+// src/core/types.ts
+export interface TeamBinding {
+  member: string;     // → Member.id in the registry; unresolved = warning, not error
+  groups?: string[];  // group ids this member targets ON THIS BOARD;
+                      // advisory (not a permission); [] / omitted = spans board
+}
+// on Board:
+team?: TeamBinding[]; // optional → older boards without it still parse</pre
+    >
+    <p>
+      <strong><code>groups</code> lives on the binding, not the member</strong>, precisely because the
+      same member is associated with different groups on different boards (Oversight targets
+      <code>spec</code>+<code>review</code> on dev; it might target nothing, or a different group, on
+      another board). Everything invariant about the member lives once in the registry; only the
+      board-specific assignment lives on the board. The relationship is <strong>many-to-many in both
+      directions</strong>: a member may target several groups, and a group may be targeted by several
+      members (both Reviewers on <code>review</code>; Planner and Oversight both on <code>spec</code>).
+    </p>
+
+    <h2>Integrity is advisory — warnings, never errors</h2>
+    <div class="warn">
+      <strong>Because the member layer is fully optional and additive, every member↔board integrity
+      problem is a non-blocking WARNING. It must never fail board loading,
+      <code>substrate validate</code>, or any write.</strong> The board still works; Substrate just
+      surfaces the discrepancy. A human is free to keep the roster in the board <code>description</code>
+      prose and adopt the registry partially or not at all, so a mismatch is information, not an error.
+    </div>
+    <p>Downgraded to warnings (from earlier drafts that called them errors):</p>
+    <ul>
+      <li>
+        <strong>Dangling member reference.</strong> A <code>team[].member</code> with no matching
+        <code>.substrate/members/&lt;id&gt;.json</code> ⇒ warning; the board still loads (the binding
+        renders as an unresolved member id in the UI).
+      </li>
+      <li>
+        <strong>Dangling group reference.</strong> A binding's <code>groups</code> id that isn't a
+        group on that board ⇒ warning.
+      </li>
+      <li>
+        <strong>Malformed / unparseable member file.</strong> Bad JSON, missing required fields, or
+        wrong types ⇒ <strong>warn + skip that member</strong>; the load still succeeds. One bad member
+        file cannot break a project that is mostly using prose.
+      </li>
+      <li>
+        <strong>Duplicate member <code>id</code> / duplicate <code>member</code> in a board's team</strong>
+        ⇒ warning.
+      </li>
+    </ul>
+    <p>
+      These route through Substrate's <strong>existing non-blocking warning channel</strong> — the same
+      advisory path <code>substrate validate</code> already uses for logical smells (e.g. a guard whose
+      <code>from_group === to_group</code>), which prints <code>⚠</code> lines and still exits 0. No new
+      warning mechanism is invented.
+    </p>
+
+    <h3>Strict exception — Substrate's own shipped defaults</h3>
+    <div class="rec">
+      <strong>One thing stays strict: the bundled default template.</strong>
+      <code>loadTemplateBoard</code> / <code>BoardSchema.parse</code> must still fail loudly if a
+      <em>shipped</em> default (the <code>web-delivery</code> template board + its default member files)
+      is corrupt. That is a <strong>build-time invariant on Substrate's own artifacts</strong>, not a
+      user-project runtime check. The distinction: <em>user-project member files at runtime</em> =
+      lenient (warn / skip); <em>Substrate's own shipped defaults at build/test time</em> = strict.
+      Loosening one does not loosen the other.
+    </div>
+
+    <h2>Semantics — advisory, not enforced</h2>
+    <div class="rec">
+      <strong>The team registry and bindings are descriptive. Substrate enforces nothing about who may
+      act in which group.</strong> <code>groups</code> is a hint for orchestration and UI, not an
+      access restriction: the orchestrator (a human, or a lead agent spawning members) decides the
+      actual assignment at runtime. This mirrors how <code>agent_responsibility</code> policies are
+      already documented as non-blocking suggestions. The advisory nature is carried by the neutral
+      field name plus this documented contract — <em>not</em> encoded into the data shape (there is no
+      <code>suggested_groups</code>, no <code>binding_kind</code> wrapper).
+    </div>
+
+    <h2>Where it lives — recommendation (reversed from v1)</h2>
+    <div class="rec">
+      <strong>Recommend: a project-level member registry
+      (<code>.substrate/members/&lt;id&gt;.json</code>, one file per member) that boards reference by
+      id, plus a thin per-board <code>team</code> binding.</strong> A member is a persistent identity
+      that can span multiple boards and stages with shared memory (the Oversight case); that cannot be
+      modeled by a roster line nested wholly inside one board's JSON. Splitting identity (shared,
+      project-level) from assignment (specific, board-level) gives cross-board sharing, single-source
+      identity, and a shared memory pointer for free, while keeping the board's binding minimal.
+      <em>Rejected alternative (v1):</em> nesting the full roster in the board JSON — simpler, but
+      structurally unable to express one identity across boards/stages, which is the whole point.
+    </div>
+
+    <h2>Member vs. actor — a deliberate distinction</h2>
+    <p>
+      A <strong>member</strong> is a persona: a named role identity with traits, concerns, and memory,
+      defined in the registry. The existing <strong>actor</strong> label —
+      <code>created_by_agent</code> on a task, <code>agent_name</code> on a write — is a free-form
+      audit tag recording <em>who performed a specific mutation</em>. They answer different questions
+      ("who is this role?" vs. "who made this edit?") and are intentionally kept separate in this task.
+      A future unification (e.g. stamping a write's actor with a member id) is called out as a non-goal
+      here so the two don't get conflated during implementation.
+    </p>
+
+    <h2>Memory pointer semantics</h2>
+    <ul>
+      <li>
+        <code>memory_dir</code> is a <strong>path string</strong> to a folder, not content. Default
+        convention: <code>.substrate/members/&lt;id&gt;/memory</code>, alongside the def file.
+      </li>
+      <li>
+        The folder is <strong>committed to git</strong> — persistent, shared across boards that
+        reference the member, and it travels with the repo. A light markdown convention (e.g.
+        append-only notes) is expected but not enforced.
+      </li>
+      <li>
+        <strong>Substrate does not read or write memory content.</strong> A spawned agent may choose to
+        read it on start and append learnings on exit — that is up to the agent. This task ships the
+        pointer only.
+      </li>
+    </ul>
+
+    <h2>Relationship to <code>agent_responsibility</code> policies — unchanged</h2>
+    <p>
+      Two mechanisms describing "who works where" would be a smell, so the join is explicit and one-way:
+      they are <strong>different jobs joined by group id</strong>, neither derived from the other, and
+      <strong>both advisory</strong> (neither blocks).
+    </p>
+    <table>
+      <tr>
+        <th></th>
+        <th>member / <code>team</code> binding (new)</th>
+        <th><code>agent_responsibility</code> policy</th>
+      </tr>
+      <tr>
+        <td>Purpose</td>
+        <td>Descriptive identity: who works here, their traits + concerns + memory.</td>
+        <td>Operational nudge: a message to heed while a task is in a group.</td>
+      </tr>
+      <tr>
+        <td>When it's seen</td>
+        <td>On read (<code>get_board_substrate</code> / UI) — orientation.</td>
+        <td>At eval time, when a task's <code>group_id</code> matches <code>when</code>.</td>
+      </tr>
+      <tr>
+        <td>Effect</td>
+        <td>None (inert metadata).</td>
+        <td>Emits a suggestion (never blocks).</td>
+      </tr>
+    </table>
+    <div class="rec">
+      <strong>Recommend: coexist, joined by binding <code>groups</code> ↔ policy group ids; do not
+      derive one from the other.</strong> A binding's <code>groups</code> points at the same group ids
+      that <code>agent_responsibility</code> policies condition on (Reviewers target
+      <code>review</code>; <code>resp-review-gate</code> fires in <code>review</code>), so the UI can
+      cross-link a member to the responsibility message for a group it targets — by shared group id,
+      with zero coupling in the data. <em>Rejected:</em> folding member metadata into policies —
+      members are project-level identities, not per-group eval conditions.
+    </div>
+
+    <h2>Do members map to groups? — recommendation</h2>
+    <div class="rec">
+      <strong>Yes, optionally and many-to-many, via <code>groups: string[]</code> on the board
+      binding.</strong> A member may target several groups on a board (Oversight → <code>spec</code>,
+      <code>review</code>; Integrator → <code>approval</code>, <code>merged</code>), exactly one, or
+      none (release-board Reviewers target no dedicated group). A group may be targeted by multiple
+      members or none. No bijection required, and the association grants nothing (advisory). A
+      <code>groups</code> id that isn't a real group on <em>that</em> board (archived allowed) is
+      surfaced as a warning, not rejected.
+    </div>
+
+    <h2>How the UI renders it — recommendation</h2>
+    <div class="rec">
+      <strong>Recommend: a "Team" card in the existing board-details disclosure grid</strong>
+      (<code>BoardDetailsDisclosure</code> in <code>BoardDetail.tsx</code>), beside "Field schema" and
+      "Policies (n)". The card consumes the <em>resolved</em> team from the read surface: each row
+      shows the member's name, its associated groups as <strong>assignment badges</strong> (id → group
+      <code>name</code>), a traits line, and a concerns line; <code>full_description</code> can show as
+      a tooltip or secondary line. An unresolved member (dangling ref) renders as the bare member id
+      with a muted "unresolved" marker rather than disappearing. Absent/empty team renders a muted "No
+      team declared" (matching "No policies."). Reuses existing Card/Badge components. <em>Later, not
+      v1:</em> per-column assignment badges on the Kanban, a member detail view surfacing
+      <code>memory_dir</code>.
+    </div>
+
+    <h2>Reusability &amp; shared members</h2>
+    <p>
+      Reuse is native to this design: a member defined once in the registry is referenced by any board
+      that binds it. <strong>Reviewers ×2</strong> is the first genuinely shared member — a single
+      <code>.substrate/members/reviewers.json</code> bound by both <code>dev</code> and
+      <code>release</code>. A shared board template is a board JSON whose <code>team</code> references
+      registry members; standing up a new board from it reuses the same identities (and their memory)
+      rather than re-describing them.
+    </p>
+
+    <h2>Default scaffolding — new projects</h2>
+    <p>
+      Today <code>substrate init --template web-delivery</code> writes only a board file
+      (<code>src/cli/commands/init.ts</code> → <code>createBoardFile</code>); the bundled template
+      (<code>src/cli/templates/web-delivery.board.ts</code>, validated through
+      <code>loadTemplateBoard</code> / <code>BoardSchema.parse</code>) carries no team. This task
+      extends the default so a fresh project is coherent, not empty:
+    </p>
+    <ul>
+      <li>
+        The <code>web-delivery</code> template gains a <code>team</code> binding whose members target
+        the template's groups (Backlog / Spec / Plan / In&nbsp;Progress / Review / QA / Done), plus a
+        set of default member registry files that ship with the template.
+      </li>
+      <li>
+        <code>substrate init</code> also writes those <code>.substrate/members/*.json</code> alongside
+        the board file, under the same create/rollback window.
+      </li>
+      <li>
+        The template-validation gate (<code>BoardSchema.parse</code> / <code>loadTemplateBoard</code>,
+        plus <code>MemberSchema</code> for the default member files) stays <strong>strict</strong> — a
+        corrupt shipped default fails the build/test, distinct from the lenient runtime handling of
+        user-project member files.
+      </li>
+      <li>
+        The <code>examples/web-delivery</code> source-of-truth copy (mirrored by the parse-equal test)
+        gains the same members + binding so the bundled template and the example stay in lockstep.
+      </li>
+    </ul>
+
+    <h2>Acceptance criteria</h2>
+    <p>
+      These are about the <em>data structures + scaffolding + docs</em> — registry files, bindings,
+      advisory integrity, read resolution, UI, migration, the default template, and doc sync — not
+      runtime memory behavior.
+    </p>
+    <ul>
+      <li>
+        <code>src/core/types.ts</code> defines <code>Member</code>
+        (<code>id, name, full_description?, traits?, concerns?, memory_dir?</code>) and
+        <code>TeamBinding</code> (<code>member, groups?</code>); <code>Board</code> has an optional
+        <code>team?: TeamBinding[]</code>; <code>Substrate</code> has <code>members: Member[]</code>.
+      </li>
+      <li>
+        The loader reads <code>.substrate/members/*.json</code> into <code>Substrate.members</code>; a
+        project with <em>no</em> <code>members/</code> directory loads with an empty registry
+        (backward compat, asserted by test).
+      </li>
+      <li>
+        <strong>Backward compatible:</strong> a board with no <code>team</code> key parses and renders
+        as before; <code>team</code> and the registry are optional in the Zod schema.
+      </li>
+      <li>
+        <strong>Integrity problems are warnings, never failures.</strong> A dangling
+        <code>team[].member</code>, a <code>team[].groups</code> id that isn't a group on the board, and
+        duplicate <code>member</code>/<code>id</code> each produce an advisory warning and
+        <em>never</em> fail board load, <code>substrate validate</code>, or any write (asserted by
+        test — the board still loads and validate exits 0).
+      </li>
+      <li>
+        <strong>A malformed member file is warned-and-skipped, not fatal.</strong> A member file that
+        is bad JSON, missing required fields, or wrong-typed is skipped with a warning; the rest of the
+        substrate loads successfully (asserted by test).
+      </li>
+      <li>
+        <strong>Advisory, not enforced:</strong> a member's <code>groups</code> never gates a write or
+        a transition — a write by any actor to any group succeeds regardless of the team data (asserted
+        by test). No code path treats <code>groups</code> as a permission.
+      </li>
+      <li>
+        <strong>Resolution on read:</strong> <code>get_board_substrate</code> returns the team with
+        member identity JOINed in (name, description, traits, concerns, memory_dir) plus the binding's
+        <code>groups</code>; an unresolved member is surfaced (bare id + unresolved marker), not
+        dropped; empty/absent team returns <code>[]</code>. The HTTP <code>GET /api/boards/:id</code>
+        response and the UI type carry the resolved shape.
+      </li>
+      <li>
+        The board detail UI shows a Team card: each member resolved to name + group-assignment name
+        badges + traits + concerns; an unresolved member shows its id + marker; a board with no team
+        shows the empty state without crashing.
+      </li>
+      <li>
+        <strong>Migration (two live boards):</strong> <code>.substrate/members/</code> holds one file
+        per role extracted from the prose; <code>dev.json</code> and <code>release.json</code> carry
+        <code>team</code> bindings matching the prior <code>## Team</code> content (no member, trait, or
+        concern lost); <strong>Reviewers ×2</strong> is a single shared registry file referenced by
+        both boards; the <code>## Team</code> section is removed from both descriptions (a test asserts
+        no <code>## Team</code> heading remains); both board <code>version</code>s are bumped; both load
+        with zero integrity warnings.
+      </li>
+      <li>
+        <strong>Default scaffolding (new projects):</strong> <code>substrate init --template
+        web-delivery</code> writes both the board and <code>.substrate/members/*.json</code>; the
+        resulting substrate loads and validates with zero warnings (team bindings resolve); the
+        <code>web-delivery</code> template + its <code>examples/web-delivery</code> mirror both carry
+        the team; <code>init.test.ts</code> covers the members being written.
+      </li>
+      <li>
+        <strong>Shipped defaults stay strict:</strong> <code>loadTemplateBoard</code> /
+        <code>BoardSchema.parse</code> (+ <code>MemberSchema</code> on the default member files) still
+        fails loudly if a corrupt shipped default is introduced (asserted by test) — the lenient
+        warn/skip behavior applies only to user-project member files at runtime.
+      </li>
+      <li>
+        <strong>Doc sync:</strong> <code>skills/substrate/AUTHORING.md</code>,
+        <code>skills/substrate/SKILL.md</code>, <code>prd.md</code>, <code>README.md</code>, and
+        <code>docs/README.md</code> describe the structured member registry + <code>team</code> binding
+        (advisory + warning-not-error semantics included) rather than free prose;
+        <code>CLAUDE.md</code>'s "team as prose in the board description" line is flagged for a
+        follow-up touch.
+      </li>
+      <li>
+        No transition/guard/responsibility/task-movement behavior changes (team data is inert);
+        existing policy/guard suites pass unchanged; <code>whoami</code>'s payload shape is unchanged.
+      </li>
+      <li>
+        Local gate green before Review: build + tsc + lint + format + full test suite pass locally.
+      </li>
+    </ul>
+
+    <h2>Open questions (resolved — Diego, push back here)</h2>
+    <div class="q">
+      <strong>1. Storage.</strong> <em>Resolved (reversed from v1):</em> project-level member registry
+      (<code>.substrate/members/&lt;id&gt;.json</code>) + thin per-board <code>team</code> binding —
+      to model one identity across boards/stages with shared memory. Alt: board-nested roster
+      (rejected — can't span boards).
+    </div>
+    <div class="q">
+      <strong>2. Entity name.</strong> <em>Resolved:</em> "member" / "team member", explicitly not
+      "agent", to avoid overloading the <code>created_by_agent</code> actor label. Persona↔actor
+      unification is a non-goal here.
+    </div>
+    <div class="q">
+      <strong>3. New fields.</strong> <em>Resolved:</em> <code>full_description</code> (prose,
+      complements the structured arrays) and <code>memory_dir</code> (pointer to a git-committed
+      folder; content never in JSON) both confirmed.
+    </div>
+    <div class="q">
+      <strong>4. Memory runtime behavior.</strong> <em>Resolved:</em> out of scope — Substrate stores
+      the pointer only; read-on-spawn / write-on-exit is up to the agent, a possible fast-follow or
+      never.
+    </div>
+    <div class="q">
+      <strong>5. Binding field name + semantics.</strong> <em>Resolved:</em> the field is
+      <code>groups</code> (renamed from <code>owns_groups</code>), on the board binding, and is
+      <strong>advisory</strong> — a many-to-many association, not ownership and not a permission.
+    </div>
+    <div class="q">
+      <strong>6. Integrity = warnings, not errors.</strong> <em>Resolved:</em> the member layer is
+      optional/additive, so dangling refs, dangling groups, duplicates, and even a malformed member
+      file are non-blocking warnings; load/validate/writes never fail on them. Shipped defaults stay
+      strict at build time. <strong>Note for override:</strong> the "malformed member file →
+      warn+skip" choice is the most lenient reading — if Diego would rather a malformed <em>member</em>
+      file be a hard load error (like a malformed <em>board</em> file is today), say so and it becomes
+      strict.
+    </div>
+    <div class="q">
+      <strong>7. Fate of the prose <code>## Team</code>.</strong> <em>Resolved:</em> removed from
+      <code>description</code> after migration (single source of truth); a test asserts it's gone. Alt:
+      keep a one-line "see Team card" pointer (cosmetic).
+    </div>
+    <div class="q">
+      <strong>8. Write path &amp; <code>whoami</code>.</strong> <em>Resolved:</em> both out of scope —
+      registry + bindings authored as code; team rides on <code>get_board_substrate</code>, not the
+      bootstrap summary. Any team-bearing surface resolves member identity from the registry.
+    </div>
+    <div class="q">
+      <strong>9. Scaffolding vs. migration.</strong> <em>Resolved:</em> kept distinct — migration fixes
+      the two live boards; scaffolding fixes what NEW projects get (template + <code>init</code>
+      writing member files). Both in scope; each has its own acceptance criterion.
+    </div>
+  </body>
+</html>

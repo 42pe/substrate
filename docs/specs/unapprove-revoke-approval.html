@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Unapprove / revoke a human approval</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      .q {
+        background: #3b82f611;
+        border-left: 3px solid #3b82f6;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Unapprove / revoke a human approval</h1>
+    <p class="meta">
+      dev board · task a3c7177f (<code>unapprove-revoke-approval</code>) ·
+      <span class="status">Draft v1 — awaiting plan_approved</span> ·
+      <a href="../plans/unapprove-revoke-approval.html">plan →</a>
+    </p>
+
+    <h2>Problem</h2>
+    <p>
+      <code>substrate approve &lt;task_id&gt; &lt;field&gt; [value]</code> is the human channel that
+      sets a <code>human_only</code> gate field (B3) — <code>plan_approved</code>,
+      <code>idea_approved</code>, <code>diego_approved</code>, <code>release_approved</code>. Once
+      set, a <code>transition_guard</code> that <code>require</code>s it lets the gated move through.
+      But there is <strong>no clean way to undo a mistaken approval</strong>. Our gates check
+      <code>op: exists</code> (occasionally <code>eq true</code>), and the existing merge path only
+      <em>sets</em> values — running <code>substrate approve &lt;task&gt; &lt;field&gt; false</code>
+      writes <code>false</code> but the key <em>still exists</em>, so an <code>exists</code> guard
+      still passes and the gate stays open. To truly re-gate, the field must be
+      <strong>deleted</strong> from the task's <code>custom_data</code>, and there is no first-class
+      command that deletes it through the human channel.
+    </p>
+    <p>
+      Substrate already has the deletion primitive internally: the MCP
+      <code>update_task</code> handler treats a <code>null</code> value as "delete this key" and
+      writes the whole <code>custom_data</code> blob with the key removed
+      (<code>src/mcp/tools/write/update-task.ts</code>). But an agent is <em>forbidden</em> from
+      touching a <code>human_only</code> field there (that's what makes the gate real), and there is
+      no human-side command that performs the same delete. So a human who approves by mistake is
+      stuck.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        <strong>Human-only revoke.</strong> A first-class
+        <code>substrate unapprove &lt;task_id&gt; &lt;field&gt;</code> that <strong>deletes</strong>
+        the field from the task's <code>custom_data</code>, so a gate that requires it re-blocks —
+        for both <code>exists</code> and <code>eq true</code> guards.
+      </li>
+      <li>
+        <strong>Symmetric with <code>approve</code>.</strong> Same "is this a
+        <code>human_only</code> field?" guard, same OS-user actor stamped
+        <code>human:&lt;user&gt;</code> in the event log, same optimistic version bump. An agent can
+        no more revoke than it can approve.
+      </li>
+      <li>
+        <strong>Clear confirmation.</strong> Prints old value → cleared, and the new version — the
+        mirror image of what <code>approve</code> prints.
+      </li>
+      <li>
+        <strong>Safe to re-run.</strong> Revoking a field that is already unset is a friendly no-op,
+        not an error — but a field that is not a <code>human_only</code> field is still refused.
+      </li>
+      <li>
+        <strong>Honest about side effects.</strong> If the task already moved past the gate on the
+        mistaken approval, warn that it is now stranded — <code>unapprove</code> never moves the
+        task.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <ul>
+      <li>
+        <strong>No auto-move.</strong> <code>unapprove</code> clears the field and nothing else. It
+        never moves the task back to an earlier group — that is a separate, human-driven step (see
+        Resolved question 2).
+      </li>
+      <li>
+        <strong>No new deletion primitive in the repo.</strong> This reuses the existing
+        merged-blob write path; it does not add a tombstone, an <code>unset</code> column, or a new
+        <code>updateTask</code> capability.
+      </li>
+      <li>
+        <strong>No MCP tool.</strong> Revoke is a human action, CLI-only, symmetric with
+        <code>approve</code> (which is also CLI-only). No <code>unapprove</code> MCP write tool is
+        added, and no MCP read tool changes. (See Resolved question 5.)
+      </li>
+      <li>
+        <strong>No <code>approve --revoke</code> flag.</strong> Command shape is a distinct verb
+        (Resolved question 1).
+      </li>
+      <li>
+        <strong>No change to the gate model.</strong> Guards, operators, and the
+        pending-approval derivation are untouched; revoke only removes a value the gate reads.
+      </li>
+    </ul>
+
+    <h2>Scope</h2>
+    <p>One new CLI command plus its flag/dispatch plumbing and tests:</p>
+    <ul>
+      <li>
+        <strong>New command</strong> <code>src/cli/commands/unapprove.ts</code>, mirroring
+        <code>src/cli/commands/approve.ts</code>. It resolves the task's board, enforces the
+        <code>human_only</code> guard, deletes the field from a merged copy of
+        <code>custom_data</code>, writes via the existing OCC <code>updateTask</code>, appends an
+        <code>updated</code> event stamped <code>human:&lt;user&gt;</code>, and prints a
+        confirmation.
+      </li>
+      <li>
+        <strong>Field deletion</strong> uses the same mechanism as the MCP handler: build
+        <code>merged = { ...task.custom_data }</code>, <code>delete merged[field]</code>, and hand
+        the full blob to <code>updateTask</code> (which writes <code>JSON.stringify(merged)</code>
+        wholesale). No repo change. <code>validateFieldSchema</code> skips absent/undefined keys, so
+        the write validates cleanly.
+      </li>
+      <li>
+        <strong>Stranded warning</strong> — when the task's current group is the
+        <code>to_group</code> of an active <code>transition_guard</code> on its board that
+        <code>require</code>s the revoked field, print a warning that the task now sits past that
+        gate and must be moved back manually. Reuses the same field↔gate mapping helpers the
+        pending-approval derivation already uses (<code>src/policy/pending-approval.ts</code>).
+      </li>
+      <li>
+        <strong>Plumbing</strong> — add <code>unapprove</code> to the flag allowlist in
+        <code>src/cli/args.ts</code> (empty set, like <code>approve</code>), dispatch it in
+        <code>src/cli/index.ts</code> with the same <code>&lt;task_id&gt; &lt;field&gt;</code>
+        positional parse, and add a <code>HELP</code> line.
+      </li>
+    </ul>
+
+    <h2>Command shape &amp; behavior</h2>
+    <pre>substrate unapprove &lt;task_id&gt; &lt;field&gt;</pre>
+    <ul>
+      <li>
+        <strong>Field resolution + human-only guard.</strong> Load the task's board; look up
+        <code>board.field_schema.task[field]</code>. If it is not
+        <code>human_only === true</code>, throw <code>schema_violation</code> with the same framing
+        as <code>approve</code> (<em>"'&lt;field&gt;' is not a human-only field … unapprove clears
+        human-only gate fields"</em>). This runs <strong>before</strong> the idempotency check, so a
+        typo or a non-gate field always errors rather than silently no-op'ing.
+      </li>
+      <li>
+        <strong>Idempotent no-op when already unset.</strong> If the field passes the
+        <code>human_only</code> check but is absent from <code>custom_data</code> (nothing to
+        revoke), print a friendly line (<em>"Nothing to revoke: &lt;field&gt; is not set on task
+        &lt;id&gt;."</em>), exit 0, no version bump, no event. Mirrors the repo's idempotent
+        archive/unarchive semantics (a no-op emits no event, bumps no version).
+      </li>
+      <li>
+        <strong>Delete + write.</strong> Otherwise, build <code>merged = { ...custom_data }</code>,
+        <code>delete merged[field]</code>, run <code>validateFieldSchema</code> (absent key is
+        always allowed), and call <code>updateTask(tx, id, version, { custom_data: merged }, now)</code>
+        under the existing optimistic-concurrency read-check-write in a single transaction.
+      </li>
+      <li>
+        <strong>Actor stamping.</strong> Append an <code>updated</code> event with
+        <code>actor_agent_name: 'human:&lt;os-user&gt;'</code> and
+        <code>changes.before.custom_data</code> / <code>changes.after.custom_data</code> reflecting
+        the removal — symmetric with <code>approve</code>'s event.
+      </li>
+      <li>
+        <strong>Confirmation.</strong>
+        <code>Revoked: cleared &lt;field&gt; (was &lt;old-value&gt;) on task &lt;id&gt; (as
+        human:&lt;user&gt;, version &lt;n&gt;).</code>
+      </li>
+      <li>
+        <strong>Stranded warning (conditional, second line).</strong> If the task's current group is
+        the <code>to_group</code> of a guard requiring <code>&lt;field&gt;</code>, additionally
+        print a <code>Warning:</code> line noting the task now sits past that gate with the field
+        cleared, and that <code>unapprove</code> does not move tasks — move it back on the board (web
+        UI) or have an agent move it. <strong>No fabricated <code>substrate move</code> command</strong>
+        (none exists — see Resolved question 2).
+      </li>
+      <li><strong>Not-found.</strong> A missing <code>task_id</code> throws <code>not_found</code> (via <code>getTask</code>), same as <code>approve</code>.</li>
+    </ul>
+
+    <h3>Example output</h3>
+    <pre>$ substrate unapprove a3c7177f plan_approved
+Revoked: cleared plan_approved (was true) on task a3c7177f (as human:diego, version 7).
+
+$ substrate unapprove a3c7177f plan_approved            # already cleared
+Nothing to revoke: plan_approved is not set on task a3c7177f.
+
+$ substrate unapprove a3c7177f severity                 # not a human_only field
+Error: Field 'severity' is not a human-only field on board 'dev'. …
+
+$ substrate unapprove 12ab34cd diego_approved           # task already merged past the gate
+Revoked: cleared diego_approved (was true) on task 12ab34cd (as human:diego, version 12).
+Warning: task 12ab34cd is in group 'merged', past the gate that required diego_approved.
+         unapprove does not move tasks — move it back on the board if that was a mistake.</pre>
+
+    <h2>Resolved open questions</h2>
+    <div class="q">
+      <strong>1. Command shape — <code>unapprove</code> verb (not <code>approve --revoke</code>).</strong>
+      <code>approve</code>'s grammar is positional — <code>approve &lt;id&gt; &lt;field&gt; [value]</code>
+      — where the third positional <em>is</em> the value; a <code>--revoke</code> flag there would
+      fight the "set a value" identity of the command and be easy to miss. A distinct verb is
+      self-documenting, discoverable in <code>--help</code> and the <code>HELP</code> list, and
+      reads as the exact inverse. <strong>Decision: <code>substrate unapprove &lt;task_id&gt;
+      &lt;field&gt;</code></strong> (no value argument — revoke has nothing to set).
+    </div>
+    <div class="q">
+      <strong>2. Task already past the gate — warn, never move.</strong> Auto-moving a task
+      backwards is a bigger, riskier action (which earlier group? what if several gates were
+      crossed?) and would couple revoke to move semantics. <strong>Decision: <code>unapprove</code>
+      only clears the field; it prints a warning when the task's current group is the
+      <code>to_group</code> of a guard that required the field.</strong> Note on accuracy: there is
+      <strong>no <code>substrate move</code> CLI command</strong> in this repo (moves happen via the
+      web UI or an agent's <code>update_task</code>), so the warning must not fabricate one — it
+      names the group + gate and tells the human to move it back on the board. Detection is scoped to
+      a <em>direct</em> <code>to_group</code> match (no multi-hop reachability) to stay simple;
+      multi-hop stranding is a documented non-goal for v1.
+    </div>
+    <div class="q">
+      <strong>3. Stranding is allowed, with a warning.</strong> Revoke never refuses on the grounds
+      that it would leave a task in a later group. It always clears the field and (when applicable)
+      warns. The human, not the tool, decides whether to move the task back.
+    </div>
+    <div class="q">
+      <strong>4. Not-set is a friendly no-op, not an error.</strong> Once the <code>human_only</code>
+      guard has passed (so the field name is a real gate field), a field that simply isn't set has
+      nothing to revoke — treat it as an idempotent success with a clear message, no version bump, no
+      event. This keeps re-runs and scripts safe. A <em>wrong</em> field (not
+      <code>human_only</code>) still errors with <code>schema_violation</code>, because that check
+      runs first — so typos surface loudly while genuine re-runs are quiet.
+    </div>
+    <div class="q">
+      <strong>5. CLI-only; no MCP surface.</strong> Like <code>approve</code>, revoke is a human
+      action performed by a person at a terminal, stamped as the OS user. Exposing it over MCP would
+      hand an agent a revoke capability and muddy the "agents can't touch <code>human_only</code>
+      fields" guarantee, for no benefit. <strong>Decision: CLI-only. No <code>unapprove</code> MCP
+      write tool; no change to <code>list_pending_approvals</code> or any read tool.</strong>
+    </div>
+
+    <h2>Acceptance criteria</h2>
+    <ul>
+      <li>
+        <strong>Re-gates an <code>exists</code> guard.</strong> Given a task whose move is gated on
+        <code>require: [{ field: task.custom_data.plan_approved, op: exists }]</code>: after
+        <code>approve</code> the gate passes; after <code>unapprove &lt;id&gt; plan_approved</code>,
+        <code>check_transition</code> for that move returns <code>allowed: false</code> again.
+        (Asserted by test.)
+      </li>
+      <li>
+        <strong>Re-gates an <code>eq true</code> guard.</strong> Same round-trip for a guard whose
+        leaf is <code>{ op: eq, value: true }</code> on a <code>human_only</code> boolean —
+        <code>unapprove</code> deletes the key, so <code>eq true</code> evaluates false and the gate
+        blocks. (Asserted by test — both operator shapes covered.)
+      </li>
+      <li>
+        <strong>Deletes the key (not sets false).</strong> After <code>unapprove</code>, the field is
+        <em>absent</em> from the task's <code>custom_data</code> (not present with value
+        <code>false</code>).
+      </li>
+      <li>
+        <strong>Human actor recorded.</strong> The revocation appends an <code>updated</code> event
+        with <code>actor_agent_name</code> matching <code>/^human:/</code>, with
+        <code>before.custom_data</code> containing the field and <code>after.custom_data</code>
+        lacking it.
+      </li>
+      <li>
+        <strong>Version bump + confirmation.</strong> The task version increments by 1, and stdout
+        reports the old value, "cleared", and the new version.
+      </li>
+      <li>
+        <strong>Non-<code>human_only</code> field refused.</strong>
+        <code>unapprove &lt;id&gt; severity</code> (a non-gate field) throws
+        <code>schema_violation</code> and changes nothing. (Asserted by test.)
+      </li>
+      <li>
+        <strong>Idempotent no-op when unset.</strong> Running <code>unapprove</code> on a
+        <code>human_only</code> field that is not currently set exits 0 with the "nothing to revoke"
+        message, bumps no version, and appends no event. (Asserted by test.)
+      </li>
+      <li>
+        <strong>Not-found.</strong> A missing task id throws <code>not_found</code>.
+      </li>
+      <li>
+        <strong>Stranded warning, no move.</strong> When the task's current group is the
+        <code>to_group</code> of a guard requiring the field, <code>unapprove</code> prints a warning
+        and the task's <code>group_id</code> is <em>unchanged</em>. (Asserted by test.)
+      </li>
+      <li>
+        <strong>Full round-trip.</strong> A single test drives approve → gate passes → unapprove →
+        gate blocked again → approve → gate passes, proving symmetry end-to-end.
+      </li>
+      <li>
+        <strong>Plumbing.</strong> <code>substrate unapprove</code> is dispatched; an unknown flag is
+        rejected via <code>rejectUnknownFlags</code>; missing positional args print a usage line;
+        the <code>HELP</code> block documents the command.
+      </li>
+    </ul>
+
+    <p class="meta">See the <a href="../plans/unapprove-revoke-approval.html">implementation plan →</a> for stages, risks, and the full test matrix.</p>
+  </body>
+</html>
