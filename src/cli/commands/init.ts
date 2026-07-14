@@ -28,6 +28,7 @@ ${GITIGNORE_MARKER}
 .substrate/data.sqlite-wal
 .substrate/data.sqlite-shm
 .substrate/substrate.pid
+.substrate/serve.json
 .substrate/attachments/
 .substrate/logs/
 `;

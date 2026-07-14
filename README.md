@@ -23,6 +23,8 @@ npx @diegoferreyra/substrate init
 npx @diegoferreyra/substrate init --template web-delivery   # opt-in starter board
 
 # 2. Inspect it in your browser (http://localhost:7475)
+#    If 7475 is taken (e.g. another project is already serving), serve scans
+#    7475–7499 for a free port and prints the URL it bound.
 npx @diegoferreyra/substrate serve
 
 # 3. Let your agent drive it — add the MCP server to your agent runtime's config

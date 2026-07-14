@@ -10,7 +10,7 @@ import { SubstrateError } from '../core/errors.js';
  * Substrate backup/export/import archives are gzipped tarballs of the durable
  * contents of `.substrate/`: `config.json`, `boards/`, and a consistent
  * `data.sqlite` snapshot. Transient files (`-wal`, `-shm`, `substrate.pid`,
- * `backups/`) are excluded.
+ * `serve.json`, `backups/`) are excluded (the archive is a fixed allowlist).
  */
 
 const ARCHIVE_ENTRIES = ['config.json', 'boards', 'data.sqlite'] as const;

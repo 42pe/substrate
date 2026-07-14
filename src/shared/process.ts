@@ -29,6 +29,56 @@ export function isProcessAlive(pid: number): boolean {
   }
 }
 
+/**
+ * Ordered list of candidate ports for the serve free-port fallback: the
+ * `preferred` port first, then every port in `start..end` (inclusive) except
+ * `preferred` (so it's never tried twice). Pure + deterministic — the actual
+ * "is it free?" decision is made by `bindFirstFreePort` attempting a real bind,
+ * not by pre-probing (avoids a TOCTOU gap).
+ */
+export function portCandidates(preferred: number, start: number, end: number): number[] {
+  const out = [preferred];
+  for (let port = start; port <= end; port += 1) {
+    if (port !== preferred) out.push(port);
+  }
+  return out;
+}
+
+/** Thrown by `bindFirstFreePort` when every candidate port was in use. */
+export class NoFreePortError extends Error {
+  readonly code = 'ENOFREEPORT';
+  constructor(readonly candidates: readonly number[]) {
+    super(`No free port among candidates [${candidates.join(', ')}]`);
+    this.name = 'NoFreePortError';
+  }
+}
+
+/**
+ * Walk `candidates` in order, calling `bind(port)` for each; return the first
+ * that succeeds along with its resolved value. A candidate that fails with
+ * `EADDRINUSE` advances to the next; any other error rejects immediately. If
+ * every candidate is in use, rejects with {@link NoFreePortError}.
+ *
+ * Selection is driven by the REAL bind (not `isPortInUse` pre-probing) so there
+ * is no check-then-bind race: whichever process wins the actual bind owns the
+ * port, and the loser simply advances.
+ */
+export async function bindFirstFreePort<T>(
+  candidates: readonly number[],
+  bind: (port: number) => Promise<T>,
+): Promise<{ port: number; value: T }> {
+  for (const port of candidates) {
+    try {
+      const value = await bind(port);
+      return { port, value };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EADDRINUSE') continue;
+      throw e;
+    }
+  }
+  throw new NoFreePortError(candidates);
+}
+
 /** True if `port` on 127.0.0.1 is already bound. Resolves false on any oddity. */
 export function isPortInUse(port: number): Promise<boolean> {
   return new Promise((resolve) => {

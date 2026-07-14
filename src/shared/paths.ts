@@ -11,6 +11,8 @@ export interface SubstratePaths {
   readonly dataSqliteWal: string;
   readonly dataSqliteShm: string;
   readonly pid: string;
+  /** Runtime record written by `serve` holding the actually-bound port. */
+  readonly serveRuntime: string;
   readonly boardsDir: string;
   readonly attachmentsDir: string;
   readonly logsDir: string;
@@ -28,6 +30,7 @@ export function paths(root: string): SubstratePaths {
     dataSqliteWal: `${dataSqlite}-wal`,
     dataSqliteShm: `${dataSqlite}-shm`,
     pid: join(root, 'substrate.pid'),
+    serveRuntime: join(root, 'serve.json'),
     boardsDir: join(root, 'boards'),
     attachmentsDir: join(root, 'attachments'),
     logsDir: join(root, 'logs'),

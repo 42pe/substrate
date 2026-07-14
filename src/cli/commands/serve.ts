@@ -10,11 +10,24 @@ import {
   startHttpServer,
   closeHttpServer,
   DEFAULT_PORT,
+  PORT_RANGE_START,
+  PORT_RANGE_END,
   type HttpConfig,
 } from '../../http/server.js';
 import { SubstrateError } from '../../core/errors.js';
 import { logger, configureFileSink } from '../../shared/logger.js';
-import { isProcessAlive, identifyPortHolder } from '../../shared/process.js';
+import {
+  isProcessAlive,
+  identifyPortHolder,
+  portCandidates,
+  bindFirstFreePort,
+  NoFreePortError,
+} from '../../shared/process.js';
+import {
+  writeServeRuntime,
+  clearServeRuntime,
+  clearServeRuntimeSync,
+} from '../../shared/serve-runtime.js';
 import { warnIfFreshDbWithBoards } from '../../shared/startup-checks.js';
 
 /**
@@ -27,8 +40,13 @@ import { warnIfFreshDbWithBoards } from '../../shared/startup-checks.js';
  *      (O_EXCL) so a race between two near-simultaneous serves is caught.
  *      Reviewer C-4 fix.
  *   3. Open the database (which runs migrations + verifies schema_version).
- *   4. Bind Hono to 127.0.0.1:7475. EADDRINUSE is caught via the underlying
- *      server's async `'error'` event (Reviewer B-1 fix).
+ *   4. Bind Hono to 127.0.0.1. The preferred port is 7475; if it's taken, serve
+ *      scans upward through 7475–7499 for the first free port so multiple
+ *      projects' inspectors can coexist. EADDRINUSE on a candidate is caught via
+ *      the underlying server's async `'error'` event (Reviewer B-1 fix) and
+ *      advances to the next candidate; range exhaustion fails with a clear
+ *      error. The actually-bound port is recorded in `.substrate/serve.json` so
+ *      `diagnose` and the operator can find it.
  *   5. Install SIGINT/SIGTERM handlers: clean shutdown awaits server.close()
  *      and client.close() before process.exit(0). Reviewer C-2 + C-3 fix.
  *
@@ -61,8 +79,10 @@ export async function serveCommand(cwd: string): Promise<void> {
         { pid, pid_file: p.pid },
       );
     }
-    // PID file exists but process is dead — reclaim
+    // PID file exists but process is dead — reclaim both the PID lock and any
+    // stale port record left by that crashed serve (plan step 5).
     await unlink(p.pid).catch(() => undefined);
+    await clearServeRuntime(p.serveRuntime);
   }
 
   // Open the database (runs migrations, verifies schema version)
@@ -86,28 +106,51 @@ export async function serveCommand(cwd: string): Promise<void> {
     port = parsed;
   }
 
-  const httpConfig: HttpConfig = {
-    ...defaultHttpConfig(),
-    port,
-    allowedOrigins: [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
-    allowedHosts: [`localhost:${port}`, `127.0.0.1:${port}`],
-    // Read API deps (Phase 5a): reuses the client serve already opened. No
-    // `root` — the HTTP surface is reads-only.
-    apiDeps: { client, config, loadSubstrate: () => loadSubstrate(root) },
+  // Build + bind the app for one candidate port. The CORS/Host allowlist embeds
+  // the port, so the config + app must be rebuilt per attempt in the scan.
+  const buildAndBind = (candidatePort: number): ReturnType<typeof startHttpServer> => {
+    const httpConfig: HttpConfig = {
+      ...defaultHttpConfig(),
+      port: candidatePort,
+      allowedOrigins: [`http://localhost:${candidatePort}`, `http://127.0.0.1:${candidatePort}`],
+      allowedHosts: [`localhost:${candidatePort}`, `127.0.0.1:${candidatePort}`],
+      // Read API deps (Phase 5a): reuses the client serve already opened. No
+      // `root` — the HTTP surface is reads-only.
+      apiDeps: { client, config, loadSubstrate: () => loadSubstrate(root) },
+    };
+    return startHttpServer(createApp(httpConfig), candidatePort);
   };
-  const app = createApp(httpConfig);
+
+  // SUBSTRATE_PORT_OVERRIDE pins an exact port (tests) — bind it only, no scan.
+  // Otherwise try the preferred port first, then scan the fallback range so a
+  // second project can serve while the first holds 7475. Selection is driven by
+  // the real bind (not pre-probing) so racing serves can't pick the same port.
+  const candidates =
+    portRaw !== undefined ? [port] : portCandidates(DEFAULT_PORT, PORT_RANGE_START, PORT_RANGE_END);
 
   let server: Awaited<ReturnType<typeof startHttpServer>>;
+  let boundPort: number;
   try {
-    server = await startHttpServer(app, port);
+    const bound = await bindFirstFreePort(candidates, buildAndBind);
+    server = bound.value;
+    boundPort = bound.port;
   } catch (e) {
     client.close();
-    if ((e as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-      const holder = await identifyPortHolder(port);
+    if (e instanceof NoFreePortError) {
+      if (portRaw !== undefined) {
+        // Exact-port mode: keep the original single-port conflict message.
+        const holder = await identifyPortHolder(port);
+        throw SubstrateError.conflict(
+          `Port ${port} is already in use${holder ? ` by ${holder}` : ''}. ` +
+            `Stop that process or change the port.`,
+          { port, ...(holder ? { holder } : {}) },
+        );
+      }
       throw SubstrateError.conflict(
-        `Port ${port} is already in use${holder ? ` by ${holder}` : ''}. ` +
-          `Stop that process or change the port.`,
-        { port, ...(holder ? { holder } : {}) },
+        `No free port in range ${PORT_RANGE_START}–${PORT_RANGE_END} ` +
+          `(all ${PORT_RANGE_END - PORT_RANGE_START + 1} in use). ` +
+          `Stop a running 'substrate serve' instance or free a port in that range.`,
+        { range_start: PORT_RANGE_START, range_end: PORT_RANGE_END },
       );
     }
     throw e;
@@ -130,8 +173,18 @@ export async function serveCommand(cwd: string): Promise<void> {
     throw e;
   }
 
-  logger.info(`Substrate running on http://localhost:${port}`, {
+  // Additive discovery record: the actually-bound port. Written AFTER the PID
+  // lock so it never exists without an owner, and cleared on every teardown
+  // path below. NOT the ownership guard — substrate.pid remains that.
+  await writeServeRuntime(p.serveRuntime, {
     pid: process.pid,
+    port: boundPort,
+    started_at: new Date().toISOString(),
+  });
+
+  logger.info(`Substrate running on http://localhost:${boundPort}`, {
+    pid: process.pid,
+    port: boundPort,
     project_name: config.project_name,
   });
 
@@ -147,6 +200,7 @@ export async function serveCommand(cwd: string): Promise<void> {
       await closeHttpServer(server);
       client.close();
       await unlink(p.pid).catch(() => undefined);
+      await clearServeRuntime(p.serveRuntime);
       process.exit(0);
     } catch (err) {
       logger.error('Error during shutdown', { error: (err as Error).message, err });
@@ -171,6 +225,7 @@ export async function serveCommand(cwd: string): Promise<void> {
     } catch {
       // best-effort
     }
+    clearServeRuntimeSync(p.serveRuntime);
   });
 
   // Wait forever; the shutdown handler will exit.

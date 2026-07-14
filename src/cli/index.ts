@@ -46,7 +46,8 @@ Usage:
                               Apply a shared substrate template into an existing
                               .substrate/ (dry-run unless --yes). <path> is a local
                               dir — your agent clones the repo first.
-  substrate serve             Start the HTTP UI server (default: http://localhost:7475)
+  substrate serve             Start the HTTP UI server (default: http://localhost:7475;
+                              if 7475 is taken it scans 7475–7499 for a free port)
   substrate mcp               Start the stdio MCP server (spawned by agent runtimes)
   substrate backup            Write a timestamped backup into .substrate/backups/
   substrate export <path>     Write a .tar.gz of the substrate to <path>
