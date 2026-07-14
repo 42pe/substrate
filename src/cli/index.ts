@@ -63,8 +63,11 @@ Usage:
   substrate validate          Lint boards + policies without a server (CI-friendly):
                               a corrupt substrate exits non-zero; logical smells
                               (a guard that can never fire) print advisory warnings
-  substrate pending-approval  List every task awaiting a human approval (a move
-                              gated on an unset human-only field), grouped by board
+  substrate pending-approval [--json]
+                              List every task awaiting a human approval (a move
+                              gated on an unset human-only field) as an aligned
+                              table grouped by board — color on a TTY, plain when
+                              piped. --json emits the structured aggregate.
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -181,10 +184,12 @@ Next steps:
       rejectUnknownFlags('validate', rest);
       await validateCommand(cwd);
       return;
-    case 'pending-approval':
+    case 'pending-approval': {
+      const json = rest.includes('--json');
       rejectUnknownFlags('pending-approval', rest);
-      await pendingApprovalCommand(cwd);
+      await pendingApprovalCommand(cwd, { json });
       return;
+    }
     case '--help':
     case '-h':
     case 'help':

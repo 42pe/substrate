@@ -78,4 +78,15 @@ describe('rejectUnknownFlags (head-compare)', () => {
     expect(() => rejectUnknownFlags('approve', ['t1', 'plan_approved'])).not.toThrow();
     expect(() => rejectUnknownFlags('validate', [])).not.toThrow();
   });
+
+  it('accepts --json for pending-approval but still rejects an unknown flag', () => {
+    expect(() => rejectUnknownFlags('pending-approval', ['--json'])).not.toThrow();
+    expect(() => rejectUnknownFlags('pending-approval', [])).not.toThrow();
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    expect(() => rejectUnknownFlags('pending-approval', ['--bogus'])).toThrow('exit');
+    expect(exit).toHaveBeenCalledWith(1);
+  });
 });
