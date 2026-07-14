@@ -68,9 +68,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.getProject).mockResolvedValue(project);
   // Echo the requested id (as the real endpoint does), so a task-route lookup
-  // resolves to /boards/<board_id> rather than a fixed id.
+  // resolves to /boards/<board_id> rather than a fixed id. Distinct ids get
+  // distinct names so a board→board switch can prove the name actually changes.
   vi.mocked(api.getBoard).mockImplementation((id: string) =>
-    Promise.resolve(boardSubstrate(id, 'Roadmap')),
+    Promise.resolve(boardSubstrate(id, id === 'b2' ? 'Delivery' : 'Roadmap')),
   );
   vi.mocked(api.getTask).mockResolvedValue(task('t1', 'main'));
 });
@@ -123,6 +124,22 @@ describe('AppHeader', () => {
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Roadmap' })).toBeNull());
     // Project segment stays.
     expect(screen.getByRole('link', { name: 'substrate' })).toBeTruthy();
+  });
+
+  it('refreshes the board segment to the new name when navigating board → board', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/boards/b1']}>
+        <AppHeader />
+        <Link to="/boards/b2">go b2</Link>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('link', { name: 'Roadmap' })).toBeTruthy();
+    await user.click(screen.getByRole('link', { name: 'go b2' }));
+    // The segment updates to the new board's name and link — no stale 'Roadmap'.
+    const next = await screen.findByRole('link', { name: 'Delivery' });
+    expect(next.getAttribute('href')).toBe('/boards/b2');
+    expect(screen.queryByRole('link', { name: 'Roadmap' })).toBeNull();
   });
 
   it('degrades gracefully to no board segment when the board fails to resolve', async () => {
