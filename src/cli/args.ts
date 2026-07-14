@@ -15,6 +15,7 @@ const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
   logs: new Set(['-n', '--errors']),
   add: new Set(['--yes', '--as']),
   approve: new Set(),
+  unapprove: new Set(),
   validate: new Set(),
   'pending-approval': new Set(['--json']),
 };

@@ -74,8 +74,10 @@ describe('rejectUnknownFlags (head-compare)', () => {
     }) as never);
     vi.spyOn(process.stderr, 'write').mockReturnValue(true);
     expect(() => rejectUnknownFlags('approve', ['t1', 'f', '--bogus'])).toThrow('exit');
+    expect(() => rejectUnknownFlags('unapprove', ['t1', 'f', '--bogus'])).toThrow('exit');
     expect(() => rejectUnknownFlags('validate', ['--bogus'])).toThrow('exit');
     expect(() => rejectUnknownFlags('approve', ['t1', 'plan_approved'])).not.toThrow();
+    expect(() => rejectUnknownFlags('unapprove', ['t1', 'plan_approved'])).not.toThrow();
     expect(() => rejectUnknownFlags('validate', [])).not.toThrow();
   });
 
