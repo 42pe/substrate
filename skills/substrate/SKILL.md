@@ -17,7 +17,7 @@ Substrate is a local-first project-management substrate that you (the agent) and
 the human share. Boards, groups, custom fields, and policies are
 **substrate-as-code** (JSON in `.substrate/boards/*.json`, read fresh on every
 call). Tasks, comments, and an append-only event log are **runtime state** in a
-local SQLite DB. You operate it through an MCP server (31 tools); the human
+local SQLite DB. You operate it through an MCP server (32 tools); the human
 inspects the same data at `http://localhost:7475` via `substrate serve`.
 
 **If this project has a `.substrate/` directory, Substrate is the source of
@@ -249,15 +249,18 @@ the source).
 
 ---
 
-## Tool reference (31)
+## Tool reference (32)
 
-**Read (12):** `whoami`, `get_project`, `list_boards`, `get_board_substrate`,
+**Read (13):** `whoami`, `get_project`, `list_boards`, `get_board_substrate`,
 `list_tasks`, `get_task`, `get_task_history`, `list_comments`, `get_comment`,
 `check_transition` (dry-run: would moving a task to a group be allowed by the
 guards? — verify a gate without a throwaway task),
 `list_pending_approvals` (every task blocked on a HUMAN gate — a `human_only`
 field a human must set; returns board + gate + `awaiting_fields`),
-`reverse_captcha` (an easter egg — a timed puzzle, not part of normal work).
+`reverse_captcha` (an easter egg — a timed puzzle, not part of normal work),
+`submit_feedback` (file feedback about Substrate itself — returns a prefilled
+GitHub issue URL for `42pe/substrate` to open and submit; nothing is sent
+automatically, no network or credentials).
 
 **Task & comment writes (7):** `create_task`, `update_task`, `archive_task`,
 `unarchive_task`, `add_comment`, `edit_comment`, `archive_comment`.

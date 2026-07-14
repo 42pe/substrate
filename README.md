@@ -104,7 +104,7 @@ say:
 
 > Track our work in Substrate.
 
-and it takes over — driving Substrate's 31 MCP tools by a documented set of
+and it takes over — driving Substrate's 32 MCP tools by a documented set of
 conventions (`whoami` first, optimistic-concurrency updates, read the policy
 envelope, …). The full guide is [`skills/substrate/SKILL.md`](skills/substrate/SKILL.md).
 
