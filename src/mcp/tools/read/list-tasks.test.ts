@@ -68,7 +68,8 @@ describe('listTasksToolHandler', () => {
     deps = {
       client,
       config: fixtureConfig,
-      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [board] }),
+      loadSubstrate: () =>
+        Promise.resolve({ config: fixtureConfig, boards: [board], members: [], warnings: [] }),
       root: '/tmp/substrate-test',
     };
   });
@@ -167,7 +168,8 @@ describe('listTasksToolHandler', () => {
     deps = {
       client,
       config: fixtureConfig,
-      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [noReqBoard] }),
+      loadSubstrate: () =>
+        Promise.resolve({ config: fixtureConfig, boards: [noReqBoard], members: [], warnings: [] }),
       root: '/tmp/substrate-test',
     };
     await createTask(client, makeTask('t1', { board_id: 'board-2', custom_data: {} }));

@@ -154,7 +154,7 @@ describe('approveCommand (B3 human channel)', () => {
   // end-to-end — it can't set the field, so it can't pass the guard; only the human
   // channel (`substrate approve`) unlocks it, after which the move passes.
   it('end-to-end: agent is blocked until the human approves, then the gate passes', async () => {
-    const substrate: Substrate = { config, boards: [board] };
+    const substrate: Substrate = { config, boards: [board], members: [], warnings: [] };
     const deps: ToolDeps = {
       client,
       config,

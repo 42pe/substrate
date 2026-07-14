@@ -136,7 +136,12 @@ describe('substrate writer', () => {
         },
       ],
     };
-    const substrate: Substrate = { config, boards: [makeBoard('b0'), b1] };
+    const substrate: Substrate = {
+      config,
+      boards: [makeBoard('b0'), b1],
+      members: [],
+      warnings: [],
+    };
     expect(findBoardHolding(substrate, 'g1', 'group')?.id).toBe('b1');
     expect(findBoardHolding(substrate, 'nope', 'group')).toBeNull();
   });

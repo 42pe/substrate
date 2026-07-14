@@ -21,7 +21,7 @@ const fixtureConfig: Config = {
   created_at: '2026-05-09T00:00:00.000Z',
 };
 
-const substrate: Substrate = { config: fixtureConfig, boards: [] };
+const substrate: Substrate = { config: fixtureConfig, boards: [], members: [], warnings: [] };
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {

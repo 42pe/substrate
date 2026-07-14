@@ -64,7 +64,10 @@ export async function getBoardSubstrateHandler(
   // every consumer (MCP, HTTP → UI) sees resolved member identity, not bare ids.
   // An unresolved reference is surfaced with an `unresolved` marker rather than
   // dropped; an absent/empty team resolves to `[]`.
-  const membersById = new Map(substrate.members.map((m) => [m.id, m]));
+  // `?? []` mirrors the validator's defensive default: the handler is only ever
+  // fed by loadSubstrate (which always populates members), but a synthetic test
+  // deps object could omit it — resolve to an empty registry rather than crash.
+  const membersById = new Map((substrate.members ?? []).map((m) => [m.id, m]));
   const team: ResolvedTeamMember[] = (board.team ?? []).map((binding) => {
     const groups = binding.groups ?? [];
     const member = membersById.get(binding.member);

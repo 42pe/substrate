@@ -93,6 +93,8 @@ const archivedBoard: Board = {
 const fixtureSubstrate: Substrate = {
   config: fixtureConfig,
   boards: [fixtureBoard, archivedBoard],
+  members: [],
+  warnings: [],
 };
 
 describe('createTaskSchema (input validation)', () => {
@@ -385,7 +387,12 @@ describe('createTaskHandler — policy engine', () => {
       },
     ],
   };
-  const policySubstrate: Substrate = { config: fixtureConfig, boards: [policyBoard] };
+  const policySubstrate: Substrate = {
+    config: fixtureConfig,
+    boards: [policyBoard],
+    members: [],
+    warnings: [],
+  };
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'substrate-create-policy-'));

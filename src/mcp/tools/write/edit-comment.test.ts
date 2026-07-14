@@ -34,7 +34,7 @@ const board: Board = {
   archived_at: null,
 };
 
-const substrate: Substrate = { config: fixtureConfig, boards: [board] };
+const substrate: Substrate = { config: fixtureConfig, boards: [board], members: [], warnings: [] };
 
 function makeTask(): Task {
   return {

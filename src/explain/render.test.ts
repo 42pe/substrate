@@ -13,7 +13,7 @@ const config: Config = {
 };
 
 function substrate(boards: Board[]): Substrate {
-  return { config, boards };
+  return { config, boards, members: [], warnings: [] };
 }
 
 describe('renderSubstrateHtml', () => {

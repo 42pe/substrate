@@ -31,7 +31,8 @@ function depsWith(boards: Board[]): ToolDeps {
   return {
     client: {} as ToolDeps['client'],
     config: fixtureConfig,
-    loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards }),
+    loadSubstrate: () =>
+      Promise.resolve({ config: fixtureConfig, boards, members: [], warnings: [] }),
     root: '/tmp/substrate-test',
   };
 }
