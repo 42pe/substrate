@@ -79,8 +79,10 @@ export async function serveCommand(cwd: string): Promise<void> {
         { pid, pid_file: p.pid },
       );
     }
-    // PID file exists but process is dead — reclaim
+    // PID file exists but process is dead — reclaim both the PID lock and any
+    // stale port record left by that crashed serve (plan step 5).
     await unlink(p.pid).catch(() => undefined);
+    await clearServeRuntime(p.serveRuntime);
   }
 
   // Open the database (runs migrations, verifies schema version)

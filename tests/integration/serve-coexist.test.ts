@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { rmrf } from '../helpers/tmp.js';
 import { mkdtemp, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
@@ -27,13 +28,40 @@ async function health(port: number): Promise<boolean> {
   }
 }
 
+/**
+ * Stop a spawned serve and wait for it to exit. SIGINT (not SIGKILL) is
+ * deliberate: on the local `npx tsx` path `child` is the wrapper, and only a
+ * forwardable signal reaches the nested node server — SIGKILL would orphan it
+ * on the real port range. SIGINT drives the CLI's graceful shutdown (which also
+ * removes the PID + port records). SIGKILL is only a last-resort backstop if the
+ * graceful stop stalls.
+ */
+async function killAndWait(
+  child: ChildProcess,
+  signal: NodeJS.Signals = 'SIGINT',
+): Promise<number | null> {
+  if (child.exitCode !== null) return child.exitCode;
+  const exited = new Promise<number | null>((resolve) => {
+    child.once('exit', (code) => resolve(code));
+  });
+  child.kill(signal);
+  const backstop = setTimeout(() => {
+    if (child.exitCode === null) child.kill('SIGKILL');
+  }, 5000);
+  const code = await exited;
+  clearTimeout(backstop);
+  return code;
+}
+
 describe('substrate serve — multi-instance coexistence (integration)', () => {
   const children: ChildProcess[] = [];
   const dirs: string[] = [];
 
   afterEach(async () => {
+    // Safety net for an early-throwing test: stop any survivors gracefully so we
+    // never orphan a server onto the real port range.
     for (const c of children) {
-      if (c.exitCode === null) c.kill('SIGKILL');
+      if (c.exitCode === null) await killAndWait(c, 'SIGINT').catch(() => undefined);
     }
     children.length = 0;
     for (const d of dirs) await rmrf(d).catch(() => undefined);
@@ -42,7 +70,7 @@ describe('substrate serve — multi-instance coexistence (integration)', () => {
 
   // Windows skip mirrors the sibling serve-lifecycle suite (signal semantics).
   it.skipIf(process.platform === 'win32')(
-    'two projects serve at once on distinct in-range ports (no override)',
+    'two projects serve at once on distinct in-range ports, then clean up on shutdown',
     async () => {
       // Two independent projects, NEITHER pinned via SUBSTRATE_PORT_OVERRIDE, so
       // both exercise the real preferred-then-scan fallback.
@@ -76,7 +104,15 @@ describe('substrate serve — multi-instance coexistence (integration)', () => {
       await waitFor(() => health(p1!), { timeoutMs: 15_000 });
       expect(await health(p0!)).toBe(true);
       expect(await health(p1!)).toBe(true);
+
+      // Graceful shutdown removes each project's port record (acceptance:
+      // shutdown cleans up both the PID file and the new port record).
+      for (const child of children) {
+        expect(await killAndWait(child, 'SIGINT')).toBe(0);
+      }
+      expect(existsSync(join(cwd0, '.substrate', 'serve.json'))).toBe(false);
+      expect(existsSync(join(cwd1, '.substrate', 'serve.json'))).toBe(false);
     },
-    40_000,
+    45_000,
   );
 });
