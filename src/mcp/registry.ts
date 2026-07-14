@@ -16,6 +16,7 @@ import { registerGetTaskHistory } from './tools/read/get-task-history.js';
 import { registerListComments } from './tools/read/list-comments.js';
 import { registerGetComment } from './tools/read/get-comment.js';
 import { registerReverseCaptcha } from './tools/read/reverse-captcha.js';
+import { registerSubmitFeedback } from './tools/read/submit-feedback.js';
 import { registerCheckTransition } from './tools/read/check-transition.js';
 import { registerListPendingApprovals } from './tools/read/list-pending-approvals.js';
 import { registerUpdateProject } from './tools/write/update-project.js';
@@ -53,6 +54,7 @@ export function registerAllTools(server: McpServer, deps: ToolDeps): void {
   registerListComments(server, deps);
   registerGetComment(server, deps);
   registerReverseCaptcha(server, deps);
+  registerSubmitFeedback(server, deps);
   registerCheckTransition(server, deps);
   registerListPendingApprovals(server, deps);
 

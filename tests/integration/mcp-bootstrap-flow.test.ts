@@ -264,6 +264,7 @@ describe('substrate mcp — stdio JSON-RPC (integration)', () => {
       'list_tasks',
       'reorder_groups',
       'reverse_captcha',
+      'submit_feedback',
       'unarchive_board',
       'unarchive_task',
       'update_board',
