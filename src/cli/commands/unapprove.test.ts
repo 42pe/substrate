@@ -14,7 +14,6 @@ import { resetFileSink } from '../../shared/logger.js';
 import { approveCommand } from './approve.js';
 import { unapproveCommand } from './unapprove.js';
 import { checkTransitionHandler } from '../../mcp/tools/read/check-transition.js';
-import { SubstrateError } from '../../core/errors.js';
 import type { Board, Config, Substrate, Task } from '../../core/types.js';
 import type { ToolDeps } from '../../mcp/deps.js';
 
@@ -206,10 +205,13 @@ describe('unapproveCommand (revoke a human approval)', () => {
     const updates = results.filter((e) => e.event_type === 'updated');
     const revoke = updates[updates.length - 1];
     expect(revoke?.actor_agent_name).toMatch(/^human:/);
-    const before = revoke?.changes?.before?.custom_data as Record<string, unknown>;
-    const after = revoke?.changes?.after?.custom_data as Record<string, unknown>;
-    expect('plan_approved' in before).toBe(true);
-    expect('plan_approved' in after).toBe(false);
+    // `changes` is `Record<string, unknown>`, so reach into it by bracket-access
+    // with a cast (the codebase idiom) rather than dotted member access.
+    const side = (key: 'before' | 'after'): Record<string, unknown> =>
+      (revoke?.changes[key] as { custom_data?: Record<string, unknown> } | undefined)
+        ?.custom_data ?? {};
+    expect('plan_approved' in side('before')).toBe(true);
+    expect('plan_approved' in side('after')).toBe(false);
   });
 
   it('bumps the version and prints the old value + cleared + new version', async () => {
@@ -224,11 +226,14 @@ describe('unapproveCommand (revoke a human approval)', () => {
     expect(text).toContain('version 3');
   });
 
-  it('refuses a field that is not human_only (schema_violation)', async () => {
+  it('refuses a field that is not human_only (schema_violation) and changes nothing', async () => {
     await createTask(client, makeTask({ custom_data: { severity: 'low' } }));
     await expect(unapproveCommand(dir, { taskId: 't1', field: 'severity' })).rejects.toMatchObject({
       code: 'schema_violation',
     });
+    const t = await getTask(client, 't1');
+    expect(t.version).toBe(1); // guard-before-write + rollback: nothing touched
+    expect(t.custom_data['severity']).toBe('low');
   });
 
   it('is a friendly no-op when the field is not set (no write, no event)', async () => {
@@ -245,9 +250,9 @@ describe('unapproveCommand (revoke a human approval)', () => {
   });
 
   it('throws not_found on a missing task', async () => {
-    await expect(unapproveCommand(dir, { taskId: 'gone', field: 'plan_approved' })).rejects.toThrow(
-      SubstrateError,
-    );
+    await expect(
+      unapproveCommand(dir, { taskId: 'gone', field: 'plan_approved' }),
+    ).rejects.toMatchObject({ code: 'not_found' });
   });
 
   it('warns (without a fake move command) when the task is stranded past the gate', async () => {
