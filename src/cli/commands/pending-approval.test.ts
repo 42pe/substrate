@@ -271,17 +271,34 @@ describe('pendingApprovalCommand', () => {
     expect(out.join('')).toContain('No tasks pending human approval');
   });
 
-  it('emits no ANSI escapes when NO_COLOR is set (TTY gate wires through)', async () => {
+  // Force the command onto a fake TTY (vitest is non-TTY, so without this the
+  // NO_COLOR gate would never be reached and the assertion would be vacuous).
+  async function runOnFakeTty(noColor: string | undefined): Promise<void> {
+    const origTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
     const prev = process.env.NO_COLOR;
-    process.env.NO_COLOR = '1';
+    if (noColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = noColor;
     try {
-      await createTask(client, makeTask({ id: 'needsme', title: 'Ship it' }));
       await pendingApprovalCommand(dir);
-      expect(out.join('')).not.toContain('\x1b[');
     } finally {
+      if (origTTY) Object.defineProperty(process.stdout, 'isTTY', origTTY);
+      else Reflect.deleteProperty(process.stdout, 'isTTY');
       if (prev === undefined) delete process.env.NO_COLOR;
       else process.env.NO_COLOR = prev;
     }
+  }
+
+  it('colorizes on a TTY (the gate wires through the command path)', async () => {
+    await createTask(client, makeTask({ id: 'needsme', title: 'Ship it' }));
+    await runOnFakeTty(undefined);
+    expect(out.join('')).toContain('\x1b[');
+  });
+
+  it('emits no ANSI escapes on a TTY when NO_COLOR is set', async () => {
+    await createTask(client, makeTask({ id: 'needsme', title: 'Ship it' }));
+    await runOnFakeTty('1');
+    expect(out.join('')).not.toContain('\x1b[');
   });
 
   it('--json emits the aggregate at parity with listPendingApprovals, no escapes', async () => {
