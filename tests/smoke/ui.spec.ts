@@ -108,6 +108,9 @@ test('overview (/) renders a live multi-board wall', async ({ page }) => {
   await expect(page.getByText('To do').first()).toBeVisible(); // a column
   await expect(page.getByRole('link', { name: 'Design' })).toBeVisible(); // a card
   await expect(page.locator('[aria-live="polite"]').first()).toBeVisible(); // live indicator
+  // Off a board/task route the header shows no board segment (the body's board
+  // strip link is separate; scope to <header>).
+  await expect(page.locator('header').getByRole('link', { name: 'Roadmap' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -116,6 +119,8 @@ test('boards (/boards) lists boards', async ({ page }) => {
   await page.goto(`${baseURL}/boards`);
   await expect(page.getByRole('heading', { name: 'Boards', level: 1 })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Roadmap' })).toBeVisible();
+  // The list route is not a board route, so the header carries no board name.
+  await expect(page.locator('header').getByRole('link', { name: 'Roadmap' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -126,6 +131,7 @@ test('activity (/activity) renders the cross-board event feed', async ({ page })
   // The seed appends a `created` event for task "Design"; the feed row links to it.
   await expect(page.getByRole('link', { name: 'Design' })).toBeVisible();
   await expect(page.locator('[aria-live="polite"]').first()).toBeVisible(); // live indicator
+  await expect(page.locator('header').getByRole('link', { name: 'Roadmap' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -133,6 +139,9 @@ test('board detail (/boards/:id) renders a kanban with a working List toggle', a
   const errors = collectErrors(page);
   await page.goto(`${baseURL}/boards/main`);
   await expect(page.getByRole('heading', { name: 'Roadmap', level: 1 })).toBeVisible();
+  // The persistent app header surfaces the active board's name, linking to the
+  // board — distinct from the page <h1>, so scope the assertion to <header>.
+  await expect(page.locator('header').getByRole('link', { name: 'Roadmap' })).toBeVisible();
   // Kanban (default): a column per group (heading) + a task card link; live on.
   await expect(page.getByRole('heading', { name: 'To do' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Done' })).toBeVisible();
@@ -157,6 +166,8 @@ test('task detail (/tasks/:id) shows the task and a sanitized comment', async ({
   const errors = collectErrors(page);
   await page.goto(`${baseURL}/tasks/t1`);
   await expect(page.getByRole('heading', { name: 'Design', level: 1 })).toBeVisible();
+  // The header resolves the task's board name (via board_id), not the raw id.
+  await expect(page.locator('header').getByRole('link', { name: 'Roadmap' })).toBeVisible();
 
   // Markdown render path: description bold renders as a real <strong>.
   await expect(page.locator('strong', { hasText: 'Design' }).first()).toBeVisible();
