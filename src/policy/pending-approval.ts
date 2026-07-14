@@ -1,7 +1,8 @@
 import type { Board, Task } from '../core/types.js';
 import { parseGuardDefinition, guardPasses } from './transition-guard.js';
 import { evaluateCondition } from './evaluator.js';
-import type { Condition, EvalContext, LeafCondition } from './types.js';
+import type { EvalContext } from './types.js';
+import { collectLeaves, taskFieldName } from './field-refs.js';
 
 /**
  * "Pending human approval" derivation (dogfood 2026-07-07, sprint pending-approval).
@@ -36,37 +37,6 @@ export interface PendingApproval {
 }
 
 const NOT_PENDING: PendingApproval = { pending: false, awaiting_fields: [] };
-
-/**
- * The task custom-field NAME a leaf path targets, or null if it's not a task field.
- * Assumes a FLAT field schema (which `field_schema.task` is): `task.custom_data.X`
- * (explicit) or `task.X` (resolves to custom_data via the evaluator's fallback) → `X`.
- * A deeper path (`task.custom_data.X.Y`) reports `X`; a field literally named like a
- * task column (`task.title`) reports `title` — neither can be `human_only` in a real
- * schema, so the human_only intersection filters them out harmlessly.
- */
-function taskFieldName(path: string): string | null {
-  if (typeof path !== 'string') return null;
-  const segs = path.split('.');
-  if (segs[0] !== 'task') return null;
-  if (segs[1] === 'custom_data') return segs[2] ?? null;
-  return segs[1] ?? null;
-}
-
-/** Flatten all leaf conditions out of a (possibly compound) condition tree. */
-function collectLeaves(conds: Condition[], out: LeafCondition[] = []): LeafCondition[] {
-  if (!Array.isArray(conds)) return out;
-  for (const c of conds) {
-    if (typeof c !== 'object' || c === null) continue;
-    const rec = c as Record<string, unknown>;
-    if (Array.isArray(rec['all_of'])) collectLeaves(rec['all_of'] as Condition[], out);
-    else if (Array.isArray(rec['any_of'])) collectLeaves(rec['any_of'] as Condition[], out);
-    else if (Array.isArray(rec['none_of'])) collectLeaves(rec['none_of'] as Condition[], out);
-    else if (typeof rec['field'] === 'string' && typeof rec['op'] === 'string')
-      out.push(c as LeafCondition);
-  }
-  return out;
-}
 
 export function pendingApprovalFor(board: Board, task: Task): PendingApproval {
   if (task.archived_at) return NOT_PENDING;
