@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, isRouteErrorResponse, useRouteError } from 'react-router-dom';
 import { cn } from '../lib/cn.js';
+import { AppHeader } from '../components/AppHeader.js';
 import { ErrorCard } from '../components/States.js';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -68,9 +69,12 @@ function Shell({ children }: { children: React.ReactNode }) {
       </a>
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6 sm:py-4">
-          <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight">
-            Substrate
-          </Link>
+          <div className="flex min-w-0 items-center gap-2">
+            <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight">
+              Substrate
+            </Link>
+            <AppHeader />
+          </div>
           <nav aria-label="Primary" className="flex gap-1 text-sm">
             <NavLink to="/" end className={navClass}>
               Overview
