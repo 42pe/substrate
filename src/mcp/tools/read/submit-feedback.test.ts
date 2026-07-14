@@ -52,6 +52,20 @@ describe('submitFeedbackHandler', () => {
     expect(withoutAgentBody).not.toContain('Agent:');
   });
 
+  it('encodes spaces as %20 (encodeURIComponent), round-tripping via decodeURIComponent', () => {
+    const r = submitFeedbackHandler({ title: 'two words', body: 'a b' });
+    // Raw URL uses %20 for spaces, not the form-encoding "+".
+    expect(r.url).toContain('%20');
+    expect(r.url).not.toContain('+');
+    // The spec's acceptance criterion: params round-trip via decodeURIComponent.
+    const raw = r.url.split('?')[1]!;
+    const titleParam = raw
+      .split('&')
+      .find((p) => p.startsWith('title='))!
+      .slice('title='.length);
+    expect(decodeURIComponent(titleParam)).toBe('Substrate Feedback: two words');
+  });
+
   it('carries no `ok` field (so the wrapper reports isError: false)', () => {
     const r = submitFeedbackHandler({ title: 't', body: 'b' });
     expect('ok' in r).toBe(false);
@@ -83,8 +97,23 @@ describe('submitFeedbackSchema', () => {
     );
   });
 
+  it('accepts a title of exactly 120 and a body of exactly 4096 chars (boundary)', () => {
+    expect(
+      submitFeedbackSchema.safeParse({ title: 'x'.repeat(120), body: 'x'.repeat(4096) }).success,
+    ).toBe(true);
+  });
+
   it('rejects an empty title or body', () => {
     expect(submitFeedbackSchema.safeParse({ title: '', body: 'b' }).success).toBe(false);
     expect(submitFeedbackSchema.safeParse({ title: 't', body: '' }).success).toBe(false);
+  });
+
+  it('rejects an agent_name over 80 chars, accepts exactly 80', () => {
+    expect(
+      submitFeedbackSchema.safeParse({ title: 't', body: 'b', agent_name: 'a'.repeat(81) }).success,
+    ).toBe(false);
+    expect(
+      submitFeedbackSchema.safeParse({ title: 't', body: 'b', agent_name: 'a'.repeat(80) }).success,
+    ).toBe(true);
   });
 });

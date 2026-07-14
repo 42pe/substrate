@@ -54,10 +54,13 @@ export function submitFeedbackHandler(input: SubmitFeedbackInput): SubmitFeedbac
   if (input.agent_name !== undefined) footerLines.push(`Agent: ${input.agent_name}`);
   const body = `${input.body}\n\n---\n${footerLines.join('\n')}`;
 
-  // URLSearchParams encodes every special character (&, #, newlines, spaces) and
-  // round-trips cleanly through `new URL(...).searchParams` — never hand-concat.
-  const params = new URLSearchParams({ title: issue_title, body, labels: 'feedback' });
-  const url = `https://github.com/${REPO}/issues/new?${params.toString()}`;
+  // encodeURIComponent escapes every special character (&, #, =, newlines, and
+  // spaces → %20) so user input cannot inject or override query params; `labels`
+  // is a literal. Values round-trip via decodeURIComponent (and URL.searchParams).
+  const enc = encodeURIComponent;
+  const url =
+    `https://github.com/${REPO}/issues/new` +
+    `?title=${enc(issue_title)}&body=${enc(body)}&labels=feedback`;
 
   return {
     result: 'feedback_url',
