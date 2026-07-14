@@ -91,4 +91,14 @@ describe('rejectUnknownFlags (head-compare)', () => {
     expect(() => rejectUnknownFlags('pending-approval', ['--bogus'])).toThrow('exit');
     expect(exit).toHaveBeenCalledWith(1);
   });
+
+  it('accepts --check for install-skill but rejects any other flag', () => {
+    expect(() => rejectUnknownFlags('install-skill', ['--check'])).not.toThrow();
+    expect(() => rejectUnknownFlags('install-skill', [])).not.toThrow();
+    vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    expect(() => rejectUnknownFlags('install-skill', ['--force'])).toThrow('exit');
+  });
 });
