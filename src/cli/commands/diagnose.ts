@@ -6,8 +6,9 @@ import { readConfig } from '../../shared/config.js';
 import { loadSubstrate } from '../../substrate/loader.js';
 import { openClient } from '../../storage/client.js';
 import { getCurrentSchemaVersion } from '../../storage/migrations/runner.js';
-import { isPortInUse } from '../../shared/process.js';
-import { DEFAULT_PORT } from '../../http/server.js';
+import { isPortInUse, isProcessAlive, portCandidates } from '../../shared/process.js';
+import { readServeRuntime } from '../../shared/serve-runtime.js';
+import { DEFAULT_PORT, PORT_RANGE_START, PORT_RANGE_END } from '../../http/server.js';
 import { BINARY_VERSION, BINARY_SCHEMA_VERSION } from '../../core/version.js';
 import { readCurrentLines, parseEvents } from '../../shared/log-read.js';
 
@@ -37,13 +38,30 @@ export async function diagnoseCommand(cwd: string): Promise<void> {
   ok('node', process.version);
   ok('platform', `${process.platform}/${process.arch}`);
 
-  // Port
+  // Server: prefer the per-project runtime record (the actually-bound port when
+  // the free-port fallback moved off 7475); fall back to probing the range so
+  // the operator can answer "which port is this project on?" without lsof.
   process.stdout.write('\nServer:\n');
   try {
-    const inUse = await isPortInUse(DEFAULT_PORT);
-    ok(`port ${DEFAULT_PORT}`, inUse ? 'in use (a server may be running)' : 'free');
+    const runtime = await readServeRuntime(p.serveRuntime);
+    if (runtime && isProcessAlive(runtime.pid)) {
+      ok('server', `serving on port ${runtime.port} (pid ${runtime.pid})`);
+    } else {
+      if (runtime) {
+        ok('server', `stale runtime record (pid ${runtime.pid} not running) — ignoring`);
+      }
+      const inUse: number[] = [];
+      for (const candidate of portCandidates(DEFAULT_PORT, PORT_RANGE_START, PORT_RANGE_END)) {
+        if (await isPortInUse(candidate)) inUse.push(candidate);
+      }
+      if (inUse.length === 0) {
+        ok('server', `no server running here (ports ${PORT_RANGE_START}–${PORT_RANGE_END} free)`);
+      } else {
+        ok('server', `no live record here; ports in use in range: ${inUse.join(', ')}`);
+      }
+    }
   } catch {
-    bad(`port ${DEFAULT_PORT}`, 'could not probe');
+    bad('server', 'could not probe');
   }
 
   // Substrate integrity

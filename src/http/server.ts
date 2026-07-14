@@ -35,6 +35,16 @@ export interface HttpConfig {
 
 export const DEFAULT_PORT = 7475;
 
+/**
+ * Free-port fallback range for `substrate serve` (multi-instance coexistence).
+ * The preferred port (`DEFAULT_PORT`) is always tried first; on conflict, serve
+ * scans upward through `PORT_RANGE_START..PORT_RANGE_END` (inclusive) for the
+ * first free port so a second project can serve while the first is up. Single
+ * source of truth — serve + diagnose both import these.
+ */
+export const PORT_RANGE_START = 7475;
+export const PORT_RANGE_END = 7499;
+
 export function defaultHttpConfig(): HttpConfig {
   return {
     port: DEFAULT_PORT,

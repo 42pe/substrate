@@ -24,6 +24,10 @@ describe('paths', () => {
     expect(p.pid).toBe(join(root, 'substrate.pid'));
   });
 
+  it('builds serve.json runtime-record path', () => {
+    expect(p.serveRuntime).toBe(join(root, 'serve.json'));
+  });
+
   it('builds boards/ + attachments/ paths', () => {
     expect(p.boardsDir).toBe(join(root, 'boards'));
     expect(p.attachmentsDir).toBe(join(root, 'attachments'));

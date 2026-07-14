@@ -74,3 +74,56 @@ describe('diagnoseCommand — recent errors section', () => {
     expect(process.exitCode).not.toBe(1); // recent errors are not a current-health problem
   });
 });
+
+describe('diagnoseCommand — server section', () => {
+  let cwd: string;
+  let out: string[];
+  let savedExitCode: typeof process.exitCode;
+
+  function output(): string {
+    return out.join('');
+  }
+  function writeRuntime(record: object): void {
+    const root = substrateRootFromCwd(cwd);
+    writeFileSync(paths(root).serveRuntime, JSON.stringify(record));
+  }
+
+  beforeEach(async () => {
+    cwd = mkdtempSync(join(tmpdir(), 'substrate-diag-srv-'));
+    savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    await initCommand(cwd);
+    out = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+      out.push(String(s));
+      return true;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.exitCode = savedExitCode;
+    rmrfSync(cwd);
+  });
+
+  it('reports the served port from a live runtime record', async () => {
+    writeRuntime({ pid: process.pid, port: 7488, started_at: '2026-07-13T00:00:00.000Z' });
+    await diagnoseCommand(cwd);
+    expect(output()).toContain('serving on port 7488');
+    expect(output()).toContain(`pid ${process.pid}`);
+    expect(process.exitCode).not.toBe(1);
+  });
+
+  it('ignores a stale runtime record (dead pid) and probes instead', async () => {
+    writeRuntime({ pid: 2_147_483_646, port: 7488, started_at: '2026-07-13T00:00:00.000Z' });
+    await diagnoseCommand(cwd);
+    const o = output();
+    expect(o).toContain('stale runtime record');
+    expect(o).not.toContain('serving on port 7488');
+  });
+
+  it('probes the range when there is no runtime record', async () => {
+    await diagnoseCommand(cwd);
+    // Either the range is clear or some slot is in use — both are non-error info.
+    expect(output()).toMatch(/no server running here|ports in use in range/);
+  });
+});
