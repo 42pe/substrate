@@ -78,4 +78,14 @@ describe('rejectUnknownFlags (head-compare)', () => {
     expect(() => rejectUnknownFlags('approve', ['t1', 'plan_approved'])).not.toThrow();
     expect(() => rejectUnknownFlags('validate', [])).not.toThrow();
   });
+
+  it('accepts --check for install-skill but rejects any other flag', () => {
+    expect(() => rejectUnknownFlags('install-skill', ['--check'])).not.toThrow();
+    expect(() => rejectUnknownFlags('install-skill', [])).not.toThrow();
+    vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    expect(() => rejectUnknownFlags('install-skill', ['--force'])).toThrow('exit');
+  });
 });

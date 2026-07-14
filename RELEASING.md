@@ -70,11 +70,20 @@ operating a board never breaks mid-edit. Refresh it from the tagged `main`:
 export PNPM_HOME="$HOME/Library/pnpm" && export PATH="$PNPM_HOME:$PATH"
 pnpm build
 pnpm add -g "$PWD/$(pnpm pack | tail -1)"   # the "no binaries" warning is benign
+substrate install-skill                     # refresh ~/.claude/skills/substrate from the new binary
+substrate diagnose                          # confirm the "Skill:" line reads "in sync"
 ```
+
+The `substrate install-skill` step keeps the globally-installed agent skill in
+lockstep with the binary — it copies the skill packaged inside the release and
+stamps it with the new `BINARY_VERSION`. Skipping it leaves agents reading a
+stale skill; `substrate diagnose` (and `substrate install-skill --check`) will
+flag the drift.
 
 ## Publishing to npm (not yet)
 
 Substrate isn't on npm yet. When it ships, `npm publish` (respecting the `files`
-allowlist: `dist`, `README.md`, `LICENSE`, `CHANGELOG.md`) becomes the final step
-after tagging, and the `npx @diegoferreyra/substrate` paths in the docs start
-resolving.
+allowlist: `dist`, `skills`, `README.md`, `LICENSE`, `CHANGELOG.md`) becomes the
+final step after tagging, and the `npx @diegoferreyra/substrate` paths in the
+docs start resolving. `skills/` ships in the tarball so `substrate install-skill`
+has a source of truth after an npm install (no repo checkout needed).

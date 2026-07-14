@@ -30,6 +30,7 @@ import { addCommand } from './commands/add.js';
 import { approveCommand } from './commands/approve.js';
 import { validateCommand } from './commands/validate.js';
 import { pendingApprovalCommand } from './commands/pending-approval.js';
+import { installSkillCommand } from './commands/install-skill.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -66,6 +67,11 @@ Usage:
                               (a guard that can never fire) print advisory warnings
   substrate pending-approval  List every task awaiting a human approval (a move
                               gated on an unset human-only field), grouped by board
+  substrate install-skill [--check]
+                              Refresh the installed agent skill (~/.claude/skills/substrate)
+                              from the copy packaged in this binary, version-stamped and
+                              idempotent. --check reports drift and exits non-zero without
+                              writing (for CI / diagnose).
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -185,6 +191,10 @@ Next steps:
     case 'pending-approval':
       rejectUnknownFlags('pending-approval', rest);
       await pendingApprovalCommand(cwd);
+      return;
+    case 'install-skill':
+      rejectUnknownFlags('install-skill', rest);
+      await installSkillCommand({ check: rest.includes('--check') });
       return;
     case '--help':
     case '-h':

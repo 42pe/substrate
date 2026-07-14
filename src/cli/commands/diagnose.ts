@@ -8,6 +8,7 @@ import { openClient } from '../../storage/client.js';
 import { getCurrentSchemaVersion } from '../../storage/migrations/runner.js';
 import { isPortInUse, isProcessAlive, portCandidates } from '../../shared/process.js';
 import { readServeRuntime } from '../../shared/serve-runtime.js';
+import { compareSkill } from '../../core/skill.js';
 import { DEFAULT_PORT, PORT_RANGE_START, PORT_RANGE_END } from '../../http/server.js';
 import { BINARY_VERSION, BINARY_SCHEMA_VERSION } from '../../core/version.js';
 import { readCurrentLines, parseEvents } from '../../shared/log-read.js';
@@ -136,6 +137,26 @@ export async function diagnoseCommand(cwd: string): Promise<void> {
     } catch {
       ok('logs/', 'no recent errors');
     }
+  }
+
+  // Installed agent skill vs binary. A concrete version/content *drift* on a
+  // stamped skill is a hard problem (it means agents are reading stale facts).
+  // "not installed" / "unstamped" is advisory (common where the skill isn't
+  // used, or predates stamping) — repair both with `substrate install-skill`.
+  process.stdout.write('\nSkill:\n');
+  try {
+    const cmp = compareSkill();
+    if (cmp.state === 'ok') {
+      ok('installed skill', `in sync (v${cmp.expected})`);
+    } else if (cmp.state === 'missing') {
+      ok('installed skill', `not installed — run 'substrate install-skill'`);
+    } else if (cmp.installed === null) {
+      ok('installed skill', `installed but unstamped — run 'substrate install-skill'`);
+    } else {
+      bad('installed skill', `drift — ${cmp.reason}; run 'substrate install-skill'`);
+    }
+  } catch (e) {
+    ok('installed skill', `could not check (${(e as Error).message})`);
   }
 
   process.stdout.write(

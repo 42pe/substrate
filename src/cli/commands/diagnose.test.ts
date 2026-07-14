@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { rmrfSync } from '../../../tests/helpers/tmp.js';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initCommand } from './init.js';
 import { diagnoseCommand } from './diagnose.js';
 import { paths, substrateRootFromCwd } from '../../shared/paths.js';
+import { syncSkill, installedSkillDir, SKILL_STAMP_FILE } from '../../core/skill.js';
 
 describe('diagnoseCommand — recent errors section', () => {
   let cwd: string;
@@ -125,5 +126,63 @@ describe('diagnoseCommand — server section', () => {
     await diagnoseCommand(cwd);
     // Either the range is clear or some slot is in use — both are non-error info.
     expect(output()).toMatch(/no server running here|ports in use in range/);
+  });
+});
+
+describe('diagnoseCommand — skill section', () => {
+  let cwd: string;
+  let home: string;
+  let out: string[];
+  let savedExitCode: typeof process.exitCode;
+  let savedHome: string | undefined;
+
+  function output(): string {
+    return out.join('');
+  }
+
+  beforeEach(async () => {
+    cwd = mkdtempSync(join(tmpdir(), 'substrate-diag-skill-'));
+    // Isolate the installed-skill probe onto a throwaway HOME so the test is
+    // deterministic regardless of the developer's real ~/.claude/skills.
+    home = mkdtempSync(join(tmpdir(), 'substrate-home-'));
+    savedHome = process.env['HOME'];
+    process.env['HOME'] = home;
+    savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    await initCommand(cwd);
+    out = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+      out.push(String(s));
+      return true;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.exitCode = savedExitCode;
+    if (savedHome === undefined) delete process.env['HOME'];
+    else process.env['HOME'] = savedHome;
+    rmrfSync(cwd);
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('reports the installed skill in sync after install-skill', async () => {
+    syncSkill(); // installs the packaged skill into the temp HOME + stamps it
+    await diagnoseCommand(cwd);
+    expect(output()).toMatch(/installed skill.*in sync/);
+    expect(process.exitCode).not.toBe(1);
+  });
+
+  it('flags a version-drifted skill as a hard problem (exit 1)', async () => {
+    syncSkill();
+    writeFileSync(join(installedSkillDir(), SKILL_STAMP_FILE), '9.9.9\n');
+    await diagnoseCommand(cwd);
+    expect(output()).toMatch(/installed skill.*drift/);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('treats a not-installed skill as advisory (no exit flip)', async () => {
+    await diagnoseCommand(cwd); // temp HOME has no skill installed
+    expect(output()).toMatch(/installed skill.*not installed/);
+    expect(process.exitCode).not.toBe(1);
   });
 });
