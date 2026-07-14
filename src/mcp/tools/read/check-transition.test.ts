@@ -72,7 +72,7 @@ const board: Board = {
   updated_at: '2026-05-09T00:00:00.000Z',
   archived_at: null,
 };
-const substrate: Substrate = { config, boards: [board] };
+const substrate: Substrate = { config, boards: [board], members: [], warnings: [] };
 
 function makeTask(over: Partial<Task> = {}): Task {
   return {

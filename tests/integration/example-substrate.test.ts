@@ -7,6 +7,7 @@ import { loadSubstrate } from '../../src/substrate/loader.js';
 import { loadExternalTemplate } from '../../src/cli/templates/external.js';
 import { runTransitionGuards, runAgentResponsibilities } from '../../src/policy/engine.js';
 import { WEB_DELIVERY_BOARD } from '../../src/cli/templates/web-delivery.board.js';
+import { WEB_DELIVERY_MEMBERS } from '../../src/cli/templates/web-delivery.members.js';
 import type { Board } from '../../src/core/types.js';
 import type { EvalContext } from '../../src/policy/types.js';
 
@@ -35,14 +36,28 @@ function task(group_id: string, custom: Record<string, unknown>): EvalContext {
 }
 
 describe('example substrate — web-delivery', () => {
-  it('loads cleanly (schema + integrity)', async () => {
+  it('loads cleanly (schema + integrity) with zero member/team warnings', async () => {
     const substrate = await loadSubstrate(ROOT);
     expect(substrate.boards.map((b) => b.id)).toContain('delivery');
+    expect(substrate.members.map((m) => m.id).sort()).toEqual([
+      'builder',
+      'planner',
+      'qa',
+      'reviewer',
+    ]);
+    expect(substrate.warnings).toEqual([]);
   });
 
   it('the bundled .ts template is parse-equal to the example JSON (no drift)', () => {
     const json = JSON.parse(readFileSync(resolve(ROOT, 'boards', 'delivery.json'), 'utf-8'));
     expect(JSON.stringify(canonical(WEB_DELIVERY_BOARD))).toBe(JSON.stringify(canonical(json)));
+  });
+
+  it('the bundled .ts members are parse-equal to the example member JSON (no drift)', () => {
+    for (const member of WEB_DELIVERY_MEMBERS) {
+      const json = JSON.parse(readFileSync(resolve(ROOT, 'members', `${member.id}.json`), 'utf-8'));
+      expect(JSON.stringify(canonical(member))).toBe(JSON.stringify(canonical(json)));
+    }
   });
 
   // Phase 8: the example is a working shareable template. With its committed

@@ -48,6 +48,7 @@ const substrate: BoardSubstrate = {
   ],
   field_schema: { task: {}, comments: {} },
   policies: [],
+  team: [],
 };
 
 function task(id: string, groupId: string): ColumnTask {
@@ -158,5 +159,54 @@ describe('BoardDetail kanban', () => {
     renderAt('/boards/b1');
     await screen.findByText('Todo');
     expect(screen.getByText(/live/)).toBeTruthy();
+  });
+});
+
+describe('BoardDetail team card', () => {
+  it('shows the empty state when the board declares no team', async () => {
+    vi.mocked(api.getBoard).mockResolvedValue(substrate); // team: []
+    renderAt('/boards/b1');
+    await screen.findByText('Todo');
+    expect(screen.getByText('Team (0)')).toBeTruthy();
+    expect(screen.getByText('No team declared.')).toBeTruthy();
+  });
+
+  it('renders resolved members with group-name badges, traits, and concerns', async () => {
+    vi.mocked(api.getBoard).mockResolvedValue({
+      ...substrate,
+      team: [
+        {
+          unresolved: false,
+          member: {
+            id: 'planner',
+            name: 'Planner',
+            full_description: 'writes the spec',
+            traits: ['weighs trade-offs'],
+            concerns: ['scope creep'],
+          },
+          groups: ['g1'],
+        },
+      ],
+    });
+    renderAt('/boards/b1');
+    await screen.findByText('Todo');
+    expect(screen.getByText('Planner')).toBeTruthy();
+    // group id → group NAME badge (g1 → Todo)
+    const team = screen.getByText('Team (1)').closest('div');
+    expect(team).toBeTruthy();
+    expect(screen.getByText('writes the spec')).toBeTruthy();
+    expect(screen.getByText(/weighs trade-offs/)).toBeTruthy();
+    expect(screen.getByText(/scope creep/)).toBeTruthy();
+  });
+
+  it('surfaces an unresolved member as its id + an "unresolved" marker', async () => {
+    vi.mocked(api.getBoard).mockResolvedValue({
+      ...substrate,
+      team: [{ unresolved: true, member: { id: 'ghost' }, groups: ['g1'] }],
+    });
+    renderAt('/boards/b1');
+    await screen.findByText('Todo');
+    expect(screen.getByText('ghost')).toBeTruthy();
+    expect(screen.getByText('unresolved')).toBeTruthy();
   });
 });

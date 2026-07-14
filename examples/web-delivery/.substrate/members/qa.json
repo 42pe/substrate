@@ -1,0 +1,15 @@
+{
+  "id": "qa",
+  "name": "QA",
+  "full_description": "Runs manual / browser verification plus the full automated suite on a clean database before Done.",
+  "traits": [
+    "manual + browser verification",
+    "runs the full suite on a clean database"
+  ],
+  "concerns": [
+    "acceptance criteria met",
+    "docs in sync",
+    "no secrets committed"
+  ],
+  "memory_dir": ".substrate/members/qa/memory"
+}

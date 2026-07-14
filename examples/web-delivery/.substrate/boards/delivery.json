@@ -6,32 +6,74 @@
     "task": {
       "type": {
         "type": "enum",
-        "values": ["feature", "bug", "chore", "infra", "docs"],
+        "values": [
+          "feature",
+          "bug",
+          "chore",
+          "infra",
+          "docs"
+        ],
         "required": false
       },
       "scope": {
         "type": "enum",
-        "values": ["small", "medium", "large", "infra", "user_facing"]
+        "values": [
+          "small",
+          "medium",
+          "large",
+          "infra",
+          "user_facing"
+        ]
       },
       "priority": {
         "type": "enum",
-        "values": ["low", "medium", "high", "urgent"]
+        "values": [
+          "low",
+          "medium",
+          "high",
+          "urgent"
+        ]
       },
-      "acceptance_criteria": { "type": "markdown" },
-      "spec_doc": { "type": "string" },
-      "plan_doc": { "type": "string" },
-      "audit_doc": { "type": "string" },
-      "branch": { "type": "string" },
-      "spec_approved": { "type": "boolean" },
-      "plan_approved": { "type": "boolean" },
-      "tests_passing": { "type": "boolean" },
-      "review_cleared": { "type": "boolean" },
-      "audited": { "type": "boolean" }
+      "acceptance_criteria": {
+        "type": "markdown"
+      },
+      "spec_doc": {
+        "type": "string"
+      },
+      "plan_doc": {
+        "type": "string"
+      },
+      "audit_doc": {
+        "type": "string"
+      },
+      "branch": {
+        "type": "string"
+      },
+      "spec_approved": {
+        "type": "boolean"
+      },
+      "plan_approved": {
+        "type": "boolean"
+      },
+      "tests_passing": {
+        "type": "boolean"
+      },
+      "review_cleared": {
+        "type": "boolean"
+      },
+      "audited": {
+        "type": "boolean"
+      }
     },
     "comments": {
       "kind": {
         "type": "enum",
-        "values": ["note", "decision", "blocker", "review"]
+        "values": [
+          "note",
+          "decision",
+          "blocker",
+          "review"
+        ]
       }
     }
   },
@@ -109,7 +151,13 @@
       "definition": {
         "from_group": "spec",
         "to_group": "plan",
-        "require": [{ "field": "task.spec_approved", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.spec_approved",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Move blocked: the spec must be approved before planning. Set custom_data.spec_approved = true once the spec is signed off."
       },
       "priority": 10,
@@ -128,7 +176,13 @@
       "definition": {
         "from_group": "plan",
         "to_group": "in_progress",
-        "require": [{ "field": "task.plan_approved", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.plan_approved",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Move blocked: the plan must be approved before building. Set custom_data.plan_approved = true once the plan is signed off."
       },
       "priority": 10,
@@ -147,7 +201,13 @@
       "definition": {
         "from_group": "in_progress",
         "to_group": "review",
-        "require": [{ "field": "task.tests_passing", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.tests_passing",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Move blocked: the automated suite must be green (zero failures) before review. Set custom_data.tests_passing = true."
       },
       "priority": 20,
@@ -166,7 +226,13 @@
       "definition": {
         "from_group": "review",
         "to_group": "qa",
-        "require": [{ "field": "task.review_cleared", "op": "eq", "value": true }],
+        "require": [
+          {
+            "field": "task.review_cleared",
+            "op": "eq",
+            "value": true
+          }
+        ],
         "on_failure_message": "Move blocked: the reviewer must clear all blockers before QA. Set custom_data.review_cleared = true."
       },
       "priority": 20,
@@ -186,9 +252,21 @@
         "from_group": "*",
         "to_group": "done",
         "require": [
-          { "field": "task.tests_passing", "op": "eq", "value": true },
-          { "field": "task.review_cleared", "op": "eq", "value": true },
-          { "field": "task.audited", "op": "eq", "value": true }
+          {
+            "field": "task.tests_passing",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "task.review_cleared",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "task.audited",
+            "op": "eq",
+            "value": true
+          }
         ],
         "on_failure_message": "Move blocked: Done requires a green suite (tests_passing), a cleared review (review_cleared), and a recorded audit (audited). Set all three to true."
       },
@@ -206,7 +284,13 @@
       "description": "Reminds the agent of build-time conventions while a task is In Progress.",
       "type": "agent_responsibility",
       "definition": {
-        "when": [{ "field": "task.group_id", "op": "eq", "value": "in_progress" }],
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "in_progress"
+          }
+        ],
         "message": "Write/update tests alongside the code — during development, not after. Keep lint, format, type-check, and the build clean, and use small logical commits that explain *why*."
       },
       "priority": 50,
@@ -223,7 +307,13 @@
       "description": "Fires on any write to a user-facing task.",
       "type": "agent_responsibility",
       "definition": {
-        "when": [{ "field": "task.scope", "op": "eq", "value": "user_facing" }],
+        "when": [
+          {
+            "field": "task.scope",
+            "op": "eq",
+            "value": "user_facing"
+          }
+        ],
         "message": "User-facing change: update the spec and the user-facing docs before Done. Treat doc drift as a blocker."
       },
       "priority": 50,
@@ -240,7 +330,13 @@
       "description": "Surfaces the full done checklist while a task is in QA.",
       "type": "agent_responsibility",
       "definition": {
-        "when": [{ "field": "task.group_id", "op": "eq", "value": "qa" }],
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "qa"
+          }
+        ],
         "message": "Definition of done before moving to Done: full suite green (zero failures); lint/format/type-check/build clean; review cleared; acceptance criteria met; docs in sync; no secrets committed; audit recorded (set audited = true)."
       },
       "priority": 60,
@@ -250,6 +346,33 @@
       "created_at": "2026-06-06T00:00:00.000Z",
       "updated_at": "2026-06-06T00:00:00.000Z",
       "archived_at": null
+    }
+  ],
+  "team": [
+    {
+      "member": "planner",
+      "groups": [
+        "spec",
+        "plan"
+      ]
+    },
+    {
+      "member": "builder",
+      "groups": [
+        "in_progress"
+      ]
+    },
+    {
+      "member": "reviewer",
+      "groups": [
+        "review"
+      ]
+    },
+    {
+      "member": "qa",
+      "groups": [
+        "qa"
+      ]
     }
   ],
   "version": 1,

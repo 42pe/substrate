@@ -85,6 +85,17 @@ export async function diagnoseCommand(cwd: string): Promise<void> {
         'boards/',
         `${substrate.boards.length} board(s), ${groups} group(s), ${policies} policy(s)`,
       );
+      // Member registry + advisory integrity warnings. A member/team warning is
+      // NOT a health problem (the layer is optional) — it never affects the exit
+      // code; it's surfaced so `diagnose` hints at running `substrate validate`.
+      if (substrate.warnings.length === 0) {
+        ok('members/', `${substrate.members.length} member(s), no integrity warnings`);
+      } else {
+        ok(
+          'members/',
+          `${substrate.members.length} member(s), ${substrate.warnings.length} advisory warning(s) — run 'substrate validate' for details`,
+        );
+      }
     } catch (e) {
       bad('boards/', (e as Error).message);
     }

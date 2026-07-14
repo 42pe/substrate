@@ -1,0 +1,8 @@
+{
+  "id": "validator",
+  "name": "Validator",
+  "full_description": "Runs the full local gate (build/tsc/lint/format/test) before it reaches Diego.",
+  "traits": ["runs the full local gate (build/tsc/lint/format/test)"],
+  "concerns": ["CI is billing-blocked, so local IS the gate"],
+  "memory_dir": ".substrate/members/validator/memory"
+}

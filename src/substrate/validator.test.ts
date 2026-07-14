@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateSubstrate, validateBoardStructure } from './validator.js';
-import type { Board, Config, Group, Policy, Substrate } from '../core/types.js';
+import { validateSubstrate, validateBoardStructure, checkTeamIntegrity } from './validator.js';
+import type { Board, Config, Group, Member, Policy, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
 
 const CONFIG: Config = {
@@ -59,8 +59,8 @@ function makeBoard(overrides: Partial<Board> = {}): Board {
   };
 }
 
-function sub(boards: Board[]): Substrate {
-  return { config: CONFIG, boards };
+function sub(boards: Board[], members: Member[] = []): Substrate {
+  return { config: CONFIG, boards, members, warnings: [] };
 }
 
 describe('validateSubstrate', () => {
@@ -177,6 +177,96 @@ describe('validateSubstrate', () => {
     } catch (e) {
       expect(SubstrateError.is(e) && e.code).toBe('substrate_corrupt');
     }
+  });
+});
+
+describe('member/team integrity — advisory warnings, never errors (load path)', () => {
+  const member = (id: string, name = id): Member => ({ id, name });
+
+  it('warns on a team member not in the registry; the substrate still validates', () => {
+    const board = makeBoard({ team: [{ member: 'ghost', groups: ['g1'] }] });
+    const s = sub([board], []);
+    expect(() => validateSubstrate(s)).not.toThrow();
+    expect(s.warnings.some((w) => w.includes("member 'ghost'"))).toBe(true);
+  });
+
+  it('does NOT warn when the team member resolves', () => {
+    const board = makeBoard({ team: [{ member: 'planner', groups: ['g1'] }] });
+    const s = sub([board], [member('planner')]);
+    validateSubstrate(s);
+    expect(s.warnings).toEqual([]);
+  });
+
+  it('warns on a groups id that is not a group on the board', () => {
+    const board = makeBoard({ team: [{ member: 'planner', groups: ['ghost'] }] });
+    const s = sub([board], [member('planner')]);
+    validateSubstrate(s);
+    expect(s.warnings.some((w) => w.includes("group 'ghost'"))).toBe(true);
+  });
+
+  it('does NOT warn on a groups id pointing at an archived group', () => {
+    const board = makeBoard({
+      groups: [
+        makeGroup({ id: 'g1' }),
+        makeGroup({ id: 'old', archived_at: '2026-05-10T00:00:00.000Z' }),
+      ],
+      team: [{ member: 'planner', groups: ['old'] }],
+    });
+    const s = sub([board], [member('planner')]);
+    validateSubstrate(s);
+    expect(s.warnings).toEqual([]);
+  });
+
+  it('warns on a duplicate member id in the registry', () => {
+    const s = sub([makeBoard()], [member('dup'), member('dup')]);
+    validateSubstrate(s);
+    expect(s.warnings.some((w) => w.includes("Duplicate member id 'dup'"))).toBe(true);
+  });
+
+  it('warns on a duplicate member within one board team', () => {
+    const board = makeBoard({
+      team: [{ member: 'planner' }, { member: 'planner' }],
+    });
+    const s = sub([board], [member('planner')]);
+    validateSubstrate(s);
+    expect(s.warnings.some((w) => w.includes('more than once'))).toBe(true);
+  });
+
+  it('is inert: a board with a valid team never affects the load outcome', () => {
+    const board = makeBoard({ team: [{ member: 'planner', groups: ['g1'] }] });
+    expect(() => validateSubstrate(sub([board], [member('planner')]))).not.toThrow();
+  });
+});
+
+describe('checkTeamIntegrity + validateBoardStructure (write path — same warnings, never throws)', () => {
+  it('a dangling team member yields a WARNING (not an error) on the write path', () => {
+    const board = makeBoard({ team: [{ member: 'ghost', groups: ['g1'] }] });
+    const warnings: string[] = [];
+    // validateBoardStructure with teamCtx must NOT throw for a team problem…
+    expect(() =>
+      validateBoardStructure(board, {
+        memberIds: new Set<string>(),
+        warn: (w) => warnings.push(w),
+      }),
+    ).not.toThrow();
+    // …and it produces the SAME advisory the load path does.
+    expect(warnings.some((w) => w.includes("member 'ghost'"))).toBe(true);
+  });
+
+  it('checkTeamIntegrity is a no-op for an empty/absent team', () => {
+    const warnings: string[] = [];
+    checkTeamIntegrity(makeBoard(), new Set<string>(), (w) => warnings.push(w));
+    expect(warnings).toEqual([]);
+  });
+
+  it('still enforces structural checks (duplicate group) even with a valid team', () => {
+    const board = makeBoard({
+      groups: [makeGroup({ id: 'g1' }), makeGroup({ id: 'g1' })],
+      team: [{ member: 'planner' }],
+    });
+    expect(() =>
+      validateBoardStructure(board, { memberIds: new Set(['planner']), warn: () => {} }),
+    ).toThrow(SubstrateError);
   });
 });
 

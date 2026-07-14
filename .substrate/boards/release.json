@@ -1,7 +1,7 @@
 {
   "id": "release",
   "name": "Release",
-  "description": "Cutting a Substrate release: promote the `dev` branch to `main` plus a version tag. **This is the ONLY flow that touches `main`.** A release candidate moves Ready → Docs Verified → Versioned → Validated → Approved → Released. Each gate carries the guideline for that step (doc verification, version bump, validation, tagging). Full runbook: RELEASING.md.\n\n## Team\n\nAgents that cut a release, and what each should care about:\n\n- **Doc Auditor** (Docs Verified) — cross-checks every doc claim against the code before the version is cut. *Concerns:* stale tool counts / command lists, prd contradictions, CHANGELOG completeness, installed-skill vs binary drift.\n- **Release Engineer** (Versioned / Released) — owns the three-site version lockstep (package.json, ui/package.json, `BINARY_VERSION`), the CHANGELOG rotation, and the dev→main + tag mechanics. *Concerns:* the tag on the right commit, global reinstall + skill refresh, nothing half-cut.\n- **Validator** (Validated) — runs the full local gate (build/tsc/lint/format/test) before it reaches Diego. *Concerns:* CI is billing-blocked, so local IS the gate.\n- **Reviewers ×2** — same adversarial protocol as the dev board, lenses tuned to docs-vs-code and release mechanics. *Concerns:* a release that misstates what changed, or a broken publish/tag path.",
+  "description": "Cutting a Substrate release: promote the `dev` branch to `main` plus a version tag. **This is the ONLY flow that touches `main`.** A release candidate moves Ready → Docs Verified → Versioned → Validated → Approved → Released. Each gate carries the guideline for that step (doc verification, version bump, validation, tagging). Full runbook: RELEASING.md.",
   "field_schema": {
     "task": {
       "version": {
@@ -263,8 +263,33 @@
       "archived_at": null
     }
   ],
-  "version": 2,
+  "team": [
+    {
+      "member": "doc-auditor",
+      "groups": [
+        "docs"
+      ]
+    },
+    {
+      "member": "release-engineer",
+      "groups": [
+        "versioned",
+        "released"
+      ]
+    },
+    {
+      "member": "validator",
+      "groups": [
+        "validated"
+      ]
+    },
+    {
+      "member": "reviewers",
+      "groups": []
+    }
+  ],
+  "version": 3,
   "created_at": "2026-07-08T00:00:00.000Z",
-  "updated_at": "2026-07-08T04:59:10.643Z",
+  "updated_at": "2026-07-13T00:00:00.000Z",
   "archived_at": null
 }

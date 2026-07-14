@@ -110,14 +110,22 @@ Do this once per project. Skip straight to Part 2 if `whoami` already works.
 
 It returns the project, every board (with ids), and hints. Use it to orient
 before any other call. Then `get_board_substrate` for the board you'll work in
-(its groups, `field_schema`, and policies) and `list_tasks` to see open work.
+(its groups, `field_schema`, `policies`, and resolved `team`) and `list_tasks` to
+see open work.
 
 ### The model
 
 - **Substrate-as-code** (edit via the substrate-edit tools, takes effect
   immediately): **boards** (a workspace), **groups** (categories within a board —
   status/owner/phase, your call), **field_schema** (custom fields tasks/comments
-  may carry), **policies** (rules — see below).
+  may carry), **policies** (rules — see below), and an optional **team** (which
+  members work the board — see members).
+- **Members** (optional, project-level registry at `.substrate/members/<id>.json`,
+  authored as JSON): a **persona** identity (name, traits, concerns, a `memory_dir`
+  pointer) referenced by any board's `team`. Purely **descriptive** — resolved into
+  `get_board_substrate` for orientation and the UI Team card, never a permission and
+  never a gate; integrity problems are warnings, not errors. A member is distinct
+  from the `created_by_agent`/`agent_name` **actor** tag on a write.
 - **Runtime state** (the day-to-day): **tasks** (belong to one group), **comments**
   (threaded, on tasks), and the **event log** (automatic history).
 

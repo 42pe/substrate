@@ -119,6 +119,7 @@ Agent config lists multiple Substrate MCP endpoints (one per project, each via `
 - **Removed from design doc:** `User`, `Token`.
 - **Implicit:** `Project` — auto-created on init, one per instance.
 - **Kept:** `Board`, `Group`, `Task`, `Comment`, `TaskEvent`, `Policy`. Field shapes per design doc §*Entities*, minus user/token FKs. `actor_agent_name` on TaskEvent stays (free-form audit-tag string).
+- **`Member` + board `team` (additive, optional).** A project-level `Member` registry (`id`, `name`, optional `full_description`/`traits`/`concerns`/`memory_dir`) at `.substrate/members/<id>.json`, referenced by a thin per-board `team` binding (`{ member, groups? }`). **Descriptive, never enforced:** `groups` is advisory (not authorization; no per-member write gating), `memory_dir` is a pointer Substrate never reads, and a member is distinct from the `created_by_agent`/`agent_name` **actor**. The layer is optional/additive, so member↔board integrity problems (dangling reference, dangling group, duplicate, or a malformed member file) are **non-blocking warnings**, never failures — surfaced through the existing `substrate validate` advisory channel. The one strict exception is Substrate's OWN bundled default members (build-time invariant). No member *write* MCP tools in v1 (authored as JSON, like groups/policies).
 
 ### 6.2 Persistence
 
@@ -126,8 +127,10 @@ Agent config lists multiple Substrate MCP endpoints (one per project, each via `
 .substrate/
   config.json                    # { project_id, project_name, schema_version }
   boards/
-    <board_id>.json              # board metadata, groups[], field_schema, policies[]
+    <board_id>.json              # board metadata, groups[], field_schema, policies[], team[]
                                  # filename uses stable board_id, not slug, to avoid rename hazard
+  members/                       # optional project-level member registry (tracked in git)
+    <member_id>.json             # persona identity; filename matches member id
   data.sqlite                    # gitignored by default
                                  # tasks, comments, task_events
                                  # schema_version stamped in pragma user_version
@@ -142,6 +145,7 @@ Agent config lists multiple Substrate MCP endpoints (one per project, each via `
 **Tracked in git by default:**
 - `config.json`
 - `boards/*.json`
+- `members/*.json` (and any member `memory_dir` folders)
 
 Engineer can flip these by editing `.gitignore`. v1 ships safer defaults.
 
@@ -173,7 +177,7 @@ No tokens, no per-install secrets in v1. (Deferred.)
 - `whoami()` → project name, board summaries, easter-egg hint.
 - `get_project()`
 - `list_boards(filters?, pagination?)`
-- `get_board_substrate(board_id)` → board + groups + field_schema + policies in one payload.
+- `get_board_substrate(board_id)` → board + groups + field_schema + policies + resolved `team` (each member JOINed from the registry; unresolved refs surfaced, not dropped) in one payload.
 - `list_tasks(filters, sort?, pagination?)` — full filter set per design doc. *(updated 2026-07-07: filters are now top-level params (not nested); returns lightweight summary rows by default — `view: 'titles' | 'full'` for leaner/complete rows.)*
 - `get_task(id)`
 - `get_task_history(task_id, filters?, pagination?)`
@@ -231,7 +235,7 @@ Browser at `http://localhost:7475`. Read-only views only:
 - Project overview: board list, board summaries.
 - Per-board task list with filters.
 - Per-task detail with comments and event history.
-- Substrate inspector: rendered view of board + groups + field_schema + policies in one page.
+- Substrate inspector: rendered view of board + groups + field_schema + policies + team in one page.
 
 **No authoring forms in v1.** Substrate is authored via editor + setup-agent only. Eliminates UI gravitational pull.
 

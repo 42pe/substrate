@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isTemplateName, templateNames, loadTemplateBoard } from './index.js';
-import { BoardSchema } from '../../substrate/schemas.js';
+import { isTemplateName, templateNames, loadTemplateBoard, loadTemplateMembers } from './index.js';
+import { BoardSchema, MemberSchema } from '../../substrate/schemas.js';
 
 describe('template registry', () => {
   it('lists web-delivery and recognizes it', () => {
@@ -33,5 +33,32 @@ describe('template registry', () => {
     expect(() =>
       BoardSchema.parse({ ...loadTemplateBoard('web-delivery'), groups: 'nope' }),
     ).toThrow();
+  });
+
+  it('the bundled board ships a team whose members target real groups', () => {
+    const board = loadTemplateBoard('web-delivery');
+    expect(board.team?.map((t) => t.member).sort()).toEqual([
+      'builder',
+      'planner',
+      'qa',
+      'reviewer',
+    ]);
+    const groupIds = new Set(board.groups.map((g) => g.id));
+    for (const binding of board.team ?? []) {
+      for (const g of binding.groups ?? []) expect(groupIds.has(g)).toBe(true);
+    }
+  });
+
+  it('loadTemplateMembers returns the strictly-validated default registry', () => {
+    const members = loadTemplateMembers('web-delivery');
+    expect(members.map((m) => m.id).sort()).toEqual(['builder', 'planner', 'qa', 'reviewer']);
+    for (const m of members) expect(m.name.length).toBeGreaterThan(0);
+  });
+
+  it('the shipped-defaults gate is STRICT: MemberSchema.parse throws on a corrupt member', () => {
+    // loadTemplateMembers maps MemberSchema.parse over the shipped defaults, so a
+    // corrupt shipped member throws at build/init time — deliberately UNLIKE the
+    // lenient runtime loader, which warns + skips a bad user-project member file.
+    expect(() => MemberSchema.parse({ id: 'broken' })).toThrow(); // missing name
   });
 });

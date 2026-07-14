@@ -48,7 +48,8 @@ describe('getTaskToolHandler', () => {
     deps = {
       client,
       config: fixtureConfig,
-      loadSubstrate: () => Promise.resolve({ config: fixtureConfig, boards: [] }),
+      loadSubstrate: () =>
+        Promise.resolve({ config: fixtureConfig, boards: [], members: [], warnings: [] }),
       root: '/tmp/substrate-test',
     };
   });

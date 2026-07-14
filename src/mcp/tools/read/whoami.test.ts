@@ -30,7 +30,7 @@ function makeBoard(id: string, overrides: Partial<Board> = {}): Board {
 }
 
 function depsWith(boards: Board[]): ToolDeps {
-  const substrate: Substrate = { config: fixtureConfig, boards };
+  const substrate: Substrate = { config: fixtureConfig, boards, members: [], warnings: [] };
   return {
     client: {} as ToolDeps['client'],
     config: fixtureConfig,

@@ -1,7 +1,7 @@
 {
   "id": "dev",
   "name": "Substrate Dev",
-  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged. **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), which is tracked on the separate **Release** board. Two hard gates: Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.\n\n## Team\n\nAgents that move a change through this board, and what each should care about:\n\n- **Planner** (Spec & Plan) — decomposes the work, weighs trade-offs, writes a crisp spec with explicit acceptance criteria. *Concerns:* scope creep, fuzzy acceptance, unhandled edge cases, over-engineering.\n- **Builder** (Build & Test) — implements in the surrounding style, tests as they go, keeps commits small and honest. *Concerns:* local green before Review (build/tsc/lint/format/tests), preserving invariants, not smuggling extra scope.\n- **Reviewers ×2, distinct adversarial lenses** (Review) — e.g. (a) correctness & security, (b) product, tests & docs. Skeptical; verify claims against the code; try to break it. *Concerns:* never rubber-stamp, catch real blockers, re-run dead reviewers, re-review the fix round, never self-grade.\n- **Integrator** (Pending Review and Approval → Merged) — folds in review findings, keeps the PR scoped to `dev`, drives to Diego's approval. *Concerns:* honest status, dev-branch hygiene, nothing merged to `main`.",
+  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged. **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), which is tracked on the separate **Release** board. Two hard gates: Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.",
   "field_schema": {
     "task": {
       "spec_doc": {
@@ -270,8 +270,35 @@
       "archived_at": null
     }
   ],
-  "version": 8,
+  "team": [
+    {
+      "member": "planner",
+      "groups": [
+        "spec"
+      ]
+    },
+    {
+      "member": "builder",
+      "groups": [
+        "build"
+      ]
+    },
+    {
+      "member": "reviewers",
+      "groups": [
+        "review"
+      ]
+    },
+    {
+      "member": "integrator",
+      "groups": [
+        "approval",
+        "merged"
+      ]
+    }
+  ],
+  "version": 9,
   "created_at": "2026-07-08T00:00:00.000Z",
-  "updated_at": "2026-07-08T05:15:13.744Z",
+  "updated_at": "2026-07-13T00:00:00.000Z",
   "archived_at": null
 }

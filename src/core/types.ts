@@ -206,6 +206,52 @@ export interface Policy {
 }
 
 /**
+ * A project-level team member (a persona/role identity), defined once in the
+ * registry at `.substrate/members/<id>.json` and referenced by any number of
+ * boards via a `TeamBinding`. A member is DESCRIPTIVE metadata only — it never
+ * gates a write or a transition, and Substrate never reads `memory_dir`.
+ *
+ * A member is NOT an actor: the free-form `created_by_agent` / `agent_name`
+ * audit tag on a write records *who performed a mutation*; a member answers
+ * *who is this role?*. The two are intentionally kept separate (see the spec).
+ *
+ * Integrity problems (a dangling reference, a duplicate id, even a malformed
+ * member file) are non-blocking warnings — the whole member layer is optional
+ * and additive, so breaking it must never break a project that keeps its roster
+ * in board `description` prose. (Substrate's OWN shipped default template stays
+ * strictly validated — see `loadTemplateBoard` / `loadTemplateMembers`.)
+ */
+export interface Member {
+  /** Unique across the registry; matches the filename (`<id>.json`). */
+  id: string;
+  /** Display name. */
+  name: string;
+  /** Prose role brief — complements (does not replace) traits/concerns. */
+  full_description?: string;
+  /** Short descriptors (chips / query). */
+  traits?: string[];
+  /** What the member watches for. */
+  concerns?: string[];
+  /** Path to a git-committed memory folder — a POINTER only; Substrate never
+   *  reads its content (default convention `.substrate/members/<id>/memory`). */
+  memory_dir?: string;
+}
+
+/**
+ * A board's reference to a registry `Member`, plus the one thing that is
+ * genuinely board-specific: the group(s) the member is associated with ON THIS
+ * board. Lives nested in a board's `team`.
+ */
+export interface TeamBinding {
+  /** → `Member.id` in the registry. An unresolved reference is a warning, not an error. */
+  member: string;
+  /** Group ids this member targets ON THIS board. ADVISORY — a hint for
+   *  orchestration and UI, never a permission and never enforced. `[]` / omitted
+   *  = the member spans the board (no dedicated group). Many-to-many. */
+  groups?: string[];
+}
+
+/**
  * A board, as parsed from `.substrate/boards/<board_id>.json`. Groups,
  * field_schema, and policies are nested inline (PRD §6.2). Boards are NOT
  * stored in SQLite — they are substrate-as-code.
@@ -217,6 +263,10 @@ export interface Board {
   field_schema: FieldSchema;
   groups: Group[];
   policies: Policy[];
+  /** Optional per-board team: references to registry members + advisory group
+   *  associations. Absent on older boards and boards that keep their roster in
+   *  prose — they still parse. Never gates anything. */
+  team?: TeamBinding[];
   version: number;
   created_at: string;
   updated_at: string;
@@ -224,10 +274,18 @@ export interface Board {
 }
 
 /**
- * The whole substrate read once per MCP call: the implicit project config
- * plus every board parsed from `.substrate/boards/*.json`.
+ * The whole substrate read once per MCP call: the implicit project config,
+ * every board parsed from `.substrate/boards/*.json`, and the project-level
+ * member registry from `.substrate/members/*.json`.
  */
 export interface Substrate {
   config: Config;
   boards: Board[];
+  /** The project-level member registry. Empty when there is no `members/`
+   *  directory. Malformed member files are warned-and-skipped, never fatal. */
+  members: Member[];
+  /** Non-blocking advisory diagnostics accumulated while loading + validating
+   *  (malformed member files, dangling member/group references, duplicates).
+   *  Surfaced by `substrate validate` / `diagnose`; never fails a load. */
+  warnings: string[];
 }

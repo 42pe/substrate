@@ -1,6 +1,6 @@
 import { readFile, rename, open, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
-import type { Board, Config, Substrate } from '../core/types.js';
+import type { Board, Config, Member, Substrate } from '../core/types.js';
 import { SubstrateError } from '../core/errors.js';
 import { paths } from '../shared/paths.js';
 import { readConfig } from '../shared/config.js';
@@ -79,6 +79,41 @@ export async function createBoardFile(root: string, board: Board): Promise<void>
       throw SubstrateError.conflict(`Board '${board.id}' already exists.`, {
         entity: 'board',
         id: board.id,
+      });
+    }
+    throw e;
+  }
+}
+
+/**
+ * Create a brand-new member registry file (`members/<id>.json`); fails
+ * (`conflict`) if one already exists. Used by `substrate init` to scaffold the
+ * bundled template's default members. The `id` becomes a filename, so it must be
+ * a single safe path component (same rule as a board id). Writes verbatim — the
+ * caller (init) validates the member through `MemberSchema` first (strict gate).
+ */
+export async function createMemberFile(root: string, member: Member): Promise<void> {
+  if (!isSafeBoardId(member.id)) {
+    throw SubstrateError.schemaViolation(
+      `Member id '${member.id}' is not a safe single path component.`,
+      { entity: 'member', id: member.id },
+    );
+  }
+  const target = paths(root).memberJson(member.id);
+  const body = `${JSON.stringify(member, null, 2)}\n`;
+  try {
+    const handle = await open(target, 'wx');
+    try {
+      await handle.writeFile(body, 'utf-8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw SubstrateError.conflict(`Member '${member.id}' already exists.`, {
+        entity: 'member',
+        id: member.id,
       });
     }
     throw e;

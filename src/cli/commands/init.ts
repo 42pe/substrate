@@ -7,10 +7,15 @@ import { writeConfig } from '../../shared/config.js';
 import { openDatabaseAndMigrate } from '../../storage/client.js';
 import { BINARY_SCHEMA_VERSION } from '../../core/version.js';
 import { SubstrateError } from '../../core/errors.js';
-import { createBoardFile } from '../../substrate/writer.js';
-import { isTemplateName, loadTemplateBoard, templateNames } from '../templates/index.js';
+import { createBoardFile, createMemberFile } from '../../substrate/writer.js';
+import {
+  isTemplateName,
+  loadTemplateBoard,
+  loadTemplateMembers,
+  templateNames,
+} from '../templates/index.js';
 import { loadExternalTemplate } from '../templates/external.js';
-import type { Board, Config } from '../../core/types.js';
+import type { Board, Config, Member } from '../../core/types.js';
 
 /**
  * Distinctive marker for our gitignore block. Phrased so it's unlikely to
@@ -61,9 +66,13 @@ export async function initCommand(
   // is resolved by the (network-free) external loader; else the dual-failure
   // error. Resolution reads ONLY the template dir, never creates `.substrate/`.
   let templateBoards: Board[] | null = null;
+  // Default members ship ONLY with a bundled template (validated STRICTLY via
+  // loadTemplateMembers). External path templates carry boards only in v1.
+  let templateMembers: Member[] | null = null;
   if (opts.template !== undefined) {
     if (isTemplateName(opts.template)) {
       templateBoards = [loadTemplateBoard(opts.template)];
+      templateMembers = loadTemplateMembers(opts.template);
     } else if (existsSync(opts.template)) {
       templateBoards = (await loadExternalTemplate(opts.template)).boards;
     } else {
@@ -113,6 +122,17 @@ export async function initCommand(
       for (const board of templateBoards) {
         await createBoardFile(root, board);
         boardIds.push(board.id);
+      }
+    }
+
+    // Bundled-template default member registry, alongside the board file and
+    // inside the same create/rollback window (a partial init still rolls back
+    // the whole `.substrate/`). Members are optional scaffolding — only written
+    // when the resolved template shipped a validated default registry.
+    if (templateMembers !== null && templateMembers.length > 0) {
+      await mkdir(p.membersDir, { recursive: true });
+      for (const member of templateMembers) {
+        await createMemberFile(root, member);
       }
     }
 

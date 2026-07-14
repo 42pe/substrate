@@ -181,10 +181,77 @@ tool dry-runs "would moving task X to group Y be allowed?" against the real
 guards and writes nothing — handy for confirming a gate is live on an existing
 task, or seeing exactly what a move needs.
 
+## Team members — the registry + board binding (optional)
+
+A board's **team** — the members that work it, each with traits and concerns —
+is a first-class, queryable data structure, split into two layers:
+
+- **The registry (identity, project-level).** One file per member at
+  `.substrate/members/<id>.json`, defined once and referenceable by any number of
+  boards (so one identity can span boards and stages, sharing a memory pointer):
+
+  ```json
+  {
+    "id": "oversight",
+    "name": "Oversight",
+    "full_description": "Holds fidelity between what was specified and what shipped.",
+    "traits": ["holds the original intent", "reads the diff against the spec"],
+    "concerns": ["scope drift", "spec↔implementation fidelity"],
+    "memory_dir": ".substrate/members/oversight/memory"
+  }
+  ```
+
+  Only `id` (must match the filename) and `name` are required. `full_description`
+  complements `traits`/`concerns` (arrays drive chips/queries; prose gives depth).
+  `memory_dir` is a **pointer** to a git-committed folder — Substrate stores the
+  path and never reads its content (read-on-spawn / write-on-exit is up to the
+  agent).
+
+- **The board binding (assignment, board-level).** A board nests a thin `team`:
+  a reference to a member plus the group(s) that member is associated with **on
+  this board**.
+
+  ```json
+  "team": [
+    { "member": "oversight", "groups": ["spec", "review"] },
+    { "member": "builder",   "groups": ["build"] }
+  ]
+  ```
+
+  `get_board_substrate` returns the team with each `member` **resolved** from the
+  registry (name, traits, concerns, …), plus the binding's `groups`; the UI shows
+  it as a "Team" card. An unresolved member id is surfaced with an `unresolved`
+  marker, not dropped.
+
+**Advisory, never enforced — and integrity problems are warnings, not errors.**
+`groups` is a *hint* for orchestration and UI (the plain noun, not
+`owns_`/`allowed_`, is the signal): it is many-to-many, grants nothing, and never
+gates a write or a move. The whole member layer is **optional and additive** — a
+project may keep its roster in the board `description` prose. So every integrity
+problem is a **non-blocking warning** routed through the same advisory channel
+`substrate validate` uses (`⚠ …`, exit 0), never a failure:
+
+- a `team[].member` with no registry file (dangling reference),
+- a binding `groups` id that isn't a group on the board (archived OK),
+- a duplicate member `id` in the registry / duplicate `member` in one board's team,
+- a **malformed member file** (bad JSON, missing `id`/`name`, wrong types) is
+  **warned + skipped**, and the rest of the substrate still loads.
+
+None of these fail `loadSubstrate`, `substrate validate`, or a write. (The one
+exception is strict: Substrate's OWN bundled `web-delivery` default members are
+validated through `MemberSchema` at build/init time and fail loudly if corrupt —
+a build-time invariant on shipped artifacts, distinct from this lenient runtime
+path.) A member is a **persona**, distinct from the `created_by_agent`/`agent_name`
+**actor** audit tag on a write; there are no member *write* MCP tools in v1 —
+author the registry + bindings as JSON, like groups/policies.
+
 ## Tips
 
 - Keep `id`s stable and human-readable (`spec`, `gate-done`) — they're referenced
   by policies and tasks.
+- Members are keyed by filename: `.substrate/members/<id>.json` must have a
+  matching `id`. A shared member (one file bound by several boards) is the point
+  of the registry — reuse it rather than re-describing the role per board.
 - `enabled: false` keeps a policy as documentation without enforcing it.
 - Archive a stage you don't use (set `archived_at`) and drop its gate.
 - Start from `examples/web-delivery` and adapt rather than authoring from scratch.
