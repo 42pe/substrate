@@ -10,7 +10,13 @@ import { createBoardFile } from '../../substrate/writer.js';
 import { openDatabaseAndMigrate } from '../../storage/client.js';
 import { createTask } from '../../storage/repositories/tasks.js';
 import { resetFileSink } from '../../shared/logger.js';
-import { pendingApprovalCommand } from './pending-approval.js';
+import { pendingApprovalCommand, renderPendingApprovals } from './pending-approval.js';
+import {
+  listPendingApprovals,
+  type PendingApprovalsResult,
+} from '../../operations/list-pending-approvals.js';
+import { loadSubstrate } from '../../substrate/loader.js';
+import { stripAnsi } from '../color.js';
 import type { Board, Config, Task } from '../../core/types.js';
 
 const config: Config = {
@@ -92,6 +98,137 @@ function makeTask(over: Partial<Task>): Task {
   };
 }
 
+/** A multi-board fixture for the pure renderer (no DB needed). */
+function fixture(): PendingApprovalsResult {
+  return {
+    project_name: 'Substrate',
+    count: 3,
+    items: [
+      {
+        board_id: 'dev',
+        board_name: 'dev',
+        task_id: 'c607b04e-72a7-49f5-88b6-c82e88dfc594',
+        task_title: 'Ship the table',
+        group_id: 'build',
+        gate: { policy_id: 'g1', policy_name: 'Build gate', to_group: 'review' },
+        awaiting_fields: ['plan_approved'],
+      },
+      {
+        board_id: 'dev',
+        board_name: 'dev',
+        task_id: 'aae8d88f-1111-4111-8111-111111111111',
+        task_title: 'Harden markdown',
+        group_id: 'review',
+        gate: { policy_id: 'g2', policy_name: 'Review gate', to_group: 'approval' },
+        awaiting_fields: ['reviews_approved'],
+      },
+      {
+        board_id: 'release',
+        board_name: 'release',
+        task_id: '12ab34cd-2222-4222-8222-222222222222',
+        task_title: 'Cut v0.7.0',
+        group_id: 'versioned',
+        gate: { policy_id: 'g3', policy_name: 'Release gate', to_group: 'approval' },
+        awaiting_fields: ['release_approved'],
+      },
+    ],
+  };
+}
+
+describe('renderPendingApprovals (pure)', () => {
+  it('renders a count line, both board headers, a column header, and every row', () => {
+    const out = renderPendingApprovals(fixture(), { color: false });
+    expect(out).toContain('3 task(s) pending human approval in Substrate:');
+    expect(out).toContain('\ndev\n');
+    expect(out).toContain('\nrelease\n');
+    expect(out).toMatch(/Task\s+Move\s+Awaiting\s+Approve/);
+    expect(out).toContain('Ship the table');
+    expect(out).toContain('Harden markdown');
+    expect(out).toContain('Cut v0.7.0');
+    // Short id (first 8 chars) is surfaced per task.
+    expect(out).toContain('(c607b04e)');
+  });
+
+  it('aligns the column header and data rows at the same offsets', () => {
+    const out = renderPendingApprovals(fixture(), { color: false });
+    const lines = out.split('\n');
+    const header = lines.find((l) => /^\s+Task\s+Move/.test(l))!;
+    const dataRow = lines.find((l) => l.includes('Ship the table'))!;
+    // The Move column starts at the index where 'Move' sits in the header.
+    const moveCol = header.indexOf('Move');
+    expect(dataRow.slice(moveCol)).toMatch(/^build → review/);
+    // The Awaiting column likewise aligns.
+    const awaitingCol = header.indexOf('Awaiting');
+    expect(dataRow.slice(awaitingCol)).toMatch(/^plan_approved/);
+  });
+
+  it('plain mode is escape-free (no ANSI bytes)', () => {
+    const out = renderPendingApprovals(fixture(), { color: false });
+    expect(out).not.toContain('\x1b[');
+  });
+
+  it('color mode adds escapes that strip back to the exact plain render', () => {
+    const plain = renderPendingApprovals(fixture(), { color: false });
+    const colored = renderPendingApprovals(fixture(), { color: true });
+    expect(colored).toContain('\x1b[');
+    expect(stripAnsi(colored)).toEqual(plain);
+  });
+
+  it('carries a verbatim, runnable approve command per awaiting field', () => {
+    const out = renderPendingApprovals(fixture(), { color: false });
+    expect(out).toContain('substrate approve c607b04e-72a7-49f5-88b6-c82e88dfc594 plan_approved');
+    expect(out).toContain(
+      'substrate approve aae8d88f-1111-4111-8111-111111111111 reviews_approved',
+    );
+  });
+
+  it('stacks one approve line per field for a multi-field gate, staying aligned', () => {
+    const result: PendingApprovalsResult = {
+      project_name: 'Substrate',
+      count: 1,
+      items: [
+        {
+          board_id: 'dev',
+          board_name: 'dev',
+          task_id: 'deadbeef-0000-4000-8000-000000000000',
+          task_title: 'Two-field task',
+          group_id: 'build',
+          gate: { policy_id: 'g', policy_name: 'g', to_group: 'review' },
+          awaiting_fields: ['first_field', 'second_field'],
+        },
+      ],
+    };
+    const out = renderPendingApprovals(result, { color: false });
+    expect(out).toContain('substrate approve deadbeef-0000-4000-8000-000000000000 first_field');
+    expect(out).toContain('substrate approve deadbeef-0000-4000-8000-000000000000 second_field');
+    // Awaiting cell joins both field names on the primary row.
+    expect(out).toContain('first_field, second_field');
+  });
+
+  it('truncates a long title with an ellipsis at a narrow width, keeping the id intact', () => {
+    const longTitle = 'A very very very very very very very long task title indeed';
+    const result: PendingApprovalsResult = {
+      project_name: 'Substrate',
+      count: 1,
+      items: [
+        {
+          board_id: 'dev',
+          board_name: 'dev',
+          task_id: 'abc1234x-0000-4000-8000-000000000000',
+          task_title: longTitle,
+          group_id: 'build',
+          gate: { policy_id: 'g', policy_name: 'g', to_group: 'review' },
+          awaiting_fields: ['ok'],
+        },
+      ],
+    };
+    const out = renderPendingApprovals(result, { color: false, columns: 60 });
+    expect(out).toContain('…');
+    expect(out).not.toContain(longTitle); // the full title was clamped
+    expect(out).toContain('(abc1234x)'); // the short id survives truncation
+  });
+});
+
 describe('pendingApprovalCommand', () => {
   let dir: string;
   let client: Client;
@@ -132,5 +269,38 @@ describe('pendingApprovalCommand', () => {
     await createTask(client, makeTask({ id: 'ok', custom_data: { plan_approved: true } }));
     await pendingApprovalCommand(dir);
     expect(out.join('')).toContain('No tasks pending human approval');
+  });
+
+  it('emits no ANSI escapes when NO_COLOR is set (TTY gate wires through)', async () => {
+    const prev = process.env.NO_COLOR;
+    process.env.NO_COLOR = '1';
+    try {
+      await createTask(client, makeTask({ id: 'needsme', title: 'Ship it' }));
+      await pendingApprovalCommand(dir);
+      expect(out.join('')).not.toContain('\x1b[');
+    } finally {
+      if (prev === undefined) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = prev;
+    }
+  });
+
+  it('--json emits the aggregate at parity with listPendingApprovals, no escapes', async () => {
+    await createTask(client, makeTask({ id: 'needsme', title: 'Ship it' }));
+    await pendingApprovalCommand(dir, { json: true });
+    const text = out.join('');
+    expect(text).not.toContain('\x1b[');
+    const parsed = JSON.parse(text);
+    const expected = await listPendingApprovals({
+      client,
+      loadSubstrate: () => loadSubstrate(join(dir, '.substrate')),
+    });
+    expect(parsed).toEqual(expected);
+  });
+
+  it('--json empty state is valid JSON with count 0 and items []', async () => {
+    await pendingApprovalCommand(dir, { json: true });
+    const parsed = JSON.parse(out.join(''));
+    expect(parsed.count).toBe(0);
+    expect(parsed.items).toEqual([]);
   });
 });
