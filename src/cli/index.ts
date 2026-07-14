@@ -31,6 +31,7 @@ import { approveCommand } from './commands/approve.js';
 import { unapproveCommand } from './commands/unapprove.js';
 import { validateCommand } from './commands/validate.js';
 import { pendingApprovalCommand } from './commands/pending-approval.js';
+import { installSkillCommand } from './commands/install-skill.js';
 import { rejectUnknownFlags, extractFlagValue } from './args.js';
 import { SubstrateError } from '../core/errors.js';
 import { BINARY_VERSION } from '../core/version.js';
@@ -74,6 +75,11 @@ Usage:
                               gated on an unset human-only field) as an aligned
                               table grouped by board — color on a TTY, plain when
                               piped. --json emits the structured aggregate.
+  substrate install-skill [--check]
+                              Refresh the installed agent skill (~/.claude/skills/substrate)
+                              from the copy packaged in this binary, version-stamped and
+                              idempotent. --check reports drift and exits non-zero without
+                              writing (for CI / diagnose).
   substrate --help            Show this help
 
 After running 'init', add Substrate to your agent runtime's MCP config:
@@ -207,6 +213,10 @@ Next steps:
       await pendingApprovalCommand(cwd, { json });
       return;
     }
+    case 'install-skill':
+      rejectUnknownFlags('install-skill', rest);
+      await installSkillCommand({ check: rest.includes('--check') });
+      return;
     case '--help':
     case '-h':
     case 'help':

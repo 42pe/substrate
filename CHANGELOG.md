@@ -6,7 +6,13 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **`substrate install-skill`** refreshes the installed agent skill
+  (`~/.claude/skills/substrate`) from the copy packaged inside the binary,
+  version-stamped and idempotent. `--check` reports drift and exits non-zero
+  without writing. `substrate diagnose` gains a "Skill:" line that flags a
+  drifted installed skill, so binary/skill drift is detectable instead of silent.
 
 ## [0.6.0] - 2026-07-07
 

@@ -84,7 +84,7 @@
     {
       "id": "released",
       "name": "Released",
-      "description": "Tagged, `dev` merged to `main`, pushed, and the global binary reinstalled.",
+      "description": "Tagged, `dev` merged to `main`, pushed, the global binary reinstalled, and the installed skill refreshed (`substrate install-skill`).",
       "position": 5,
       "color": null,
       "version": 1,
@@ -206,7 +206,7 @@
             "value": true
           }
         ],
-        "on_failure_message": "Set tagged=true after: `git tag vX.Y.Z` on the release commit + push the tag; merge `dev` → `main` and push; then rebuild + reinstall the global binary (see RELEASING.md 'After a release')."
+        "on_failure_message": "Set tagged=true after: `git tag vX.Y.Z` on the release commit + push the tag; merge `dev` → `main` and push; then rebuild + reinstall the global binary AND refresh the installed skill (`substrate install-skill`, then `substrate diagnose` reads \"Skill: in sync\") — see RELEASING.md 'After a release'."
       },
       "priority": 0,
       "enabled": true,

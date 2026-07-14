@@ -18,6 +18,7 @@ const ALLOWED_FLAGS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
   unapprove: new Set(),
   validate: new Set(),
   'pending-approval': new Set(['--json']),
+  'install-skill': new Set(['--check']),
 };
 
 /**
