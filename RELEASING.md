@@ -33,10 +33,17 @@ last released version. This flow is tracked on the **`release`** board in
 Cut the release **on `dev`** (the version-bump + changelog-rotation is a mechanical
 commit, so it doesn't need its own review), then fast-forward `main` to it. Because
 the merge is a fast-forward, the tag lands on the one commit that is the tip of both
-branches. CI is billing-blocked, so everything runs locally.
+branches. Validate **both** locally and in CI: the local gate must match what CI runs
+(crucially `tsc --noEmit` on root + ui, which typecheck the test files `pnpm build`
+skips), **and** GitHub Actions CI must be green on the `dev` commit you're about to tag.
+Don't tag a commit whose CI hasn't gone green — that's the mistake this guards against.
 
 ```sh
 git checkout dev && git pull
+
+# 0. Confirm CI is GREEN on the dev commit you're releasing (not just local):
+gh run list --branch dev --workflow CI --limit 1   # latest must be completed / success
+#    If it's red, fix on dev and re-push until green BEFORE cutting the tag.
 
 # 1. Bump the three version sites + rotate the CHANGELOG, then commit + tag.
 #    Pick ONE — don't combine them (the preview leaves a dirty tree the --tag run refuses):
@@ -56,7 +63,11 @@ git checkout dev              # back to the integration branch
 three version files, renames `## [Unreleased]` → `## [x.y.z] - <today>`, and
 inserts a fresh empty `## [Unreleased]`. Without `--tag` it stops there and prints
 the git steps; `--tag` also commits + tags (from a clean tree). Add `--skip-validate`
-only if you've just validated by hand. Tags are `vX.Y.Z` (distinct from the historical
+only if you've just validated by hand. **Note:** that built-in validate does *not*
+yet run `tsc --noEmit` (root + ui), the ui test suite, or the smoke tests — so it can
+pass while CI fails on a test-file type error. Until the script is hardened, run the
+CI-parity checks yourself (`pnpm exec tsc --noEmit`, `pnpm --dir ui exec tsc --noEmit`,
+`pnpm --dir ui test`, `pnpm test:smoke:concurrency`) and the step-0 CI check above. Tags are `vX.Y.Z` (distinct from the historical
 `phase-NN-complete` dev-milestone tags). After tagging, reinstall the global copy so
 day-to-day work uses the release (see below).
 
