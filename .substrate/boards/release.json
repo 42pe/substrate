@@ -52,7 +52,7 @@
     {
       "id": "docs",
       "name": "Docs Verified",
-      "description": "Documentation has been audited against the code and synced. See the gate for the checklist.",
+      "description": "Every feature launched in this release has current docs — a CHANGELOG entry and any tool/command/API/flag it touched reflected in README/SKILL/AUTHORING/prd. No stale docs. See the gate for the per-feature checklist.",
       "position": 1,
       "color": null,
       "version": 1,
@@ -111,7 +111,7 @@
             "value": true
           }
         ],
-        "on_failure_message": "Set docs_verified=true only after an audit against the CODE confirms: README tool count + command list match the registry/CLI; prd.md has no claim contradicting shipped behavior (operators, error codes, tools, version_mismatch); SKILL.md + AUTHORING.md counts/flows are current; and CHANGELOG [Unreleased] has an entry for every user-facing change since the last tag. Prefer an independent audit agent that cross-checks docs vs code."
+        "on_failure_message": "Set docs_verified=true only after auditing docs against the CODE **and** against every feature being launched — no doc may be stale. FIRST enumerate what is shipping: `git log <last-tag>..dev --oneline` (and/or the release tasks merged since the last tag). THEN, for EACH launched user-facing change, confirm its docs are updated: (1) it has a CHANGELOG `[Unreleased]` entry — a feature with no entry FAILS this gate (this is the v0.7.0 miss: 6 of 7 features shipped with no changelog line); (2) any tool / command / flag / API / field / error code it added or changed is reflected in README (tool count + command list vs `src/mcp/registry.ts` and the CLI dispatcher), SKILL.md + AUTHORING.md (counts + flows), and prd.md (no claim contradicting shipped behavior — operators, error codes, tool lists, version_mismatch). Use an independent audit agent that cross-checks docs vs code vs the merged-feature list; list each launched feature and the doc(s) that cover it before setting the flag."
       },
       "priority": 0,
       "enabled": true,
@@ -238,7 +238,7 @@
             "value": "ready"
           }
         ],
-        "message": "Before versioning, verify docs against the CODE (an independent audit agent is ideal): (1) README — tool count matches src/mcp/registry.ts, command list matches the CLI dispatcher/HELP; (2) prd.md — no claim contradicts shipped behavior (operator set vs operators.ts, error codes, read/write tool lists, version_mismatch/current_version); (3) SKILL.md + AUTHORING.md — tool counts and flows current; (4) CHANGELOG — a [Unreleased] entry exists for every user-facing change since the last tag. Fix every gap, then set docs_verified=true."
+        "message": "Before versioning, prove no doc is stale for the features being launched. START from the shipped set: `git log <last-tag>..dev --oneline` (and the release tasks merged since the last tag) — walk EACH one. For every launched feature confirm: (a) it has a CHANGELOG `[Unreleased]` entry (a feature with no entry is the default failure — v0.7.0 shipped 6 of 7 with none); (b) whatever it added/changed is reflected in the docs — README (tool count vs src/mcp/registry.ts, command list vs the CLI dispatcher/HELP), SKILL.md + AUTHORING.md (tool counts + flows), prd.md (no claim contradicting shipped behavior — operators.ts, error codes, read/write tool lists, version_mismatch/current_version). An independent audit agent that cross-checks docs vs code vs the merged-feature list is ideal. Fix every gap, then set docs_verified=true."
       },
       "priority": 0,
       "enabled": true,
@@ -320,7 +320,7 @@
       "groups": []
     }
   ],
-  "version": 4,
+  "version": 5,
   "created_at": "2026-07-08T00:00:00.000Z",
   "updated_at": "2026-07-15T00:00:00.000Z",
   "archived_at": null

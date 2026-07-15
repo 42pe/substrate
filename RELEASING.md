@@ -38,6 +38,14 @@ branches. Validate **both** locally and in CI: the local gate must match what CI
 skips), **and** GitHub Actions CI must be green on the `dev` commit you're about to tag.
 Don't tag a commit whose CI hasn't gone green — that's the mistake this guards against.
 
+**Before any of this, verify docs aren't stale for the features being launched.** List
+what's shipping — `git log <last-tag>..dev --oneline` — and for each launched feature
+confirm it has a CHANGELOG `[Unreleased]` entry and that any tool/command/flag/API/error
+code it touched is reflected in README, SKILL.md, AUTHORING.md, and prd.md. This is the
+release board's **Docs Verified** gate (it enumerates the checklist per feature); an
+independent audit agent is ideal. v0.7.0 shipped with 6 of 7 features missing their
+changelog line — this step exists to catch exactly that.
+
 ```sh
 git checkout dev && git pull
 
