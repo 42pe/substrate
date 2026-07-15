@@ -67,15 +67,16 @@ git checkout main && git pull && git merge --ff-only dev && git push origin main
 git checkout dev              # back to the integration branch
 ```
 
-`pnpm release <spec>` validates (build + tsc + lint + format + test), bumps the
-three version files, renames `## [Unreleased]` → `## [x.y.z] - <today>`, and
-inserts a fresh empty `## [Unreleased]`. Without `--tag` it stops there and prints
-the git steps; `--tag` also commits + tags (from a clean tree). Add `--skip-validate`
-only if you've just validated by hand. **Note:** that built-in validate does *not*
-yet run `tsc --noEmit` (root + ui), the ui test suite, or the smoke tests — so it can
-pass while CI fails on a test-file type error. Until the script is hardened, run the
-CI-parity checks yourself (`pnpm exec tsc --noEmit`, `pnpm --dir ui exec tsc --noEmit`,
-`pnpm --dir ui test`, `pnpm test:smoke:concurrency`) and the step-0 CI check above. Tags are `vX.Y.Z` (distinct from the historical
+`pnpm release <spec>` validates, bumps the three version files, renames
+`## [Unreleased]` → `## [x.y.z] - <today>`, and inserts a fresh empty
+`## [Unreleased]`. Without `--tag` it stops there and prints the git steps; `--tag`
+also commits + tags (from a clean tree). Add `--skip-validate` only if you've just
+validated by hand. Its validate now mirrors **CI's build-test job**: build +
+`tsc --noEmit` (root **and** ui — the test-file typecheck the build tsconfig skips) +
+lint (root + ui) + format:check + tests (server + ui) + `test:smoke:concurrency`. So
+run `pnpm install` **and** `pnpm --dir ui install` first. (The macOS playwright
+ui-smoke is left to CI + the release board's `ci_green` gate; still do the step-0 CI
+check above before tagging.) Tags are `vX.Y.Z` (distinct from the historical
 `phase-NN-complete` dev-milestone tags). After tagging, reinstall the global copy so
 day-to-day work uses the release (see below).
 
