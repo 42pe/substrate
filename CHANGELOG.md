@@ -13,6 +13,37 @@ in `.agents/audits/phase-{N}-audit.md`.
   version-stamped and idempotent. `--check` reports drift and exits non-zero
   without writing. `substrate diagnose` gains a "Skill:" line that flags a
   drifted installed skill, so binary/skill drift is detectable instead of silent.
+- **`submit_feedback` MCP tool** — file feedback about Substrate itself as a
+  prefilled GitHub issue. One call turns a `title` + `body` into a ready-to-file
+  `issues/new` URL for the upstream repo that a human opens and submits; the server
+  only builds the URL string — no network egress, no credentials, nothing stored,
+  nothing sent automatically. (The MCP tool surface is now 32.)
+- **Per-board team composition — a board's team is now first-class data, not
+  prose.** Team members live in a `.substrate/members/<id>.json` registry (name,
+  description, traits, concerns, and a `memory_dir` pointer for persistent
+  per-member memory), and each board binds members to the groups they work via an
+  advisory `team: [{ member, groups }]` list; the inspector shows a Team card per
+  board. It is descriptive, not enforced — `groups` is orientation for the
+  orchestrator and UI, never an access gate — and fully optional: a member/board
+  mismatch is a warning, never a load failure. `substrate init` scaffolds a
+  starter team.
+- **`substrate unapprove <task_id> <field>`** revokes a mistaken human approval by
+  clearing the field, so the gate it guards re-blocks (works for both `exists` and
+  `eq true` guards). Human-only and stamped `human:<user>`, symmetric with
+  `substrate approve`; a non-`human_only` field is refused.
+- **The app header now shows the project and active board name**, so you always
+  know which board you're viewing as you navigate.
+
+### Changed
+
+- **`substrate pending-approval` is readable at a glance.** Output is now an
+  aligned table grouped by board, with the exact `substrate approve` command per
+  row — colorized on a TTY, plain when piped or under `NO_COLOR`. Adds `--json`
+  for scripting.
+- **Multiple `substrate serve` inspectors can coexist.** When the default port
+  (7475) is taken, serve now scans for the next free port instead of refusing,
+  prints the actual URL it bound, and records it so `substrate diagnose` reports
+  the real port. Previously a second project's inspector couldn't start.
 
 ## [0.6.0] - 2026-07-07
 
