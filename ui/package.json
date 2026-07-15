@@ -1,6 +1,6 @@
 {
   "name": "@diegoferreyra/substrate-ui",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Substrate web UI — built into ../dist/ui/ and served by the Hono HTTP server.",

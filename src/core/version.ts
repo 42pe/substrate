@@ -19,4 +19,4 @@ export const BINARY_SCHEMA_VERSION = 2;
  * from `package.json` during the build step. For Phase 1, the manual
  * lockstep is acceptable — there are only a handful of files to keep in sync.
  */
-export const BINARY_VERSION = '0.6.0';
+export const BINARY_VERSION = '0.7.0';

@@ -6,6 +6,10 @@ in `.agents/audits/phase-{N}-audit.md`.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.7.0] - 2026-07-15
+
 ### Added
 
 - **`substrate install-skill`** refreshes the installed agent skill
