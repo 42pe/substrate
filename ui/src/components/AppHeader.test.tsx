@@ -35,6 +35,7 @@ function boardSubstrate(id: string, name: string): BoardSubstrate {
     groups: [],
     field_schema: { task: {}, comments: {} },
     policies: [],
+    team: [],
   };
 }
 

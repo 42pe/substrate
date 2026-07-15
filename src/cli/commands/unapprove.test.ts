@@ -156,7 +156,7 @@ describe('unapproveCommand (revoke a human approval)', () => {
     await mkdir(paths(root).boardsDir, { recursive: true });
     await createBoardFile(root, board);
     client = await openDatabaseAndMigrate(paths(root).dataSqlite);
-    const substrate: Substrate = { config, boards: [board] };
+    const substrate: Substrate = { config, boards: [board], members: [], warnings: [] };
     deps = { client, config, loadSubstrate: () => Promise.resolve(substrate), root };
     out = [];
     vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
