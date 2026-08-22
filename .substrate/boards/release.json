@@ -24,6 +24,10 @@
         "type": "boolean",
         "required": false
       },
+      "ci_green": {
+        "type": "boolean",
+        "required": false
+      },
       "release_approved": {
         "type": "boolean",
         "human_only": true
@@ -48,7 +52,7 @@
     {
       "id": "docs",
       "name": "Docs Verified",
-      "description": "Documentation has been audited against the code and synced. See the gate for the checklist.",
+      "description": "Every feature launched in this release has current docs — a CHANGELOG entry and any tool/command/API/flag it touched reflected in README/SKILL/AUTHORING/prd. No stale docs. See the gate for the per-feature checklist.",
       "position": 1,
       "color": null,
       "version": 1,
@@ -66,7 +70,7 @@
     {
       "id": "validated",
       "name": "Validated",
-      "description": "Full local validation is green (CI is billing-blocked).",
+      "description": "Both the full local gate AND GitHub Actions CI are green on the release candidate (the `dev` commit being promoted). CI must pass before the release is tagged.",
       "position": 3,
       "color": null,
       "version": 1,
@@ -107,7 +111,7 @@
             "value": true
           }
         ],
-        "on_failure_message": "Set docs_verified=true only after an audit against the CODE confirms: README tool count + command list match the registry/CLI; prd.md has no claim contradicting shipped behavior (operators, error codes, tools, version_mismatch); SKILL.md + AUTHORING.md counts/flows are current; and CHANGELOG [Unreleased] has an entry for every user-facing change since the last tag. Prefer an independent audit agent that cross-checks docs vs code."
+        "on_failure_message": "Set docs_verified=true only after auditing docs against the CODE **and** against every feature being launched — no doc may be stale. FIRST enumerate what is shipping: `git log <last-tag>..dev --oneline` (and/or the release tasks merged since the last tag). THEN, for EACH launched user-facing change, confirm its docs are updated: (1) it has a CHANGELOG `[Unreleased]` entry — a feature with no entry FAILS this gate (this is the v0.7.0 miss: 6 of 7 features shipped with no changelog line); (2) any tool / command / flag / API / field / error code it added or changed is reflected in README (tool count + command list vs `src/mcp/registry.ts` and the CLI dispatcher), SKILL.md + AUTHORING.md (counts + flows), and prd.md (no claim contradicting shipped behavior — operators, error codes, tool lists, version_mismatch). Use an independent audit agent that cross-checks docs vs code vs the merged-feature list; list each launched feature and the doc(s) that cover it before setting the flag."
       },
       "priority": 0,
       "enabled": true,
@@ -144,8 +148,8 @@
     },
     {
       "id": "rel-gate-validate",
-      "name": "Validate before approval",
-      "description": "Full local validation must pass before the release is offered to Diego.",
+      "name": "Validate locally + verify CI before approval",
+      "description": "The full local gate AND GitHub Actions CI must be green on the release candidate before the release is offered to Diego (and before tagging).",
       "type": "transition_guard",
       "definition": {
         "from_group": "versioned",
@@ -155,9 +159,14 @@
             "field": "task.custom_data.validated",
             "op": "eq",
             "value": true
+          },
+          {
+            "field": "task.custom_data.ci_green",
+            "op": "eq",
+            "value": true
           }
         ],
-        "on_failure_message": "Set validated=true only after build + tsc + lint + format + all tests pass locally on the release commit (CI is billing-blocked, so local is the gate). `pnpm release --tag` re-runs these."
+        "on_failure_message": "Two conditions, both required. (1) validated=true only after the full local gate — which must MATCH CI: build + BOTH `tsc --noEmit` (root `pnpm exec tsc --noEmit` AND `pnpm --dir ui exec tsc --noEmit`, which typecheck the test files the build tsconfig skips) + lint (root + ui) + format:check + all tests (server + ui) + `pnpm test:smoke:concurrency`. (2) ci_green=true only after confirming GitHub Actions CI is GREEN on the `dev` commit being released — `gh run list --branch dev` shows the latest commit's CI run as success. Both gate the tag. (Context: v0.7.0's first tag pointed at a commit whose CI failed on a `tsc --noEmit` error the old local gate missed; this gate exists to prevent that.)"
       },
       "priority": 0,
       "enabled": true,
@@ -229,7 +238,7 @@
             "value": "ready"
           }
         ],
-        "message": "Before versioning, verify docs against the CODE (an independent audit agent is ideal): (1) README — tool count matches src/mcp/registry.ts, command list matches the CLI dispatcher/HELP; (2) prd.md — no claim contradicts shipped behavior (operator set vs operators.ts, error codes, read/write tool lists, version_mismatch/current_version); (3) SKILL.md + AUTHORING.md — tool counts and flows current; (4) CHANGELOG — a [Unreleased] entry exists for every user-facing change since the last tag. Fix every gap, then set docs_verified=true."
+        "message": "Before versioning, prove no doc is stale for the features being launched. START from the shipped set: `git log <last-tag>..dev --oneline` (and the release tasks merged since the last tag) — walk EACH one. For every launched feature confirm: (a) it has a CHANGELOG `[Unreleased]` entry (a feature with no entry is the default failure — v0.7.0 shipped 6 of 7 with none); (b) whatever it added/changed is reflected in the docs — README (tool count vs src/mcp/registry.ts, command list vs the CLI dispatcher/HELP), SKILL.md + AUTHORING.md (tool counts + flows), prd.md (no claim contradicting shipped behavior — operators.ts, error codes, read/write tool lists, version_mismatch/current_version). An independent audit agent that cross-checks docs vs code vs the merged-feature list is ideal. Fix every gap, then set docs_verified=true."
       },
       "priority": 0,
       "enabled": true,
@@ -261,6 +270,29 @@
       "created_at": "2026-07-08T00:00:00.000Z",
       "updated_at": "2026-07-08T00:00:00.000Z",
       "archived_at": null
+    },
+    {
+      "id": "rel-resp-validate",
+      "name": "Match CI in the local gate, then verify CI",
+      "description": "Fires while a release candidate is in Versioned — how to validate so local matches CI, and to confirm CI itself is green before approval/tagging.",
+      "type": "agent_responsibility",
+      "definition": {
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "versioned"
+          }
+        ],
+        "message": "Validate so LOCAL matches CI, then verify CI. Local (then set validated=true): build + `pnpm exec tsc --noEmit` + `pnpm --dir ui exec tsc --noEmit` (these typecheck the TEST files that `pnpm build` skips — the class of error that broke v0.7.0's first tag) + lint (root + ui) + format:check + `pnpm test` + `pnpm --dir ui test` + `pnpm test:smoke:concurrency`. CI (then set ci_green=true): confirm GitHub Actions is GREEN on the `dev` commit being released — `gh run list --branch dev --workflow CI` shows the latest as success. Do NOT tag until BOTH validated and ci_green are set."
+      },
+      "priority": 0,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "claude-code",
+      "created_at": "2026-07-15T00:00:00.000Z",
+      "updated_at": "2026-07-15T00:00:00.000Z",
+      "archived_at": null
     }
   ],
   "team": [
@@ -288,8 +320,8 @@
       "groups": []
     }
   ],
-  "version": 3,
+  "version": 5,
   "created_at": "2026-07-08T00:00:00.000Z",
-  "updated_at": "2026-07-13T00:00:00.000Z",
+  "updated_at": "2026-07-15T00:00:00.000Z",
   "archived_at": null
 }

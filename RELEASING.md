@@ -33,10 +33,25 @@ last released version. This flow is tracked on the **`release`** board in
 Cut the release **on `dev`** (the version-bump + changelog-rotation is a mechanical
 commit, so it doesn't need its own review), then fast-forward `main` to it. Because
 the merge is a fast-forward, the tag lands on the one commit that is the tip of both
-branches. CI is billing-blocked, so everything runs locally.
+branches. Validate **both** locally and in CI: the local gate must match what CI runs
+(crucially `tsc --noEmit` on root + ui, which typecheck the test files `pnpm build`
+skips), **and** GitHub Actions CI must be green on the `dev` commit you're about to tag.
+Don't tag a commit whose CI hasn't gone green — that's the mistake this guards against.
+
+**Before any of this, verify docs aren't stale for the features being launched.** List
+what's shipping — `git log <last-tag>..dev --oneline` — and for each launched feature
+confirm it has a CHANGELOG `[Unreleased]` entry and that any tool/command/flag/API/error
+code it touched is reflected in README, SKILL.md, AUTHORING.md, and prd.md. This is the
+release board's **Docs Verified** gate (it enumerates the checklist per feature); an
+independent audit agent is ideal. v0.7.0 shipped with 6 of 7 features missing their
+changelog line — this step exists to catch exactly that.
 
 ```sh
 git checkout dev && git pull
+
+# 0. Confirm CI is GREEN on the dev commit you're releasing (not just local):
+gh run list --branch dev --workflow CI --limit 1   # latest must be completed / success
+#    If it's red, fix on dev and re-push until green BEFORE cutting the tag.
 
 # 1. Bump the three version sites + rotate the CHANGELOG, then commit + tag.
 #    Pick ONE — don't combine them (the preview leaves a dirty tree the --tag run refuses):
@@ -52,11 +67,16 @@ git checkout main && git pull && git merge --ff-only dev && git push origin main
 git checkout dev              # back to the integration branch
 ```
 
-`pnpm release <spec>` validates (build + tsc + lint + format + test), bumps the
-three version files, renames `## [Unreleased]` → `## [x.y.z] - <today>`, and
-inserts a fresh empty `## [Unreleased]`. Without `--tag` it stops there and prints
-the git steps; `--tag` also commits + tags (from a clean tree). Add `--skip-validate`
-only if you've just validated by hand. Tags are `vX.Y.Z` (distinct from the historical
+`pnpm release <spec>` validates, bumps the three version files, renames
+`## [Unreleased]` → `## [x.y.z] - <today>`, and inserts a fresh empty
+`## [Unreleased]`. Without `--tag` it stops there and prints the git steps; `--tag`
+also commits + tags (from a clean tree). Add `--skip-validate` only if you've just
+validated by hand. Its validate now mirrors **CI's build-test job**: build +
+`tsc --noEmit` (root **and** ui — the test-file typecheck the build tsconfig skips) +
+lint (root + ui) + format:check + tests (server + ui) + `test:smoke:concurrency`. So
+run `pnpm install` **and** `pnpm --dir ui install` first. (The macOS playwright
+ui-smoke is left to CI + the release board's `ci_green` gate; still do the step-0 CI
+check above before tagging.) Tags are `vX.Y.Z` (distinct from the historical
 `phase-NN-complete` dev-milestone tags). After tagging, reinstall the global copy so
 day-to-day work uses the release (see below).
 

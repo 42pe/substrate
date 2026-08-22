@@ -8,7 +8,7 @@
  *   node scripts/release.mjs <version>     # e.g. 0.7.0
  *   node scripts/release.mjs minor|patch|major
  *   node scripts/release.mjs <bump> --tag  # also git commit + tag vX.Y.Z
- *   node scripts/release.mjs <bump> --skip-validate   # skip build/tsc/lint/test
+ *   node scripts/release.mjs <bump> --skip-validate   # skip the full CI-parity local gate
  *
  * Version is kept in lockstep across: package.json, ui/package.json, and
  * src/core/version.ts (BINARY_VERSION — read by the MCP server name + /api/health).
@@ -77,13 +77,25 @@ if (branch !== 'dev' && branch !== 'main')
 console.log(`Releasing ${current} → ${version}${doTag ? ' (will commit + tag)' : ''}`);
 
 if (!skipValidate) {
-  console.log('Validating (build + tsc + lint + format + test)…');
+  // CI parity: mirror the CI build-test job so a green `pnpm release` can't cut a
+  // commit CI then rejects. The load-bearing one is the ROOT `tsc --noEmit` (NOT
+  // the build tsconfig) — it typechecks the TEST files `pnpm build` skips, the
+  // class of error that failed v0.7.0's first tag. Requires root + ui deps
+  // installed. (The macOS playwright ui-smoke is left to CI + the release board's
+  // ci_green gate.)
+  console.log(
+    'Validating (CI parity: build + tsc --noEmit ×2 + lint ×2 + format + tests ×2 + smoke)…',
+  );
   for (const cmd of [
     'pnpm build',
-    'pnpm exec tsc -p tsconfig.build.json --noEmit',
+    'pnpm exec tsc --noEmit',
+    'pnpm --dir ui exec tsc --noEmit',
     'pnpm lint',
+    'pnpm --dir ui lint',
     'pnpm format:check',
     'pnpm test',
+    'pnpm --dir ui test',
+    'pnpm test:smoke:concurrency',
   ]) {
     console.log(`  $ ${cmd}`);
     execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
