@@ -11,22 +11,37 @@ build) so operating the board never breaks mid-edit.
 - **`main` only advances on a release** (`dev` → `main` + a `vX.Y.Z` tag). That's a
   separate, gated flow tracked on the **`release`** board (below), per `RELEASING.md`.
 
-## Work tracking — use the `dev` and `release` boards
+## Work tracking — use the `roadmap`, `dev`, and `release` boards
 
-This project has a `.substrate/` with a **`dev`** board and a **`release`** board
-(`substrate` MCP server, registered in `.mcp.json`). Before planning or starting work:
+This project has a `.substrate/` with a **`roadmap`** board, a **`dev`** board, and a
+**`release`** board (`substrate` MCP server, registered in `.mcp.json`). Before planning
+or starting work:
 
 1. Call the **`whoami`** MCP tool, then `get_board_substrate` for the board and
    `list_tasks` — reconcile your plan with what's already there.
 2. Record work as tasks and move them across the board as you go; use comments
    for decisions.
 
-The **`dev` board** models how we ship a change: **Ideas → Backlog → Spec & Plan →
-Build & Test → Review → Pending Review and Approval → Merged (dev)**, with five
-gates (three human-only, marked 🔒):
+The **`roadmap` board** is where **product** ideas get shaped — **Ideas → Shaping →
+Roadmap-Ready** — PRODUCT thinking only (problem, who it's for, value, how it fits the
+product, scope + non-goals); **no tech design, schemas, or code**. The final step is
+human-only:
 
-- 🔒 **Ideas → Backlog** requires `idea_approved` — Diego promotes an idea into
-  the backlog (`substrate approve <task_id> idea_approved`). Agents can't self-promote.
+- 🔒 **Shaping → Roadmap-Ready** requires `roadmap_approved` — Diego approves a fully
+  fleshed product plan (`substrate approve <task_id> roadmap_approved`). Agents can't
+  self-approve.
+
+An agent then **copies each Roadmap-Ready feature into the `dev` board's Ready to Start
+column** to begin technical work (reference the roadmap task id for lineage). Small
+technical/internal improvements can be created in Ready to Start directly, skipping the
+roadmap board.
+
+The **`dev` board** models how we ship a change: **Ready to Start → Spec & Plan →
+Build & Test → Review → Pending Review and Approval → Merged (dev)**, with four
+gates (two human-only, marked 🔒):
+
+- **Ready to Start** — the intake column: approved product features copied from the
+  roadmap, plus direct technical items. Move one to Spec & Plan to begin.
 - **Spec & Plan** — author the spec + plan as **self-contained HTML docs** in
   `docs/specs/<slug>.html` and `docs/plans/<slug>.html`, linked from the task's
   `spec_doc`. See `docs/README.md`.
