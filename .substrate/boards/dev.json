@@ -1,7 +1,7 @@
 {
   "id": "dev",
   "name": "Substrate Dev",
-  "description": "How we ship Substrate. Work moves Backlog → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged. **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), which is tracked on the separate **Release** board. Two hard gates: Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.",
+  "description": "How we ship Substrate. Product ideas are shaped + human-approved on the separate **Roadmap** board; an agent copies each approved feature into **Ready to Start** here (small technical/internal improvements can be created in Ready to Start directly). Work then moves **Ready to Start → Spec & Plan → Build & Test → Review → Pending Review and Approval → Merged.** **All feature work merges to the `dev` branch — never straight to `main`.** `main` only advances on a release (dev → main + a version tag), tracked on the separate **Release** board. Three gates: Spec→Build needs `plan_approved` (Diego approves the technical plan), Build→Review needs `tests_green`, Review→Pending needs `reviews_approved` (both independent reviewers APPROVE). The final Pending→Merged gate is a **human-only** sign-off (dogfoods B3): an agent cannot set `diego_approved` — Diego clears it with `substrate approve <task_id> diego_approved`, then the PR merges to `dev`.",
   "field_schema": {
     "task": {
       "spec_doc": {
@@ -38,20 +38,11 @@
   "groups": [
     {
       "id": "ideas",
-      "name": "Ideas",
-      "description": "Raw ideas, captured for later. An idea needs Diego's approval (`idea_approved`) to be promoted into Backlog — that's the intake gate. Don't spec or build from here.",
+      "name": "Ready to Start",
+      "description": "Approved and ready for technical work. Product features arrive here copied from the Roadmap board's Roadmap-Ready column (already human-approved); small technical/internal improvements can be created here directly. Move an item to Spec & Plan to begin. (Group id stays `ideas` as a stable key — the display name is what changed.)",
       "position": 0,
       "color": null,
-      "version": 1,
-      "archived_at": null
-    },
-    {
-      "id": "backlog",
-      "name": "Backlog",
-      "description": "Captured, not yet started.",
-      "position": 1,
-      "color": null,
-      "version": 1,
+      "version": 2,
       "archived_at": null
     },
     {
@@ -199,27 +190,26 @@
       "archived_at": null
     },
     {
-      "id": "gate-ideas-backlog",
-      "name": "Ideas need approval to enter Backlog",
-      "description": "The intake gate. An idea is promoted to Backlog only after Diego approves it (human-only field). An agent cannot self-promote an idea.",
-      "type": "transition_guard",
+      "id": "resp-ready-to-start",
+      "name": "Intake: copy approved roadmap features here",
+      "description": "Fires while a task is in Ready to Start — where items come from and where they go next.",
+      "type": "agent_responsibility",
       "definition": {
-        "from_group": "ideas",
-        "to_group": "backlog",
-        "require": [
+        "when": [
           {
-            "field": "task.custom_data.idea_approved",
-            "op": "exists"
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "ideas"
           }
         ],
-        "on_failure_message": "Ideas need Diego's approval before entering Backlog — run `substrate approve <task_id> idea_approved`. An agent cannot set this field."
+        "message": "Ready to Start holds work that's approved to build. Two intake paths: (1) PRODUCT features — check the Roadmap board's Roadmap-Ready column for human-approved plans and copy each one here (create a task carrying the product plan; reference the roadmap task's id for lineage); (2) small technical/internal improvements may be created here directly. To begin work, move an item to Spec & Plan and author its technical spec + plan — which then needs Diego's `plan_approved` before Build."
       },
       "priority": 0,
       "enabled": true,
       "version": 1,
       "created_by_agent": "claude-code",
-      "created_at": "2026-07-08T05:03:26.505Z",
-      "updated_at": "2026-07-08T05:03:26.505Z",
+      "created_at": "2026-07-20T00:00:00.000Z",
+      "updated_at": "2026-07-20T00:00:00.000Z",
       "archived_at": null
     },
     {
@@ -297,8 +287,8 @@
       ]
     }
   ],
-  "version": 9,
+  "version": 10,
   "created_at": "2026-07-08T00:00:00.000Z",
-  "updated_at": "2026-07-13T00:00:00.000Z",
+  "updated_at": "2026-07-20T00:00:00.000Z",
   "archived_at": null
 }

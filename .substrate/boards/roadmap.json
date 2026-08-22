@@ -1,0 +1,131 @@
+{
+  "id": "roadmap",
+  "name": "Roadmap",
+  "description": "Product planning for Substrate: shape a raw idea into a fully fleshed feature plan and how it fits the product. **PRODUCT thinking only — no tech design, schemas, or code** (that belongs on the Dev board). An idea moves **Ideas → Shaping → Roadmap-Ready**. The final step is a **human-only gate**: Diego approves a plan into Roadmap-Ready (`roadmap_approved`). An agent then copies each approved plan into the **Dev board's 'Ready to Start'** column to begin technical work. Only user-facing PRODUCT features belong here; small technical/internal improvements can be created directly on the Dev board.\n\n## Team\n\n- **Product Shaper** (Shaping) — turns a one-line idea into a crisp feature plan: the problem, who it's for, the value, how it fits the product, and scope + non-goals. *Concerns:* staying product-level (no solutioning in code), honest scoping, killing weak ideas early.",
+  "field_schema": {
+    "task": {
+      "area": {
+        "type": "string",
+        "required": false
+      },
+      "roadmap_approved": {
+        "type": "boolean",
+        "human_only": true
+      }
+    },
+    "comments": {}
+  },
+  "groups": [
+    {
+      "id": "ideas",
+      "name": "Ideas",
+      "description": "Raw product ideas + opportunities, captured as a one-liner. Not shaped yet.",
+      "position": 0,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "shaping",
+      "name": "Shaping",
+      "description": "Actively fleshing the idea into a product feature plan: problem, target user, value, how it fits the product, rough scope + non-goals. Product prose only — NO tech design, schema, or code.",
+      "position": 1,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    },
+    {
+      "id": "ready",
+      "name": "Roadmap-Ready",
+      "description": "A fully fleshed, human-approved product feature plan, ready to hand to the Dev board. Reached only via Diego's `roadmap_approved`. An agent copies items here into Dev → 'Ready to Start'.",
+      "position": 2,
+      "color": null,
+      "version": 1,
+      "archived_at": null
+    }
+  ],
+  "policies": [
+    {
+      "id": "road-gate-ready",
+      "name": "Diego approves a plan into Roadmap-Ready",
+      "description": "The human-only product gate: a feature plan reaches Roadmap-Ready only when Diego approves it.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "shaping",
+        "to_group": "ready",
+        "require": [
+          {
+            "field": "task.custom_data.roadmap_approved",
+            "op": "exists"
+          }
+        ],
+        "on_failure_message": "A feature plan reaches Roadmap-Ready only after Diego approves it — run `substrate approve <task_id> roadmap_approved`. An agent cannot set this field. Before approving, the plan should be fully fleshed at the PRODUCT level (problem, who it's for, value, how it fits the product, scope + non-goals) with NO tech design, schema, or code — that belongs on the Dev board."
+      },
+      "priority": 0,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "claude-code",
+      "created_at": "2026-07-20T00:00:00.000Z",
+      "updated_at": "2026-07-20T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "road-resp-shaping",
+      "name": "How to shape a roadmap plan",
+      "description": "Fires while an idea is in Shaping — what a fleshed product plan must contain, and what it must NOT.",
+      "type": "agent_responsibility",
+      "definition": {
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "shaping"
+          }
+        ],
+        "message": "Flesh this idea into a PRODUCT feature plan (prose in the task description — no HTML docs, no code): (1) the problem / opportunity; (2) who it's for; (3) the value / why it matters; (4) how it fits the product and adjacent features; (5) rough scope + explicit non-goals. Keep it product-level — do NOT design the schema, API, or implementation (that's the Dev board's Spec & Plan). When it's crisp enough to build against, it's ready for Diego's `roadmap_approved`."
+      },
+      "priority": 0,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "claude-code",
+      "created_at": "2026-07-20T00:00:00.000Z",
+      "updated_at": "2026-07-20T00:00:00.000Z",
+      "archived_at": null
+    },
+    {
+      "id": "road-resp-ready",
+      "name": "Roadmap-Ready → hand to Dev",
+      "description": "Fires while a plan is in Roadmap-Ready — the handoff into the Dev board.",
+      "type": "agent_responsibility",
+      "definition": {
+        "when": [
+          {
+            "field": "task.group_id",
+            "op": "eq",
+            "value": "ready"
+          }
+        ],
+        "message": "This product plan is approved and ready to build. Hand it off: create a task in the Dev board's 'Ready to Start' column carrying this product plan, and reference this roadmap task's id in the new task so the lineage is traceable. The Dev board's Spec & Plan step adds the technical spec + plan. Leave this item here as the roadmap record."
+      },
+      "priority": 0,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "claude-code",
+      "created_at": "2026-07-20T00:00:00.000Z",
+      "updated_at": "2026-07-20T00:00:00.000Z",
+      "archived_at": null
+    }
+  ],
+  "team": [
+    {
+      "member": "product-shaper",
+      "groups": [
+        "shaping"
+      ]
+    }
+  ],
+  "version": 1,
+  "created_at": "2026-07-20T00:00:00.000Z",
+  "updated_at": "2026-07-20T00:00:00.000Z",
+  "archived_at": null
+}
