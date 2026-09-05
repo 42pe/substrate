@@ -64,6 +64,13 @@
       a {
         color: #3b82f6;
       }
+      .resolved {
+        background: #22c55e11;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.5rem 0 0.2rem;
+      }
     </style>
   </head>
   <body>
@@ -213,33 +220,119 @@
         <em>Substrate</em> wordmark + project name redundant — should the wordmark be dropped in
         favor of just the project name, or kept as the app identity? And on the plain routes
         (Overview/Boards/Activity), show project name only, or nothing extra?
+        <div class="resolved">
+          <strong
+            >Recommendation: keep the wordmark; project always, board only on board/task
+            routes.</strong
+          >
+          This is what shipped — <code>Layout.tsx</code>'s <code>Shell</code> keeps the
+          <em>Substrate</em> link to <code>/</code> and renders
+          <code>&lt;AppHeader/&gt;</code> beside it; <code>AppHeader.tsx</code> emits
+          <code>· project</code> always and <code>· board</code> only when
+          <code>useActiveBoard()</code> resolves one.
+          <br />
+          <em>Rationale:</em> the wordmark is the only identity visible before
+          <code>getProject()</code> resolves (the project segment renders <code>null</code> until
+          then), so dropping it would leave the bar empty on first paint. One honest wart: in this
+          repo <code>project_name</code> is literally <code>substrate</code>, so the bar reads
+          <code>Substrate · substrate</code> — worth a cheap follow-up that suppresses the project
+          segment when it case-insensitively equals the wordmark.
+        </div>
       </li>
       <li>
         <strong>Separator/format.</strong> <code>Project · Board</code> vs a breadcrumb chevron
         (<code>Project ⟩ Board</code>) vs two distinct pills. Any preference to match the existing
         badge/muted-text vocabulary?
+        <div class="resolved">
+          <strong>Recommendation: middot separators, muted-text vocabulary, no pills.</strong>
+          Shipped: <code>AppHeader.tsx</code>'s <code>&lt;Separator/&gt;</code> is an
+          <code>aria-hidden</code> <code>·</code> in <code>text-muted-foreground/60</code>; the
+          project is <code>font-medium text-foreground</code>, the board
+          <code>text-muted-foreground</code>.
+          <br />
+          <em>Rationale:</em> right call — pills would collide with the existing
+          <code>Badge</code> vocabulary that already means "status/archived" in the page body, and
+          the chevron adds visual weight to chrome that must stay quieter than the page
+          <code>&lt;h1&gt;</code>. The board being the <em>muted</em> segment inverts breadcrumb
+          convention (the current item is usually emphasised), but is defensible here precisely
+          because the board name is already the loud <code>&lt;h1&gt;</code> below.
+        </div>
       </li>
       <li>
         <strong>Task route board fetch.</strong> Acceptable to do the extra
         <code>getBoard(board_id)</code> on task detail (simplest, decoupled), or should we thread
         the already-fetched board data up to the header to avoid it (more coupling, slight flash on
         first paint)? See plan Risks.
+        <div class="resolved">
+          <strong>Recommendation: do the extra fetch — keep the header decoupled.</strong> Shipped:
+          <code>useActiveBoard.ts</code> resolves <code>/tasks/:id</code> via
+          <code>getTask(id)</code> → <code>getBoard(task.board_id)</code>, keyed on the route param
+          from <code>useMatch</code>.
+          <br />
+          <em>Rationale:</em> there is nothing to thread —
+          <code>ui/src/routes/TaskDetail.tsx</code> never calls <code>getBoard</code> at all, so
+          "reuse" would mean inventing state plumbing from an <code>&lt;Outlet/&gt;</code> child up
+          to its layout ancestor for one string. Accepted cost: two sequential same-origin GETs and
+          a duplicated <code>getTask</code> (<code>useResource</code> has no cache or dedupe), so
+          the board segment lands one round-trip later on task routes than on board routes.
+        </div>
       </li>
       <li>
         <strong>Loading/failure behavior.</strong> While the board name resolves (or if
         <code>getBoard</code> 404s/errors), should the header (a) show nothing for the board
         segment, (b) fall back to showing the board <code>id</code>, or (c) show a subtle skeleton?
         Preference to avoid layout shift.
+        <div class="resolved">
+          <strong>Recommendation: (a) show nothing — same for loading and for failure.</strong>
+          Shipped: <code>AppHeader.tsx</code> renders the segment only when
+          <code>board.id &amp;&amp; board.name</code>, and <code>useActiveBoard</code> swallows the
+          error to <code>null</code>; <code>AppHeader.test.tsx</code> pins this with the "degrades
+          gracefully to no board segment when the board fails to resolve" case.
+          <br />
+          <em>Rationale:</em> correct — (b) is self-defeating (the whole point of the feature is
+          name-not-id, and the raw id is already in the URL), and an error card in persistent chrome
+          would follow the user across every route. The spec's "no layout shift" wish is only
+          <em>mostly</em> met: segments pop in and widen the identity block, nudging the nav in
+          <code>Shell</code>'s flex row. Against a localhost API that is sub-frame in practice, so
+          not worth a skeleton.
+        </div>
       </li>
       <li>
         <strong>Mobile behavior.</strong> At the narrowest widths the header already wraps (nav +
         toggle). Should the board name truncate with an ellipsis on one line, wrap to a second line,
         or be hidden below a breakpoint (kept only as the page <code>&lt;h1&gt;</code>)?
+        <div class="resolved">
+          <strong>Recommendation: truncate per segment; never hide.</strong> Shipped: both links
+          carry <code>max-w-[9rem] truncate … sm:max-w-[14rem]</code> with
+          <code>title={name}</code>, inside a <code>flex min-w-0</code> block that wraps as a unit
+          under <code>Shell</code>'s <code>flex-wrap</code> row.
+          <br />
+          <em>Rationale:</em> right call — hiding below a breakpoint would delete the feature
+          exactly where the URL is least visible, and the header already has a wrap strategy, so
+          per-segment wrapping would only make the row ragged. Residual gap: <code>title</code> is a
+          hover affordance, so a truncated board name is unrecoverable on touch — acceptable for a
+          read-only localhost inspector.
+        </div>
       </li>
       <li>
         <strong>Archived boards.</strong> Should the header board segment carry the
         <em>archived</em> marker (as <code>BoardDetail</code>'s <code>&lt;h1&gt;</code> does), or
         stay name-only to keep the bar slim?
+        <div class="resolved">
+          <strong>Recommendation: revisit — add a muted marker on task routes.</strong> Shipped
+          name-only: <code>useActiveBoard</code> returns just <code>{ id, name, loading }</code> and
+          discards the <code>board.archived_at</code> that <code>getBoard</code> already returns in
+          <code>BoardSubstrate</code>.
+          <br />
+          <em>Rationale:</em> this is the one answer worth reopening. On <code>/boards/:id</code> it
+          is harmless — <code>BoardDetail.tsx</code> renders
+          <code>&lt;Badge variant="muted"&gt;archived&lt;/Badge&gt;</code> next to the
+          <code>&lt;h1&gt;</code>. On <code>/tasks/:id</code> nothing anywhere says the task's board
+          is archived (<code>TaskDetail</code> badges only the <em>task</em>'s
+          <code>archived_at</code>), so a stale board reads as live. The data is already in hand;
+          the fix is one field through the hook plus the existing muted <code>Badge</code> — a small
+          follow-up, not a re-spec.
+        </div>
       </li>
     </ul>
   </body>

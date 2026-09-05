@@ -64,6 +64,13 @@
       a {
         color: #3b82f6;
       }
+      .resolved {
+        background: #22c55e11;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
     </style>
   </head>
   <body>
@@ -202,6 +209,17 @@
         <strong>Preferred-port-then-scan?</strong> Keep <code>7475</code> as the always-first-tried
         default and only scan <code>7476…7499</code> on conflict (proposed), so the first/primary
         project keeps the memorable URL — agreed?
+        <div class="resolved">
+          <strong>Recommendation: yes — and this is what shipped.</strong>
+          <code>portCandidates(DEFAULT_PORT, PORT_RANGE_START, PORT_RANGE_END)</code> in
+          <code>src/shared/process.ts</code> returns <code>7475</code> first and then
+          <code>7475–7499</code> minus the preferred port, and <code>serve.ts</code> walks that list
+          by attempting a real bind (no pre-probe, so racing serves can't pick the same port).
+          Honest caveat: 7475 goes to whichever serve starts <em>first</em>, not to a designated
+          primary — there is no per-project affinity, so restarting the main project while another
+          holds 7475 moves it. If pinning ever matters, the answer is the deferred
+          <code>--port</code> flag, not a stickiness heuristic.
+        </div>
       </li>
       <li>
         <strong>Where to persist the chosen port?</strong> Options: (a) extend the existing PID file
@@ -210,22 +228,74 @@
         <code>.substrate/substrate.port</code> file; (c) fold both into a small
         <code>.substrate/serve.json</code> runtime file. All stay gitignored. Preference? (Leaning
         toward a single JSON runtime file for extensibility, migrating the current bare-PID format.)
+        <div class="resolved">
+          <strong
+            >Recommendation: keep what shipped — a separate <code>serve.json</code> with the PID
+            file untouched. This diverges from the spec's lean.</strong
+          >
+          <code>.substrate/substrate.pid</code> is still a bare PID;
+          <code>.substrate/serve.json</code> (<code>src/shared/serve-runtime.ts</code>,
+          <code>paths().serveRuntime</code>) is an <em>additive</em>
+          <code>{ pid, port, started_at }</code> record written after a successful bind and cleared
+          on every teardown path. That is better than the proposed migration: the ownership
+          guarantee is the <code>writeFile(…, { flag: 'wx' })</code> exclusive create, and folding
+          it into JSON would couple atomic ownership to a serializer and force a format migration on
+          every existing checkout for no gain. The split also lets discovery data be absent or
+          corrupt (<code>readServeRuntime</code> returns <code>null</code>) while the lock stays
+          strict.
+        </div>
       </li>
       <li>
         <strong>Range + size.</strong> Is <code>7475–7499</code> (25 slots) the right window, or
         wider/narrower?
+        <div class="resolved">
+          <strong>Recommendation: keep <code>7475–7499</code> as shipped.</strong> A slot is one
+          project's inspector on one machine, so 25 is already far above the realistic ceiling, and
+          exhaustion fails with a message naming the range and the count. Widening later is a
+          two-constant edit in <code>src/http/server.ts</code> with no format or compatibility
+          consequence — the CORS/Host allowlist is rebuilt per candidate port — so there is no cost
+          to starting narrow.
+        </div>
       </li>
       <li>
         <strong>Is <code>.local</code> worth the setup?</strong> A no-sudo wildcard needs
         <code>dnsmasq</code> + a resolver file (one-time, but still an install), and to actually be
         useful needs a reverse proxy to map slug→port. Do you want stable URLs enough to run an
         always-on proxy, or is "serve prints its URL + diagnose lists it" good enough for now?
+        <div class="resolved">
+          <strong>Recommendation: don't build it — defer indefinitely.</strong> The wildcard-DNS
+          half is cosmetic on its own (a name that still doesn't route to the right port), and the
+          half that makes it useful is a name→port reverse proxy — an always-on daemon, which this
+          spec's own non-goals already rule out. "Serve prints its URL + diagnose lists it" is good
+          enough and now real: <code>diagnose</code> reports
+          <code>serving on port N (pid M)</code> straight from <code>serve.json</code>. Weighing it
+          against the roadmap idea <em>Shared substrate pointer</em>, which reframed the adjacent
+          pain as several working copies pointing at one <em>local</em> DB: that direction
+          <em>reduces</em> the number of concurrent serves rather than multiplying them, so stable
+          hostnames would be solving memorability, not divergence.
+          <strong>Trigger to revisit:</strong> if an always-on Substrate process ships for an
+          independent reason (the v1.x HTTP MCP transport is the live candidate), name→port routing
+          becomes an add-on to a daemon that already exists rather than a new one — reopen then, and
+          not before.
+        </div>
       </li>
       <li>
         <strong>Slug source.</strong> If we do <code>.local</code>, the slug would derive from
         <code>config.project_name</code> (itself defaulted from <code>basename(cwd)</code> at init)
         — collisions across two same-named checkouts are possible. Slug from
         <code>project_id</code> (UUID) instead, or name-with-dedup?
+        <div class="resolved">
+          <strong
+            >Recommendation: build no slug while question 4 stands. If it reopens: name-with-dedup,
+            keyed internally on <code>project_id</code>.</strong
+          >
+          A UUID hostname is unmemorable, which defeats the only reason to want
+          <code>.local</code> at all — so <code>config.project_id</code> should be the stable
+          identity in the bookkeeping while <code>config.project_name</code> supplies the visible
+          slug, with a numeric suffix on collision between two same-named checkouts.
+          <strong>Trigger:</strong> this question only becomes live if question 4's proxy trigger
+          fires; there is nothing to decide until then.
+        </div>
       </li>
     </ul>
   </body>

@@ -79,6 +79,13 @@
         border-radius: 0 6px 6px 0;
         margin: 0.6rem 0;
       }
+      .resolved {
+        background: #22c55e11;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0 1.1rem;
+      }
     </style>
   </head>
   <body>
@@ -249,21 +256,100 @@
       (which the MCP tool + UI would also gain). Default proposed: <strong>keep ids</strong> for
       this task; enrich later if it grates.
     </div>
+    <div class="resolved">
+      <strong
+        >Recommendation — ids shipped; revisit with an additive <code>to_group_name</code>.</strong
+      >
+      <p>
+        <strong>What shipped:</strong> raw ids.
+        <code>src/cli/commands/pending-approval.ts</code> builds the cell as
+        <code>`${it.group_id} → ${it.gate.to_group}`</code>, so the Move column reads
+        <code>ideas → spec</code>.
+      </p>
+      <p>
+        <strong>Rationale:</strong> On this repo's own <code>dev</code> board the ids barely
+        resemble the names the human sees — <code>ideas</code> is "Ready to Start",
+        <code>spec</code> is "Spec &amp; Plan", <code>approval</code> is "Pending Review and
+        Approval" — so the row names a column that isn't on screen anywhere else. The aggregate
+        already resolves <code>board_name</code> beside <code>board_id</code>, and
+        <code>src/http/routes/api/board-columns.ts</code> already emits <code>group_name</code>, so
+        an additive <code>group_name</code>/<code>to_group_name</code> on
+        <code>PendingApprovalItem</code> follows an established pattern rather than inventing one.
+        The wider blast radius is a <em>benefit</em> here, not a cost: the UI has the same wart
+        today — <code>ui/src/routes/TaskDetail.tsx</code> renders "to move to
+        <code>{approval.gate?.to_group}</code>" in the pending-approval tooltip, i.e. the raw id.
+        Ship it as a follow-up task: add both fields (keep the ids in <code>--json</code> for
+        scripts), render names in human output.
+      </p>
+    </div>
     <div class="q">
       <strong>2. Truncation budget.</strong> When <code>process.stdout.columns</code> is undefined
       (non-TTY) or very narrow (&lt;~80), what's the fallback width — assume 80, or don't truncate
       at all when width is unknown? Proposed: assume 80 when unknown, shrink Task column to a floor
       (~24 chars) before truncating id/command.
     </div>
+    <div class="resolved">
+      <strong
+        >Recommendation — keep exactly what shipped (assume 80, floor the title at 24).</strong
+      >
+      <p>
+        <strong>What shipped:</strong> the proposal, verbatim —
+        <code>DEFAULT_COLUMNS = 80</code> and <code>TITLE_FLOOR = 24</code> in
+        <code>src/cli/commands/pending-approval.ts</code>, with
+        <code>flexWidth()</code> (<code>src/cli/table.ts</code>) shrinking only the title column.
+      </p>
+      <p>
+        <strong>Rationale:</strong> Right call, and the interesting part is the third case the
+        question didn't ask about: when even the 24-char floor overflows,
+        <code>flexWidth</code> returns the floor and lets the row exceed the width rather than
+        clipping the later columns — which is the only behavior compatible with the "verbatim,
+        runnable <code>substrate approve …</code>" acceptance criterion. A wrapped or clipped
+        command would be worse than a wrapped line. Covered by the <code>columns: 60</code> case in
+        <code>src/cli/commands/pending-approval.test.ts</code>.
+      </p>
+    </div>
     <div class="q">
       <strong>3. Color palette.</strong> Any preference beyond "board header bold + approve-command
       colored + awaiting emphasized"? (e.g. dim the short id, yellow the awaiting field.) Proposed
       defaults live in the plan; easy to tune.
     </div>
+    <div class="resolved">
+      <strong>Recommendation — keep the three shipped roles; don't dim the short id.</strong>
+      <p>
+        <strong>What shipped:</strong> <code>bold</code> board name, <code>yellow</code> awaiting
+        field(s), <code>cyan</code> approve command
+        (<code>src/cli/commands/pending-approval.ts</code>), from the four SGR wrappers in
+        <code>src/cli/color.ts</code>.
+      </p>
+      <p>
+        <strong>Rationale:</strong> Three roles is the right ceiling — the strip-back test (<code
+          >stripAnsi(colored) === plain</code
+        >) is what keeps color decorative, and every extra role is another thing that must survive
+        it for no scanning gain. Skip the "dim the short id" idea specifically: the id is the thing
+        the human copies, so de-emphasizing it works against the command's whole purpose. Loose end
+        worth naming: <code>dim</code> is exported and tested but has no caller — fine as a spare,
+        but it is dead code today.
+      </p>
+    </div>
     <div class="q">
       <strong>4. Fallback list.</strong> The locked decision keeps a colorized aligned
       <em>list</em> documented only as a lean fallback if the table proves too heavy. Ship the table
       alone now and leave the list unbuilt (documented in the plan), correct?
+    </div>
+    <div class="resolved">
+      <strong>Recommendation — yes: table only, leave the list unbuilt permanently.</strong>
+      <p>
+        <strong>What shipped:</strong> one renderer. <code>renderPendingApprovals</code> is the sole
+        render path in <code>src/cli/commands/pending-approval.ts</code>; no list fallback exists
+        anywhere in <code>src/cli/</code>.
+      </p>
+      <p>
+        <strong>Rationale:</strong> Right call — the plain (<code>NO_COLOR</code>/piped) path is
+        already the lean rendering the fallback was meant to provide, byte-identical to the
+        colorized one minus escapes, so a second renderer would be a second layout to keep in sync
+        against a need that hasn't materialized. If the table ever does prove too heavy, the honest
+        fix is narrower columns, not a parallel renderer.
+      </p>
     </div>
   </body>
 </html>

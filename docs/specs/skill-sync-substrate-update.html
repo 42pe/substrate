@@ -64,6 +64,16 @@
       a {
         color: #3b82f6;
       }
+      .resolved {
+        background: #22c55e11;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.5rem 0 0.9rem;
+      }
+      .resolved p {
+        margin: 0.35rem 0;
+      }
     </style>
   </head>
   <body>
@@ -233,12 +243,45 @@
         also touch the binary); <code>install-skill</code> is precise about what it does.
         Recommendation: <code>install-skill</code> now (narrow, honest), reserve
         <code>update</code> for if/when it also self-updates the binary.
+        <div class="resolved">
+          <p>
+            <strong>Recommendation: <code>substrate install-skill</code> — as shipped.</strong> The
+            build matched the tentative call.
+          </p>
+          <p>
+            Rationale: the command is dispatched as <code>install-skill</code> in
+            <code>src/cli/index.ts</code>, allowlisted as
+            <code>'install-skill': new Set(['--check'])</code> in <code>src/cli/args.ts</code>, and
+            documented that way in the <code>HELP</code> text and in <code>RELEASING.md</code>. The
+            name stayed honest: it only ever writes <code>~/.claude/skills/substrate</code>, so
+            <code>update</code> remains free for a verb that also touches the binary.
+          </p>
+        </div>
       </li>
       <li>
         <strong>Explicit command vs npm <code>postinstall</code>.</strong> Spec assumes
         explicit-command-only (postinstall is a non-goal). Confirm — or do you want a
         <em>best-effort</em> postinstall that just prints "run <code>substrate install-skill</code>"
         rather than writing files?
+        <div class="resolved">
+          <p>
+            <strong
+              >Recommendation: confirmed — explicit command only, and no postinstall at all</strong
+            >
+            (not even a printing one). This one the build settled by omission:
+            <code>package.json</code> has no <code>postinstall</code> or
+            <code>prepare</code> script.
+          </p>
+          <p>
+            Rationale: a print-only hook buys a one-time line of install noise that is routinely
+            swallowed by <code>-g</code> installs, while the two places that actually catch drift
+            already exist — <code>substrate diagnose</code>'s Skill section names the fix, and
+            <code>RELEASING.md</code>'s "After a release" block pairs
+            <code>substrate install-skill</code> with the binary reinstall. Reopen only if, after
+            the npm go-live, users who installed from the registry are found running a stale skill
+            because they never saw the <code>diagnose</code> advisory.
+          </p>
+        </div>
       </li>
       <li>
         <strong>How to stamp the version.</strong> (a) A frontmatter field in
@@ -249,12 +292,52 @@
         Recommendation: sibling <code>.version</code> (or <code>.substrate-skill-version</code>)
         file — simplest to read from <code>diagnose</code>/<code>--check</code> and does not touch
         the authored content.
+        <div class="resolved">
+          <p>
+            <strong>Recommendation: sibling <code>.version</code> file — as shipped.</strong> The
+            build matched the tentative call: <code>src/core/skill.ts</code> exports
+            <code>SKILL_STAMP_FILE = '.version'</code>, and <code>syncSkill</code> writes
+            <code>BINARY_VERSION</code> into <code>&lt;target&gt;/.version</code> after the copy.
+            <code>SKILL.md</code> is never mutated.
+          </p>
+          <p>
+            Rationale: the "deletable independently" downside is covered, not merely accepted.
+            <code>compareSkill</code> falls back to a byte-for-byte file comparison, so a stamp that
+            is missing or stale yields <code>drift</code> with the reason
+            <code>installed but unstamped</code> — and <code>diagnose</code> deliberately reports
+            that (and <code>missing</code>) as an <em>advisory</em> line rather than a counted
+            problem, reserving the hard <code>✗</code> for a stamped-but-wrong-version skill
+            (<code>src/cli/commands/diagnose.ts</code>). Confirmed in the field: a real machine
+            reported
+            <em>"installed skill installed but unstamped — run 'substrate install-skill'"</em>, and
+            after running it, <em>"installed skill in sync (v0.7.0)"</em>
+            — so the legacy pre-stamping install upgrades gracefully instead of failing hard.
+          </p>
+        </div>
       </li>
       <li>
         <strong>Does <code>update</code> also self-update the binary, or only the skill?</strong> v1
         proposes skill-only. If you want a true "update everything" verb, that pulls in reinstalling
         the global binary (a <code>pnpm add -g</code> / npm reinstall), which is a bigger,
         environment-specific surface — recommend deferring.
+        <div class="resolved">
+          <p>
+            <strong>Recommendation: skill-only — hold the boundary.</strong> That is what shipped:
+            <code>syncSkill</code> writes nothing outside <code>~/.claude/skills/substrate</code>,
+            and the binary reinstall stays a documented human step.
+          </p>
+          <p>
+            Rationale: <code>RELEASING.md</code>'s "After a release" runs
+            <code>pnpm add -g "$PWD/$(pnpm pack | tail -1)"</code> then
+            <code>substrate install-skill</code> — one line the release ritual owns, one line the
+            binary owns. Self-updating would mean shelling out to whichever package manager
+            installed us (pnpm/npm/volta/a tarball path), which the binary cannot know and cannot
+            test. Keeping the installed binary current belongs with the npm publish / go-live work,
+            not here. Reopen once Substrate is on npm and there are installs Diego does not perform
+            himself — that is when a real <code>substrate update</code> (skill +
+            <code>npm i -g @diegoferreyra/substrate@latest</code>) earns its keep.
+          </p>
+        </div>
       </li>
       <li>
         <strong>Where does the binary read the packaged skill at runtime?</strong> Note: the CLI

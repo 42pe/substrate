@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Unapprove / revoke a human approval</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      ol {
+        padding-left: 1.3rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Unapprove / revoke a human approval</h1>
+    <p class="meta">
+      dev board · task a3c7177f (<code>unapprove-revoke-approval</code>) ·
+      <span class="status">Draft v1 — awaiting plan_approved</span> ·
+      <a href="../specs/unapprove-revoke-approval.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      <code>substrate unapprove</code> is <code>substrate approve</code> run in reverse: the same
+      resolve-board → <code>human_only</code>-guard → merge → OCC-write → stamp-event → print
+      pipeline, with exactly one change in the middle — instead of
+      <code>merged = { ...custom_data, [field]: value }</code> we do
+      <code>merged = { ...custom_data }; delete merged[field]</code>. That is the identical deletion
+      the MCP <code>update_task</code> handler already performs when it receives a
+      <code>null</code> value (<code>src/mcp/tools/write/update-task.ts</code> lines 102–106): the
+      repo's <code>updateTask</code> takes a <em>fully-merged</em> <code>custom_data</code> blob and
+      writes <code>JSON.stringify(merged)</code> wholesale, so removing a key is purely a matter of
+      handing it a blob without that key.
+      <strong>No repository change, no new deletion primitive.</strong>
+    </p>
+    <p>
+      Correctness of the re-gate falls straight out of the operators
+      (<code>src/policy/operators.ts</code>): <code>exists</code> is
+      <code>fieldValue !== null &amp;&amp; fieldValue !== undefined</code> — an absent key reads
+      <code>undefined</code> → <code>false</code> → blocked; <code>eq true</code> is
+      <code>jsonEqual(undefined, true)</code> → <code>false</code> → blocked. So deleting the key
+      re-gates <em>both</em> guard shapes with no policy changes. The <code>human_only</code> guard
+      is the same check <code>approve.ts</code> uses; because <code>unapprove</code> is CLI-only (no
+      MCP tool), an agent has no path to it — symmetric with <code>approve</code>.
+    </p>
+
+    <h3>The one-line diff at the core</h3>
+    <pre>
+// approve.ts
+const merged = { ...task.custom_data, [args.field]: value };
+
+// unapprove.ts
+const merged = { ...task.custom_data };
+delete merged[args.field];</pre
+    >
+
+    <h2>Step-by-step work</h2>
+    <ol>
+      <li>
+        <strong>New command <code>src/cli/commands/unapprove.ts</code>.</strong> Copy the skeleton
+        of <code>approve.ts</code> (root/existence check, sink config, DB open,
+        <code>loadSubstrate</code>, <code>withTransaction</code>, <code>currentUser()</code> →
+        <code>human:&lt;user&gt;</code>). Signature
+        <code>unapproveCommand(cwd, { taskId, field })</code> — no <code>value</code>.
+      </li>
+      <li>
+        <strong>Human-only guard (reused, first).</strong> Resolve
+        <code>board.field_schema.task[field]</code>; if not <code>human_only === true</code>, throw
+        <code>SubstrateError.schemaViolation</code> with unapprove-flavored wording. This runs
+        before any idempotency check so wrong/typo'd fields always error.
+      </li>
+      <li>
+        <strong>Idempotent no-op.</strong> After the guard, if
+        <code>!(field in task.custom_data)</code>, write the "Nothing to revoke" line to stdout and
+        return from inside the command (no transaction, no version bump, no event). Mirrors the
+        repo's archive/unarchive idempotency (a no-op emits nothing).
+      </li>
+      <li>
+        <strong>Delete + OCC write.</strong> Else build
+        <code>merged = { ...task.custom_data }; delete merged[field]</code>, call
+        <code
+          >validateFieldSchema({ field_schema, merged_custom_data: merged, touched_keys: [field]
+          })</code
+        >
+        (an absent key is always allowed — <code>field-validator.ts</code> skips
+        <code>undefined</code>), then
+        <code>updateTask(tx, taskId, task.version, { custom_data: merged }, now)</code>.
+      </li>
+      <li>
+        <strong>Event stamping.</strong> <code>appendEvent</code> with
+        <code>event_type: 'updated'</code>,
+        <code>changes.before.custom_data = task.custom_data</code>,
+        <code>changes.after.custom_data = merged</code>, and
+        <code>actor_agent_name: 'human:&lt;user&gt;'</code> — byte-for-byte symmetric with approve's
+        event.
+      </li>
+      <li>
+        <strong>Confirmation output.</strong>
+        <code
+          >Revoked: cleared &lt;field&gt; (was &lt;JSON old value&gt;) on task &lt;id&gt; (as
+          &lt;actor&gt;, version &lt;n&gt;).</code
+        >
+      </li>
+      <li>
+        <strong>Stranded warning (conditional).</strong> Add a small helper that finds active
+        <code>transition_guard</code> policies on the task's board whose <code>require</code> tree
+        references the revoked field <em>and</em> whose <code>to_group === task.group_id</code>. If
+        any match, print a <code>Warning:</code> second line (see spec). Reuse
+        <code>parseGuardDefinition</code>, <code>collectLeaves</code>, and
+        <code>taskFieldName</code> from <code>src/policy/pending-approval.ts</code> — export the two
+        currently-private helpers (<code>collectLeaves</code>, <code>taskFieldName</code>) or move
+        them to a shared module so both call sites use one implementation. Scope: direct
+        <code>to_group</code> match only (no multi-hop reachability).
+      </li>
+      <li>
+        <strong>Flag plumbing — args.</strong> In <code>src/cli/args.ts</code>, add
+        <code>unapprove: new Set()</code> to the allowlist (mirrors <code>approve</code>), so
+        <code>rejectUnknownFlags</code> accepts the command and rejects stray flags.
+      </li>
+      <li>
+        <strong>Dispatch — index.</strong> In <code>src/cli/index.ts</code>, add
+        <code>case 'unapprove'</code> mirroring <code>case 'approve'</code>: parse
+        <code>[taskId, field] = rest</code>, print a usage line if either is missing (<code
+          >Usage: substrate unapprove &lt;task_id&gt; &lt;field&gt;</code
+        >), then <code>await unapproveCommand(cwd, { taskId, field })</code>. Import
+        <code>unapproveCommand</code>.
+      </li>
+      <li>
+        <strong>HELP text.</strong> Add a
+        <code>substrate unapprove &lt;task_id&gt; &lt;field&gt;</code> line to the
+        <code>HELP</code> block, right after the <code>approve</code> entry, describing it as the
+        revoke channel that clears a human-only field so the gate re-blocks.
+      </li>
+      <li>
+        <strong>Tests.</strong> New <code>src/cli/commands/unapprove.test.ts</code> (details below),
+        plus an <code>args</code> assertion that <code>unapprove</code> accepts no unknown flags.
+      </li>
+      <li>
+        <strong>Docs.</strong> No <code>docs/README.md</code> change required; optionally note the
+        command in any human-facing runbook that lists <code>approve</code> (<code
+          >RELEASING.md</code
+        >
+        / project <code>CLAUDE.md</code> mention it only conceptually). Out of scope unless trivial.
+      </li>
+      <li>
+        <strong>Local gate.</strong> Run tsc + lint + format + the full test suite locally (CI is
+        billing-blocked — validate locally) before setting <code>tests_green</code>.
+      </li>
+    </ol>
+
+    <h2>Files / touchpoints</h2>
+    <table>
+      <tr>
+        <th>Path</th>
+        <th>Change</th>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/unapprove.ts</code> <em>(new)</em></td>
+        <td>
+          The command: human-only guard, idempotent no-op, delete-from-merged-blob write, human
+          actor event, confirmation, stranded warning.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/args.ts</code></td>
+        <td>Add <code>unapprove: new Set()</code> to the flag allowlist.</td>
+      </tr>
+      <tr>
+        <td><code>src/cli/index.ts</code></td>
+        <td>
+          Import <code>unapproveCommand</code>; add <code>case 'unapprove'</code> with the
+          <code>&lt;task_id&gt; &lt;field&gt;</code> parse; add the <code>HELP</code> line.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/policy/pending-approval.ts</code></td>
+        <td>
+          Export <code>collectLeaves</code> + <code>taskFieldName</code> (or extract to a shared
+          <code>src/policy/field-refs.ts</code>) for the stranded-gate lookup — no behavior change
+          to the derivation.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/unapprove.test.ts</code> <em>(new)</em></td>
+        <td>
+          Full test matrix (below), mirroring <code>approve.test.ts</code>'s fixtures + harness.
+        </td>
+      </tr>
+    </table>
+    <p>
+      Unchanged by design: <code>src/storage/repositories/tasks.ts</code> (the merged-blob write
+      already deletes keys), <code>src/policy/operators.ts</code> /
+      <code>evaluator.ts</code> (guards re-block for free), the MCP tools, and the HTTP routes.
+    </p>
+
+    <h2>Risks &amp; mitigations</h2>
+    <ul>
+      <li>
+        <strong>Fabricating a non-existent move command.</strong> There is no
+        <code>substrate move</code> CLI. Mitigation: the stranded warning references the board (web
+        UI) / an agent's <code>update_task</code>, never a fake CLI verb. Covered by a test that
+        asserts the warning text does not contain <code>substrate move</code>.
+      </li>
+      <li>
+        <strong>Over-broad stranded detection.</strong> True "past the gate" across multiple hops
+        needs group ordering and reachability — over-engineering for v1. Mitigation: detect only the
+        <em>direct</em> case (current group === a requiring guard's <code>to_group</code>); document
+        multi-hop as a known limitation. False negatives just omit a warning; they never move or
+        block anything.
+      </li>
+      <li>
+        <strong>Idempotent no-op masking a typo.</strong> A mistyped field could look like "already
+        unset". Mitigation: the <code>human_only</code> check runs <em>first</em>, so any field that
+        is not a declared human-only gate field errors with <code>schema_violation</code>; only a
+        genuine, declared gate field that is currently unset becomes a quiet no-op.
+      </li>
+      <li>
+        <strong>Deleting a field read by more than one guard.</strong> Deletion clears exactly the
+        named field; if the same approval field gates several transitions, all of them re-block —
+        which is the intended semantics of revoking that approval. Noted, not mitigated.
+      </li>
+      <li>
+        <strong>Exporting internal policy helpers widens surface.</strong> Mitigation: prefer a
+        small shared <code>field-refs.ts</code> extraction with its own unit test, or a minimal
+        named export; the derivation keeps calling the same code so "pending" and "stranded" never
+        diverge.
+      </li>
+      <li>
+        <strong>OCC / concurrency.</strong> The delete goes through the same version-checked
+        <code>updateTask</code> as every other write, inside one <code>withTransaction</code>; a
+        concurrent writer yields <code>version_mismatch</code>, not a lost update. No new
+        concurrency surface.
+      </li>
+    </ul>
+
+    <h2>Test strategy</h2>
+    <p>
+      Mirror <code>src/cli/commands/approve.test.ts</code>: same tmp-dir + board fixture harness,
+      driving the real command against a migrated SQLite DB and asserting task state, events, and
+      <code>check_transition</code>. The board fixture already carries a <code>plan_approved</code>
+      <code>human_only</code> boolean and an <code>exists</code> gate; extend it with a second guard
+      using <code>{ op: eq, value: true }</code> and a <code>done</code>/target group for the
+      stranded case.
+    </p>
+    <ul>
+      <li>
+        <strong>Re-block, <code>exists</code> guard (required).</strong> approve → assert
+        <code>check_transition</code> allowed; unapprove → assert
+        <code>check_transition</code> blocked again; assert the field is absent from
+        <code>custom_data</code> (not <code>false</code>).
+      </li>
+      <li>
+        <strong>Re-block, <code>eq true</code> guard (required).</strong> Same round-trip against a
+        guard whose leaf is <code>{ op: eq, value: true }</code> — deletion makes
+        <code>eq true</code> evaluate false and the gate blocks.
+      </li>
+      <li>
+        <strong>Human actor + event.</strong> After unapprove, the latest <code>updated</code> event
+        has <code>actor_agent_name</code> matching <code>/^human:/</code>,
+        <code>before.custom_data</code> contains the field, <code>after.custom_data</code> does not.
+      </li>
+      <li>
+        <strong>Version bump + confirmation.</strong> Version increments by 1; captured stdout
+        contains the old value, "cleared", and the new version.
+      </li>
+      <li>
+        <strong>Non-human_only field refused.</strong>
+        <code>unapprove(..., { field: 'severity' })</code> rejects with
+        <code>code: 'schema_violation'</code> and leaves state unchanged.
+      </li>
+      <li>
+        <strong>Idempotent no-op.</strong> Calling <code>unapprove</code> on
+        <code>plan_approved</code> when it was never set exits 0, prints "Nothing to revoke", and
+        leaves version + event count unchanged (assert no new <code>updated</code> event).
+      </li>
+      <li>
+        <strong>Not-found.</strong> A missing task id rejects with a <code>SubstrateError</code>
+        (<code>not_found</code>).
+      </li>
+      <li>
+        <strong>Stranded warning, no move.</strong> Move the task to the gate's
+        <code>to_group</code> (via <code>updateTask</code> after approval), then unapprove: assert
+        stdout contains the <code>Warning:</code> line, the warning does <em>not</em> contain
+        <code>substrate move</code>, and the task's <code>group_id</code> is unchanged.
+      </li>
+      <li>
+        <strong>Full round-trip.</strong> approve → allowed → unapprove → blocked → approve →
+        allowed, proving exact symmetry.
+      </li>
+      <li>
+        <strong>Args.</strong> Extend the <code>args</code> test so <code>unapprove</code> is a
+        known command and an unknown flag on it exits non-zero.
+      </li>
+      <li>
+        <strong>Field-refs helper (if extracted).</strong> Unit-test that
+        <code>collectLeaves</code> / <code>taskFieldName</code> map a nested
+        <code>all_of</code>/<code>any_of</code> require tree to the expected field names.
+      </li>
+    </ul>
+
+    <h2>Rollout</h2>
+    <ul>
+      <li>
+        Single PR into <code>dev</code> off a feature branch (per the branching model) — additive:
+        one new command, one new dispatch case, one allowlist entry, an internal helper export. No
+        migration, no schema change, no data touched.
+      </li>
+      <li>
+        Passes <strong>Build → Review</strong> only after local tsc + lint + format + full test
+        suite are green (CI billing-blocked → validate locally).
+      </li>
+      <li>
+        Two independent adversarial reviewers (distinct lenses — e.g. "gate re-block correctness /
+        operator coverage" and "human-only guard + idempotency + no accidental move") must both
+        APPROVE before <strong>Review → Pending Review and Approval</strong>; then Diego's
+        <code>diego_approved</code> merges to <code>dev</code>.
+      </li>
+      <li>
+        Ships to users on the next <code>release</code>-board cut; the global
+        <code>substrate</code> binary is reinstalled per <code>RELEASING.md</code>, after which the
+        board can be operated with <code>unapprove</code>.
+      </li>
+    </ul>
+  </body>
+</html>
