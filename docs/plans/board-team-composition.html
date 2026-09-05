@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Data structures for per-board team composition</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      ol {
+        padding-left: 1.3rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      .warn {
+        background: #f5a62314;
+        border-left: 3px solid #f5a623;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Data structures for per-board team composition</h1>
+    <p class="meta">
+      dev board · task 9a5af742 (<code>board-team-composition</code>) ·
+      <span class="status">Draft v4 — awaiting plan_approved</span> ·
+      <a href="../specs/board-team-composition.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      Introduce a <strong>project-level member registry</strong> plus a
+      <strong>thin per-board team binding</strong>, and thread both through the places boards
+      already flow:
+      <strong
+        >types → Zod parse → loader → integrity diagnostics → read-surface resolution (MCP + HTTP +
+        UI)</strong
+      >. There is no engine work — team data is inert and <code>groups</code> is advisory (never
+      gates a write or transition). The load stays <em>successful</em>: member↔board integrity
+      problems are <strong>non-blocking warnings</strong>, not errors (Diego's v4 decision), because
+      the whole member layer is optional and a project may keep its roster in prose.
+    </p>
+    <div class="warn">
+      <strong>The load path for member data is lenient.</strong> Unlike a malformed
+      <em>board</em> file (which still fails the load via <code>corruptBoardError</code>), a
+      malformed <em>member</em> file is warned-and-skipped, and a dangling <code>member</code>/<code
+        >groups</code
+      >
+      reference or a duplicate is an advisory warning. None of these fail
+      <code>loadSubstrate</code>, <code>substrate validate</code>, or a write. They route through
+      the SAME advisory warning surface <code>substrate validate</code> already prints (<code
+        >⚠ …</code
+      >, exit 0) for policy smells — no new mechanism.
+    </div>
+    <p>
+      Beyond the core data structures, the build also (a) updates the
+      <strong>default scaffolding</strong> so new projects get a real team, and (b)
+      <strong>syncs the model docs</strong>. The migration of the two live boards and the
+      default-scaffolding update are kept as <em>separate</em> stages: they solve different problems
+      (fix the two existing boards vs. fix what NEW projects get).
+    </p>
+    <p>
+      The read surface is a single choke point: <code>getBoardSubstrateHandler</code>
+      (<code>src/mcp/tools/read/get-board-substrate.ts</code>) backs both the MCP
+      <code>get_board_substrate</code> tool and the HTTP <code>GET /api/boards/:id</code> route
+      (<code>src/http/routes/api/index.ts</code>), which is what the UI's
+      <code>getBoard()</code> fetches. It is where the registry JOIN happens — resolving
+      <code>member</code> ids into full identities so every consumer sees resolved members (an
+      unresolved member is surfaced, not dropped).
+    </p>
+
+    <h3>Target shape (on disk &amp; over the wire)</h3>
+    <pre>
+// .substrate/members/oversight.json  (registry: identity, once)
+{ "id": "oversight", "name": "Oversight",
+  "full_description": "...", "traits": [...], "concerns": [...],
+  "memory_dir": ".substrate/members/oversight/memory" }
+
+// .substrate/boards/dev.json  (binding: assignment, per board; groups is advisory)
+"team": [
+  { "member": "oversight", "groups": ["spec", "review"] },
+  { "member": "builder",   "groups": ["build"] }
+]
+
+// get_board_substrate result (resolved on read)
+"team": [
+  { "member": { "id": "oversight", "name": "Oversight", "full_description": "...",
+                "traits": [...], "concerns": [...], "memory_dir": "..." },
+    "groups": ["spec", "review"] }
+]</pre
+    >
+
+    <h2>How warnings are surfaced (grounding)</h2>
+    <p>
+      Today the load path is strict:
+      <code>loadSubstrate</code> (<code>src/substrate/loader.ts</code>) throws
+      <code>corruptBoardError</code> (<code>src/substrate/corrupt.ts</code>) on a bad board file,
+      and <code>substrate validate</code> (<code>src/cli/commands/validate.ts</code>) treats a
+      failed load as a non-zero exit. Separately, <code>validate</code> already has an
+      <strong>advisory warning channel</strong> — it prints <code>⚠ …</code> lines (e.g. a guard
+      whose <code>from_group === to_group</code>) and still exits 0. This task extends
+      <em>that</em> advisory channel to member/team integrity:
+    </p>
+    <ul>
+      <li>
+        <code>loadSubstrate</code> gains a lightweight <strong>warnings accumulator</strong> (e.g.
+        <code>Substrate.warnings: string[]</code>, or a diagnostics list returned alongside) that
+        member loading + integrity checks append to. It never throws for member issues.
+      </li>
+      <li>
+        <code>substrate validate</code> prints those warnings with the existing
+        <code>⚠</code> format and stays exit 0 (a warning is advisory; only a failed load exits
+        non-zero, and member issues no longer fail the load). <code>substrate diagnose</code> can
+        likewise surface a count.
+      </li>
+      <li>
+        Member issues do <strong>not</strong> use <code>corruptBoardError</code> (that is the
+        strict, load-failing path reserved for board files).
+      </li>
+    </ul>
+
+    <h2>Step-by-step work</h2>
+    <ol>
+      <li>
+        <strong>Stage 1 — Types.</strong> In <code>src/core/types.ts</code>: add
+        <code>Member</code> (<code
+          >id: string; name: string; full_description?: string; traits?: string[]; concerns?:
+          string[]; memory_dir?: string</code
+        >) and <code>TeamBinding</code> (<code>member: string; groups?: string[]</code>); add
+        optional <code>team?: TeamBinding[]</code> to <code>Board</code> and
+        <code>members: Member[]</code> to <code>Substrate</code> (plus the warnings accumulator
+        field if placed here). Doc-comment: descriptive + advisory (never gates); integrity issues
+        are warnings; member = persona (distinct from the <code>created_by_agent</code> actor);
+        <code>memory_dir</code> is a pointer only.
+      </li>
+      <li>
+        <strong>Stage 2 — Zod schemas.</strong> In <code>src/substrate/schemas.ts</code> add
+        <code>MemberSchema</code> (<code>id</code>/<code>name</code> required min(1); the rest
+        optional) and <code>TeamBindingSchema</code> (<code>member</code> min(1);
+        <code>groups</code> optional array). Add
+        <code>team: z.array(TeamBindingSchema).optional()</code> to <code>BoardSchema</code>.
+        Optional ⇒ a board with no <code>team</code> still parses. (These schemas are reused
+        strictly by the template gate — Stage 8.)
+      </li>
+      <li>
+        <strong>Stage 3 — Loader (registry, lenient).</strong> In
+        <code>src/substrate/loader.ts</code>, read <code>.substrate/members/*.json</code> and
+        populate <code>Substrate.members</code>. Add a <code>membersDir</code> helper to
+        <code>src/shared/paths.ts</code>. Rules:
+        <ul>
+          <li>
+            A <em>missing</em> <code>members/</code> directory ⇒ <code>members: []</code> (no
+            error).
+          </li>
+          <li>
+            A member file that fails <code>JSON.parse</code> or <code>MemberSchema.safeParse</code>,
+            or whose filename ≠ <code>id</code>, is <strong>skipped with a warning</strong> appended
+            to the accumulator — it does NOT throw <code>corruptBoardError</code> and does NOT abort
+            the load.
+          </li>
+          <li>
+            Members loaded before boards are validated, so the integrity pass (Stage 4) can resolve
+            refs.
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>Stage 4 — Integrity diagnostics (warnings, both paths).</strong> In
+        <code>src/substrate/validator.ts</code>, add a member/team integrity pass that
+        <strong>appends warnings instead of throwing</strong>:
+        <ul>
+          <li>Duplicate member <code>id</code> across the registry ⇒ warning.</li>
+          <li>
+            Per board: a <code>team[].member</code> not present in the registry ⇒ warning; a
+            <code>groups</code> id not a group on the board (archived OK) ⇒ warning; a duplicate
+            <code>member</code> within one board's team ⇒ warning.
+          </li>
+          <li>
+            These run on <strong>both the load path and the write path</strong> (so
+            <code>update_board</code> surfaces the same advisory), but as warnings — the earlier
+            v2/v3 "dangling ref = error on both paths" framing is downgraded: it never fails
+            <code>validateBoardStructure</code> or a write.
+          </li>
+          <li>
+            <strong>Wrinkle (carried from v1):</strong> the member-resolution check needs the set of
+            registry member ids. Thread that set (and the warnings sink) into the shared board check
+            so the write path produces the same warnings the load path does. A test asserts a
+            dangling <code>member</code> yields a warning (not an error) on both paths.
+          </li>
+          <li>
+            <strong>Referential only, never enforcement.</strong> This pass must not make
+            <code>groups</code> gate any write or move.
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>Stage 5 — Read-surface resolution.</strong> In
+        <code>src/mcp/tools/read/get-board-substrate.ts</code>: change
+        <code>BoardSubstrateResult.team</code> to the <em>resolved</em> shape and map each binding,
+        looking the member up in <code>substrate.members</code>. An unresolved member is surfaced
+        (bare id + an <code>unresolved</code> marker), not dropped; empty/absent team ⇒
+        <code>team: []</code>. Add a tool-description line documenting the resolved team + the
+        advisory <code>groups</code> join. No change in
+        <code>src/http/routes/api/index.ts</code> (returns the handler verbatim).
+      </li>
+      <li>
+        <strong>Stage 6 — UI type + render.</strong> In <code>ui/src/lib/api.ts</code> add the
+        resolved <code>team</code> type to <code>BoardSubstrate</code> (import
+        <code>Member</code> from <code>@core/types</code>). In
+        <code>ui/src/routes/BoardDetail.tsx</code> add a "Team" <code>Card</code> to
+        <code>BoardDetailsDisclosure</code>: iterate <code>data.team</code>, render
+        <code>member.name</code>, its <code>groups</code> as <strong>assignment</strong>
+        <code>Badge</code>s resolved id→name, traits + concerns lines,
+        <code>full_description</code> as a secondary/tooltip line; an unresolved member shows its id
+        + muted "unresolved"; muted "No team declared" when empty. Reuse existing Card/Badge
+        components.
+      </li>
+      <li>
+        <strong>Stage 7 — Migrate the two live boards.</strong> Create one registry file per role
+        under <code>.substrate/members/</code> from the current <code>## Team</code> prose (mapping
+        below), add <code>team</code> bindings to <code>dev.json</code> and
+        <code>release.json</code>, delete the <code>## Team</code> section from each
+        <code>description</code> (keep the process narrative), and bump each board's
+        <code>version</code>. <strong>Reviewers ×2</strong> is a single
+        <code>.substrate/members/reviewers.json</code> referenced by both boards. Optionally create
+        the empty <code>memory_dir</code> folders (with a <code>.gitkeep</code> / stub
+        <code>NOTES.md</code>). Verify both boards load via <code>get_board_substrate</code> with
+        <strong>zero integrity warnings</strong> after editing (drive from the main checkout only).
+      </li>
+      <li>
+        <strong>Stage 8 — Default scaffolding (new projects; template gate STRICT).</strong>
+        Distinct from Stage 7:
+        <ul>
+          <li>
+            Add a <code>team</code> binding to the bundled <code>web-delivery</code> template
+            (<code>src/cli/templates/web-delivery.board.ts</code>), members targeting its groups
+            (Backlog / Spec / Plan / In&nbsp;Progress / Review / QA / Done), and author the matching
+            default member registry files the template ships.
+          </li>
+          <li>
+            Extend <code>substrate init</code> (<code>src/cli/commands/init.ts</code>) to also write
+            <code>.substrate/members/*.json</code> alongside the board file, inside the existing
+            create/rollback <code>try</code> window (a partial init still rolls back cleanly). Add a
+            <code>membersDir</code> mkdir.
+          </li>
+          <li>
+            <strong>The template validation stays strict.</strong> <code>loadTemplateBoard</code> /
+            <code>BoardSchema.parse</code> (<code>src/cli/templates/index.ts</code>) fails loudly on
+            a corrupt shipped board; validate the default member files through
+            <code>MemberSchema</code> the same strict way at load/init time. This is a build-time
+            invariant on Substrate's OWN artifacts — <em>not</em> the lenient runtime path for
+            user-project member files. Keep the two clearly separate in code + comments.
+          </li>
+          <li>
+            Update the <code>examples/web-delivery/.substrate/</code> source-of-truth copy (boards +
+            new <code>members/</code>) so it stays parse-equal to the bundled template
+            (<code>tests/integration/example-substrate.test.ts</code>).
+          </li>
+          <li>
+            Extend <code>init.test.ts</code> to assert the member files are written and the
+            resulting substrate loads + validates with zero warnings.
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>Stage 9 — Doc sync.</strong> Update the model docs to describe the structured member
+        registry + advisory <code>team</code> binding (and the warning-not-error integrity contract)
+        instead of free prose: <code>skills/substrate/AUTHORING.md</code> (board/policy model + a
+        new members section), <code>skills/substrate/SKILL.md</code>, <code>prd.md</code>,
+        <code>README.md</code>, <code>docs/README.md</code>. Note in the PR that
+        <code>CLAUDE.md</code>
+        still describes the team as prose in the board description and needs a follow-up touch —
+        call it out rather than silently editing the operating instructions mid-task. Mirrors the
+        release board's doc-verification discipline.
+      </li>
+      <li>
+        <strong>Stage 10 — Local gate.</strong> tsc + lint + format + full test suite locally (CI is
+        billing-blocked — local is the gate) before setting <code>tests_green</code>.
+      </li>
+    </ol>
+
+    <h2>Migration mapping (prose → registry member + board binding)</h2>
+    <p>Transcription only — every role, trait, and concern preserved; nothing invented.</p>
+    <table>
+      <tr>
+        <th>Registry member (<code>.substrate/members/&lt;id&gt;.json</code>)</th>
+        <th>Bound by board</th>
+        <th>binding <code>groups</code></th>
+        <th>Source prose</th>
+      </tr>
+      <tr>
+        <td><code>planner</code> — "Planner"</td>
+        <td>dev</td>
+        <td><code>["spec"]</code></td>
+        <td>"Planner (Spec &amp; Plan) — … Concerns: …"</td>
+      </tr>
+      <tr>
+        <td><code>builder</code> — "Builder"</td>
+        <td>dev</td>
+        <td><code>["build"]</code></td>
+        <td>"Builder (Build &amp; Test) — …"</td>
+      </tr>
+      <tr>
+        <td><code>reviewers</code> — "Reviewers ×2" <em>(shared)</em></td>
+        <td>dev</td>
+        <td><code>["review"]</code></td>
+        <td>"Reviewers ×2, distinct adversarial lenses (Review) — …"</td>
+      </tr>
+      <tr>
+        <td><code>integrator</code> — "Integrator"</td>
+        <td>dev</td>
+        <td><code>["approval", "merged"]</code></td>
+        <td>"Integrator (Pending Review and Approval → Merged) — …"</td>
+      </tr>
+      <tr>
+        <td><code>doc-auditor</code> — "Doc Auditor"</td>
+        <td>release</td>
+        <td><code>["docs"]</code></td>
+        <td>"Doc Auditor (Docs Verified) — …"</td>
+      </tr>
+      <tr>
+        <td><code>release-engineer</code> — "Release Engineer"</td>
+        <td>release</td>
+        <td><code>["versioned", "released"]</code></td>
+        <td>"Release Engineer (Versioned / Released) — …"</td>
+      </tr>
+      <tr>
+        <td><code>validator</code> — "Validator"</td>
+        <td>release</td>
+        <td><code>["validated"]</code></td>
+        <td>"Validator (Validated) — …"</td>
+      </tr>
+      <tr>
+        <td><code>reviewers</code> — "Reviewers ×2" <em>(same shared file)</em></td>
+        <td>release</td>
+        <td><code>[]</code></td>
+        <td>"Reviewers ×2 — same adversarial protocol …" (no dedicated group ⇒ empty)</td>
+      </tr>
+    </table>
+    <p>
+      The release-board Reviewers binding carries a lens nuance in the prose ("docs-vs-code and
+      release mechanics"). Since the member identity is shared, board-specific lens nuance rides in
+      the prose today; if it must be structured per-board later, that's a future field on the
+      binding — out of scope here (noted so it isn't silently lost).
+    </p>
+
+    <h2>Files / touchpoints</h2>
+    <table>
+      <tr>
+        <th>Path</th>
+        <th>Change</th>
+      </tr>
+      <tr>
+        <td><code>src/core/types.ts</code></td>
+        <td>
+          <code>Member</code> + <code>TeamBinding</code>; <code>team?</code> on <code>Board</code>;
+          <code>members</code> (+ warnings accumulator) on <code>Substrate</code>.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/substrate/schemas.ts</code></td>
+        <td>
+          <code>MemberSchema</code>, <code>TeamBindingSchema</code>; <code>team</code> (optional) on
+          <code>BoardSchema</code>.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/shared/paths.ts</code></td>
+        <td>Add <code>membersDir</code> helper.</td>
+      </tr>
+      <tr>
+        <td><code>src/substrate/loader.ts</code></td>
+        <td>
+          Load <code>.substrate/members/*.json</code> leniently → warn+skip malformed; missing dir ⇒
+          <code>[]</code>; collect warnings.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/substrate/validator.ts</code></td>
+        <td>
+          Member/team integrity as WARNINGS (dangling <code>member</code>, dangling
+          <code>groups</code>, dup id/member) on both paths; referential only, no enforcement.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/validate.ts</code> (+ <code>diagnose.ts</code>)</td>
+        <td>
+          Print member/team warnings via the existing <code>⚠</code> advisory channel; stay exit 0.
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/mcp/tools/read/get-board-substrate.ts</code></td>
+        <td>
+          Resolved <code>team</code> on <code>BoardSubstrateResult</code>; JOIN registry; surface
+          unresolved member; tool-description line.
+        </td>
+      </tr>
+      <tr>
+        <td><code>ui/src/lib/api.ts</code>, <code>ui/src/routes/BoardDetail.tsx</code></td>
+        <td>
+          Resolved <code>team</code> type + Team card (assignment badges, traits, concerns,
+          full_description, unresolved + empty states).
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>.substrate/members/*.json</code> <em>(new)</em>,
+          <code>.substrate/boards/dev.json</code>, <code>release.json</code>
+        </td>
+        <td>
+          Migration: per-role files (<code>reviewers.json</code> shared); add bindings; strip
+          <code>## Team</code>; bump <code>version</code>.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>src/cli/templates/web-delivery.board.ts</code>, <code>index.ts</code>,
+          <code>src/cli/commands/init.ts</code>, <code>examples/web-delivery/.substrate/</code>
+        </td>
+        <td>
+          Default scaffolding: template team + default member files (STRICT gate);
+          <code>init</code> writes members; example parity.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>skills/substrate/AUTHORING.md</code>, <code>SKILL.md</code>, <code>prd.md</code>,
+          <code>README.md</code>, <code>docs/README.md</code>
+        </td>
+        <td>
+          Doc sync to the structured member model + warning semantics.
+          <code>CLAUDE.md</code> flagged for follow-up.
+        </td>
+      </tr>
+      <tr>
+        <td>Tests <em>(new/updated)</em></td>
+        <td>
+          Schema, loader (warn/skip), validator warnings (both paths), read-join, HTTP, UI, init,
+          migration, strict-template — see below.
+        </td>
+      </tr>
+    </table>
+    <p>
+      Unchanged by design: the policy engine (<code>src/policy/*</code>), transition guards,
+      <code>whoami</code> (payload shape), and <code>update_board</code> (no team write path in v1,
+      though it runs the new warning pass).
+    </p>
+
+    <h2>Risks &amp; mitigations</h2>
+    <ul>
+      <li>
+        <strong>An integrity warning accidentally made fatal.</strong> The whole point of v4 is that
+        member issues never fail load/validate/writes. <em>Mitigation:</em> member loading +
+        integrity never call <code>corruptBoardError</code> / throw; tests assert a dangling ref and
+        a malformed member file both leave the load successful and <code>validate</code> at exit 0.
+      </li>
+      <li>
+        <strong>Lenient runtime vs. strict shipped defaults confusion.</strong> A reader might think
+        the template gate was loosened. <em>Mitigation:</em> keep the strict
+        <code>loadTemplateBoard</code> / <code>MemberSchema</code> gate for shipped defaults
+        distinct in code + comments; a test proves a corrupt shipped default still fails, while a
+        corrupt user-project member file only warns.
+      </li>
+      <li>
+        <strong>Advisory misread as a permission.</strong> Someone could later wire
+        <code>groups</code> into a guard. <em>Mitigation:</em> neutral field name + documented
+        semantics + a test that a write to any group succeeds regardless of team data; the integrity
+        pass is referential only.
+      </li>
+      <li>
+        <strong>Warnings plumbing.</strong> <code>loadSubstrate</code> returns only
+        <code>Substrate</code> today. <em>Mitigation:</em> add a small warnings accumulator to the
+        load result and surface it through the existing <code>validate</code>/<code>diagnose</code>
+        advisory output; do not overbuild a diagnostics framework.
+      </li>
+      <li>
+        <strong>Backward-compat regressions.</strong> <em>Mitigation:</em> <code>team</code> +
+        registry optional; missing dir ⇒ <code>[]</code>; tests parse a board with no
+        <code>team</code> and a project with no registry.
+      </li>
+      <li>
+        <strong>Init scaffolding + rollback.</strong> Writing member files must not break the
+        create/rollback window. <em>Mitigation:</em> write inside the existing
+        <code>try</code> before the gitignore step; the <code>rm(root)</code> rollback removes the
+        whole partial dir; an init test covers success + member presence.
+      </li>
+      <li>
+        <strong>Template ↔ example drift.</strong> <em>Mitigation:</em> update both; the parse-equal
+        integration test guards it (extend to cover members).
+      </li>
+      <li>
+        <strong>Prose ↔ data drift.</strong> <em>Mitigation:</em> Stage 7 removes the
+        <code>## Team</code> prose; a test asserts neither migrated description contains a
+        <code>## Team</code> heading.
+      </li>
+      <li>
+        <strong>Memory pointer with no folder.</strong> <em>Mitigation:</em> inert string; Substrate
+        never reads it, so a missing folder is not even a warning this task raises.
+      </li>
+      <li>
+        <strong>Scope creep (memory runtime / write tools).</strong> <em>Mitigation:</em> both
+        explicit non-goals.
+      </li>
+      <li>
+        <strong>Unicode member names.</strong> "Reviewers ×2" has a non-ASCII <code>×</code>.
+        <em>Mitigation:</em> plain string end-to-end; a test round-trips it.
+      </li>
+    </ul>
+
+    <h2>Test strategy</h2>
+    <ul>
+      <li>
+        <strong>Registry parse.</strong> <code>MemberSchema</code>: a valid member parses; missing
+        <code>id</code>/<code>name</code> fails the schema (used strictly by the template gate);
+        optional fields absent OK.
+      </li>
+      <li>
+        <strong>Board-binding parse.</strong>
+        <code>TeamBindingSchema</code>/<code>BoardSchema</code>: a valid <code>team</code> parses; a
+        board with no <code>team</code> parses (optional); note the board schema itself still parses
+        even if a binding will later warn.
+      </li>
+      <li>
+        <strong>Loader — lenient.</strong> A fixture with valid
+        <code>members/*.json</code> populates <code>Substrate.members</code>; a project with
+        <em>no</em> <code>members/</code> loads with <code>members: []</code>; a
+        <strong
+          >malformed member file (bad JSON / missing fields / wrong types) is warned + skipped and
+          the load still succeeds</strong
+        >; filename≠<code>id</code>
+        warns + skips.
+      </li>
+      <li>
+        <strong>Integrity — warnings, both paths, never fatal.</strong> A board whose
+        <code>team[].member</code> is absent from the registry produces a WARNING and the board
+        still loads; <code>substrate validate</code> prints the warning and exits 0. Same for an
+        unknown <code>groups</code> id (archived group accepted, no warning) and for duplicate
+        <code>id</code>/<code>member</code>. The write path (<code>validateBoardStructure</code> /
+        <code>update_board</code>) produces the same warning and the write still succeeds.
+      </li>
+      <li>
+        <strong>Advisory / no enforcement.</strong> A task write / group move by any actor succeeds
+        even when the actor is not a member targeting that group — team data never gates.
+      </li>
+      <li>
+        <strong>Strict shipped defaults.</strong> A deliberately corrupted
+        <code>web-delivery</code> template board OR default member file makes
+        <code>loadTemplateBoard</code> / <code>MemberSchema.parse</code> throw at build/test time —
+        proving the template gate is <em>not</em> loosened even though user-project member files are
+        lenient.
+      </li>
+      <li>
+        <strong>Read-join resolution.</strong> <code>getBoardSubstrateHandler</code> returns
+        <code>team</code> with member identity JOINed in and the binding's <code>groups</code>; an
+        unresolved member is surfaced (bare id + marker), not dropped; a board with no team ⇒
+        <code>team: []</code>. Assert the shared <code>reviewers</code> member resolves identically
+        from both boards. Extend <code>get-board-substrate.test.ts</code>.
+      </li>
+      <li>
+        <strong>HTTP route.</strong> <code>GET /api/boards/:id</code> includes the resolved
+        <code>team</code> (extend <code>src/http/routes/api/api.test.ts</code>).
+      </li>
+      <li>
+        <strong>UI render.</strong> <code>BoardDetail.test.tsx</code>: a team shows the Team card
+        with member names, assignment (group-name) badges, traits, concerns; an unresolved member
+        shows id + marker; an empty team shows the empty state without throwing.
+      </li>
+      <li>
+        <strong>Init scaffolding.</strong> <code>init.test.ts</code>:
+        <code>substrate init --template web-delivery</code> writes the board <em>and</em>
+        <code>.substrate/members/*.json</code>, and the result loads + validates with zero warnings.
+        Parse-equal test covers template ↔ <code>examples/web-delivery</code> (members included).
+      </li>
+      <li>
+        <strong>Migration fidelity + prose removal.</strong> Load the real
+        <code>dev.json</code>/<code>release.json</code> (or fixtures) and assert: each expected
+        member resolves with the expected <code>groups</code>; <code>reviewers</code> is one shared
+        file bound by both boards; descriptions contain no <code>## Team</code> heading; both boards
+        load with zero integrity warnings.
+      </li>
+      <li>
+        <strong>Inertness / no regression.</strong> Existing policy, guard, and <code>whoami</code>
+        suites pass unchanged.
+      </li>
+    </ul>
+
+    <h2>Rollout</h2>
+    <ul>
+      <li>
+        Single feature branch off <code>dev</code>, one PR into <code>dev</code> (per the branching
+        model). Additive types/schema/loader/validator/read/UI + a data migration of two boards +
+        new registry files + default-template scaffolding + doc sync; no engine change, no task-data
+        touched, no <code>main</code>.
+      </li>
+      <li>
+        <strong>Build → Review</strong> only after local tsc + lint + format + full test suite are
+        green (CI billing-blocked → local is the gate); then set <code>tests_green</code>.
+      </li>
+      <li>
+        Two independent adversarial reviewers with distinct lenses — suggested: (a) schema /
+        integrity &amp; backward-compat (warnings never fatal, malformed member warn+skip, both
+        paths, advisory-not-gated, strict shipped-defaults distinction), (b) migration + scaffolding
+        + docs fidelity (no roster content lost, shared Reviewers member resolves from both boards,
+        prose removed, <code>init</code> writes members, template↔example parity, docs match) — both
+        must APPROVE before <strong>Review → Pending Review and Approval</strong>; then Diego's
+        <code>diego_approved</code> merges to <code>dev</code>.
+      </li>
+      <li>
+        Ships to users on the next <code>release</code>-board cut. Follow-ups left explicitly
+        unbuilt: member <em>write</em> tools, memory read-on-spawn / write-on-exit behavior,
+        per-board lens overrides on the binding, per-column assignment badges on the Kanban, a
+        persona↔actor unification, the <code>CLAUDE.md</code> team-prose touch, and (if Diego
+        overrides) making a malformed member file a hard error — each revisited only on real demand.
+      </li>
+    </ul>
+  </body>
+</html>
