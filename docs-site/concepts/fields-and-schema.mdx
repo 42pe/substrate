@@ -1,0 +1,101 @@
+---
+title: "Fields and field_schema"
+description: "Define the metadata your work items carry — and the one field class an agent cannot set."
+---
+
+Every board declares its own custom fields in `field_schema`, split into `task` and
+`comments`. A task's values live in `custom_data`.
+
+## Defining a field
+
+```json
+"field_schema": {
+  "task": {
+    "tests_passing": { "type": "boolean" },
+    "priority": { "type": "enum", "values": ["low", "med", "high"] },
+    "spec_doc": { "type": "string" },
+    "acceptance": { "type": "markdown" },
+    "labels": { "type": "string_list" },
+    "diego_approved": { "type": "boolean", "human_only": true }
+  },
+  "comments": {}
+}
+```
+
+<ParamField path="type" type="string" required>
+  One of `string`, `number`, `boolean`, `enum`, `markdown`, `string_list`.
+</ParamField>
+
+<ParamField path="values" type="string[]">
+  The allowed values. **Required when `type` is `enum`**; a board declaring an enum
+  without values fails validation.
+</ParamField>
+
+<ParamField path="required" type="boolean">
+  Marks the field as required. Enforcement is lazy — see below.
+</ParamField>
+
+<ParamField path="format" type="string">
+  A free-form format hint carried alongside the field.
+</ParamField>
+
+<ParamField path="human_only" type="boolean">
+  The field an agent's MCP write tools refuse to set. See [below](#human-only-fields).
+</ParamField>
+
+## Validation is lazy
+
+`custom_data` is validated against the schema **at write time**, not retroactively.
+Changing a board's schema never rejects data that is already stored, so you can add,
+tighten or remove a field without a migration.
+
+`list_tasks` has a `missing_required_fields` filter to find the tasks a tightened schema
+left incomplete.
+
+## Changing one field
+
+`update_board` with a full `field_schema` replaces the whole thing. To change a single
+field without resending everything, use **`field_schema_patch`**: it merges the given
+fields, and a `null` value deletes one.
+
+```json
+{ "field_schema_patch": { "task": { "old_field": null, "new_field": { "type": "boolean" } } } }
+```
+
+## Gate fields
+
+A **gate field** is just a boolean you agree to treat as an exit criterion —
+`spec_approved`, `tests_passing`, `review_cleared`. The agent flips it via `update_task`
+as each criterion is met, and a [`transition_guard`](/concepts/policies-and-gates)
+requires it before a move.
+
+Reference it from a policy as `task.<name>`; field references resolve literal-first,
+then `custom_data`.
+
+## Human-only fields
+
+<Warning>
+  **A gate an autonomous agent can set is a gate it can self-clear.**
+</Warning>
+
+Mark a field `"human_only": true` and the asymmetry becomes structural:
+
+- `create_task` and `update_task` **refuse** to set it — the agent has no MCP path to
+  the value.
+- `update_board` refuses to **downgrade** it: an agent cannot clear the flag or delete
+  the field to un-protect it.
+- The write channel is the CLI, run by a person:
+  [`substrate approve <task_id> <field>`](/cli/approve). The change is stamped
+  `human:<os-user>` in the event log.
+- [`substrate unapprove`](/cli/unapprove) revokes it, deleting the key so an `exists`
+  guard re-blocks.
+
+Pair it with a guard that requires the field, and the move genuinely waits on a person.
+
+Two honest limits:
+
+- `human_only` applies to **task** fields. On a `comments` field it is currently inert,
+  because no gate reads comment metadata.
+- The guard *policy* is still substrate-as-code. An agent could rewrite or
+  `archive_policy` the guard to escape it — that is a git-visible, event-logged act
+  rather than a silent bypass, but it is not impossible.

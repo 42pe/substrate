@@ -1,0 +1,101 @@
+---
+title: "Envelopes and errors"
+description: "What comes back from a write, and how to react to it."
+---
+
+**Write tools return an envelope. Read tools return raw data.**
+
+## Success
+
+```json
+{
+  "ok": true,
+  "applied": {
+    "entity": "task",
+    "id": "9a5af742-86c0-4ae0-ae69-3c732330702c",
+    "version": 4,
+    "state": { "…": "the entity as written" }
+  },
+  "policies_fired": [
+    {
+      "policy_id": "resp-tests",
+      "policy_name": "Tests during development",
+      "policy_type": "agent_responsibility",
+      "description": "…",
+      "message": "Write tests during development, not after."
+    }
+  ]
+}
+```
+
+<ResponseField name="applied.entity" type="string">
+  One of `task`, `comment`, `board`, `group`, `policy`, `project`.
+</ResponseField>
+<ResponseField name="applied.version" type="number | null">
+  The post-write version — **keep it for your next update**. `null` for entities without
+  optimistic concurrency, which in practice means comments.
+</ResponseField>
+<ResponseField name="policies_fired" type="array">
+  Every policy that engaged on this write. An `agent_responsibility` entry carries a
+  `message`.
+</ResponseField>
+
+Two things to do with every envelope: keep the `version`, and **read `policies_fired`**.
+A message there was written by whoever authored the board, aimed at exactly this moment.
+
+## Errors
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "transition_blocked",
+    "message": "Cannot move to 'review': tests_passing is not set.",
+    "details": { "…": "structured context" }
+  }
+}
+```
+
+| Code | HTTP | Means | Do |
+| --- | --- | --- | --- |
+| `transition_blocked` | 422 | A `transition_guard` rejected the move. | Read the message, satisfy the requirement, retry. If the field is `human_only`, stop and report it. |
+| `version_mismatch` | 409 | Your `version` is stale. | Re-read, reconcile, retry. Never blindly overwrite. |
+| `schema_violation` | 400 | Input does not match the schema — a bad field type, a malformed policy definition, an unknown key. | The message names the path. Fix and retry. |
+| `not_found` | 404 | No such id, or no `.substrate/` here. | Re-resolve ids from a read; check the working directory. |
+| `conflict` | 409 | The write contradicts current state — e.g. archiving a group that active tasks reference. | Clear the conflict first. |
+| `forbidden` | 403 | The write is refused by design — notably an agent attempting a `human_only` field. | Do not retry. Report it to the human. |
+| `substrate_corrupt` | 500 | An on-disk board file is malformed or structurally invalid. | User-fixable config, not a bug. The message names the file. Run [`substrate validate`](/cli/validate). |
+| `internal_error` | 500 | A Substrate bug. | [`substrate diagnose`](/cli/diagnose) + [`substrate logs --errors`](/cli/logs), then file it. |
+
+## `version_mismatch` in practice
+
+Optimistic concurrency exists because several agents may work one board at once. The
+current version is handed back to you:
+
+```json
+{ "ok": false, "error": { "code": "version_mismatch",
+  "message": "…", "details": { "current_version": 7 } } }
+```
+
+Re-read the entity, reconcile your intended change against what actually changed, and
+retry with the fresh version. Do not simply resend with `current_version` — that
+overwrites whatever the other writer did.
+
+<Note>
+  In v0.7.0 a `version_mismatch` tells you the version moved, not **what** changed or who
+  changed it. `get_task_history` is the way to find out.
+</Note>
+
+## `transition_blocked` in practice
+
+The error names the gate. The right response depends on who can clear it:
+
+- **An agent-settable field** — do the work, set the field, retry the move.
+- **A `human_only` field** — you have no path to it. Call `list_pending_approvals` and
+  report the exact command:
+  ```sh
+  substrate approve <task_id> <field>
+  ```
+
+Each block is also recorded as a `move_blocked` event on the task, so the history shows
+what a task was not allowed to do, not just what it did.

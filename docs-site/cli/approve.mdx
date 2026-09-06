@@ -1,0 +1,51 @@
+---
+title: "substrate approve"
+description: "Set a human_only field on a task — the write channel agents cannot use."
+---
+
+```sh
+substrate approve <task_id> <field> [value]
+```
+
+Sets a [`human_only`](/concepts/fields-and-schema#human-only-fields) field. This is the
+whole point of that field class: an agent's MCP write tools **refuse** these fields, so
+this CLI — run by a person at a terminal — is the only way the value gets set.
+
+That asymmetry is what turns a `transition_guard` requiring the field into a real human
+approval rather than a checkbox the agent ticks on its way past.
+
+## Arguments
+
+<ParamField path="<task_id>" type="string" required>
+  The task id. The short 8-character form printed by
+  [`substrate pending-approval`](/cli/pending-approval) is accepted.
+</ParamField>
+
+<ParamField path="<field>" type="string" required>
+  The field name. It must be declared `human_only` on the board's `field_schema`.
+</ParamField>
+
+<ParamField path="value" type="string" default="true">
+  Parsed as JSON when possible — `true`, `false`, `42`, `"note"` — otherwise taken as a
+  string. Defaults to `true`, the approval case.
+</ParamField>
+
+## What it does
+
+Resolves the task's board, checks the field really is `human_only`, merges the value into
+`custom_data`, writes it under optimistic concurrency, and stamps the event with a
+**`human:<os-user>`** actor — so the history distinguishes your sign-off from an agent's
+write.
+
+It sets the field. It does **not** move the task: the agent retries the move once the
+gate passes.
+
+<Warning>
+  The web UI is read-only. There is no click-to-approve, deliberately — an approval should
+  be something you typed.
+</Warning>
+
+## See also
+
+- [`substrate unapprove`](/cli/unapprove) — revoke a mistake.
+- [`substrate pending-approval`](/cli/pending-approval) — find what is waiting.

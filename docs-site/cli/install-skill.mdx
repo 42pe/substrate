@@ -1,0 +1,31 @@
+---
+title: "substrate install-skill"
+description: "Refresh the packaged agent skill so it cannot drift from the binary."
+---
+
+```sh
+substrate install-skill
+substrate install-skill --check
+```
+
+Copies the agent skill packaged **inside this binary** into
+`~/.claude/skills/substrate`, stamped with the binary's version.
+
+The stamp is the point: an installed skill that describes tools or conventions the binary
+no longer has is worse than no skill, because the agent follows instructions that quietly
+fail.
+
+## Options
+
+<ParamField path="--check" type="flag">
+  Report drift and **exit non-zero without writing anything**. Exit 0 only when the
+  installed stamp matches this binary's version *and* the content matches. Non-zero when
+  the skill is missing, or stamped or authored differently.
+
+  This is the CI form, and it is what [`substrate diagnose`](/cli/diagnose) reports on.
+</ParamField>
+
+## Idempotent
+
+Re-running against a current install is a no-op that reports "already current". Run it
+after every binary upgrade — see [upgrading](/operations/upgrading).

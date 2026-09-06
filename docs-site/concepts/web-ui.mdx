@@ -1,0 +1,52 @@
+---
+title: "The web UI"
+description: "A localhost-only, read-only inspector over the same data your agent writes."
+---
+
+```sh
+substrate serve
+```
+
+Binds to `127.0.0.1` on port **7475**. If that port is taken — another project's
+inspector is already up — `serve` scans upward through **7475–7499** for the first free
+port and prints the URL it bound. The port it actually took is recorded in
+`.substrate/serve.json`, so [`substrate diagnose`](/cli/diagnose) can tell you where a
+project is serving without `lsof`.
+
+Running bare `substrate` with no subcommand is an alias for `serve`.
+
+## What you see
+
+**Overview** — every board as a wall you can scan at once.
+
+**Board** — a live kanban: columns by workflow group, with a List view a click away.
+
+**Task** — the full description, custom fields, comments and history. A task blocked on
+a human gate carries a **pending approval** pill.
+
+Author-supplied markdown — descriptions, comment bodies — is rendered through a single
+sanitized path.
+
+## Auto-refresh
+
+The board polls, so when an agent moves a task between groups the UI reflects it within
+seconds. You can leave it open beside your editor and watch the work land.
+
+## Read-only by design
+
+<Note>
+  The UI **observes**. It never writes: no drag-and-drop, no inline editing, no buttons
+  that change state.
+</Note>
+
+Two reasons this is deliberate. The agent is the writer, and a second write path would
+make the event log lie about who did what. And the one human write channel that does
+exist — [`substrate approve`](/cli/approve) — is a CLI command precisely so it cannot be
+clicked by accident.
+
+## One owner per directory
+
+`serve` takes a single-owner lock via `.substrate/substrate.pid`. A second `serve` in
+the same project refuses while the first is alive; a stale PID file from a crashed
+process is reclaimed. Different projects can serve simultaneously — that is what the
+port range is for.

@@ -1,0 +1,112 @@
+---
+title: "Map a process to a board"
+description: "Stages become groups; per-item metadata becomes fields."
+---
+
+## 1. Stages become groups
+
+Each workflow stage is one `group`. Order them with `position` (0, 1, 2, …) — that is
+the left-to-right flow on the board.
+
+```json
+{
+  "id": "spec",
+  "name": "Spec",
+  "description": "The problem, goals, and acceptance criteria.",
+  "position": 0,
+  "color": null,
+  "version": 1,
+  "archived_at": null
+}
+```
+
+Ids are referenced by policies and by every task, so pick short, stable, human-readable
+ones and do not churn them.
+
+## 2. Metadata becomes field_schema.task
+
+Every distinct thing a work item tracks becomes a field:
+
+```json
+"field_schema": {
+  "task": {
+    "priority":      { "type": "enum", "values": ["low", "med", "high"] },
+    "spec_doc":      { "type": "string" },
+    "acceptance":    { "type": "markdown" },
+    "spec_approved": { "type": "boolean" },
+    "tests_passing": { "type": "boolean" }
+  },
+  "comments": {}
+}
+```
+
+Add a **boolean gate field for each exit criterion you will enforce**. The agent flips
+it via `update_task`'s `custom_data` as each criterion is met, and the guard requires it.
+
+If a criterion must be signed off by a *person*, mark that field
+[`"human_only": true`](/concepts/fields-and-schema#human-only-fields).
+
+To change one field on an existing board without resending the whole schema, use
+`update_board`'s `field_schema_patch`.
+
+## 3. The mapping recipe
+
+Extract these five things from the process docs — or ask the human — then author the
+board.
+
+| In the process | Becomes |
+| --- | --- |
+| Workflow stages (idea → spec → build → review → done) | **groups**, ordered by `position` |
+| What each item tracks (type, priority, owner, links, acceptance criteria) | **`field_schema.task`** entries |
+| Stage exit criteria and hard gates ("no build without an approved plan") | **`transition_guard`** with `require` on the gate field |
+| Definition of done | a `"*" → done` **`transition_guard`** requiring the key flags |
+| Conventions and reminders ("write tests during dev", "update docs for user-facing work") | **`agent_responsibility`** with `when` matching the stage and the convention as `message` |
+
+## 4. A worked shape
+
+A three-stage board with one real gate:
+
+```json
+{
+  "id": "delivery",
+  "name": "Delivery",
+  "description": "Spec → Build → Done.",
+  "field_schema": {
+    "task": { "plan_approved": { "type": "boolean" } },
+    "comments": {}
+  },
+  "groups": [
+    { "id": "spec",  "name": "Spec",  "description": "", "position": 0, "color": null, "version": 1, "archived_at": null },
+    { "id": "build", "name": "Build", "description": "", "position": 1, "color": null, "version": 1, "archived_at": null },
+    { "id": "done",  "name": "Done",  "description": "", "position": 2, "color": null, "version": 1, "archived_at": null }
+  ],
+  "policies": [
+    {
+      "id": "gate-build",
+      "name": "No build without an approved plan",
+      "description": "Spec → Build requires plan_approved.",
+      "type": "transition_guard",
+      "definition": {
+        "from_group": "spec",
+        "to_group": "build",
+        "require": [{ "field": "task.plan_approved", "op": "eq", "value": true }],
+        "on_failure_message": "Set plan_approved once the plan is signed off."
+      },
+      "priority": 0,
+      "enabled": true,
+      "version": 1,
+      "created_by_agent": "you",
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "updated_at": "2026-01-01T00:00:00.000Z",
+      "archived_at": null
+    }
+  ],
+  "version": 1,
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "updated_at": "2026-01-01T00:00:00.000Z",
+  "archived_at": null
+}
+```
+
+Next: [write policies](/authoring/write-policies) for the full DSL, then
+[validate your gates](/authoring/validate-gates).

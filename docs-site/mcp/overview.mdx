@@ -1,0 +1,56 @@
+---
+title: "MCP tool reference"
+description: "The 32 tools an agent gets when Substrate is connected."
+---
+
+Substrate exposes **32 tools** over stdio MCP, in three families.
+
+<CardGroup cols={3}>
+  <Card title="Read (13)" icon="magnifying-glass" href="/mcp/read-tools">
+    Orient, list and inspect. No envelope, no writes.
+  </Card>
+  <Card title="Tasks & comments (7)" icon="pen" href="/mcp/task-and-comment-tools">
+    The everyday writes.
+  </Card>
+  <Card title="Substrate-edit (12)" icon="sliders" href="/mcp/substrate-edit-tools">
+    Change the workflow itself.
+  </Card>
+</CardGroup>
+
+## Conventions across every tool
+
+**`agent_name` is required on every write.** A stable identifier for the caller. It is an
+audit tag, not authentication.
+
+**Updates carry a `version`.** `update_task`, `update_board`, `update_group`,
+`update_policy`, `update_project`, and the archive/unarchive tools require the `version`
+from your most recent read. A stale one returns `version_mismatch` with the current
+version in `error.details.current_version`. Comments are the exception — they are
+last-write-wins and carry no version.
+
+**`custom_data` merges key-by-key.** Send only what changed; `null` deletes a key.
+
+**Writes return an envelope, reads return raw data.** See
+[envelopes and errors](/mcp/envelopes-and-errors).
+
+## Discovering schemas
+
+Every tool advertises its exact input schema through MCP `tools/list`. That is the source
+of truth — consult it rather than guessing a field name. These pages describe what the
+tools are *for* and the behaviour the schema cannot express.
+
+## Pagination
+
+`list_boards`, `list_tasks`, `list_comments` and `get_task_history` take a `pagination`
+object and return one. Pass the previous response's `pagination.cursor` to continue.
+
+```json
+{ "pagination": { "next_cursor": null, "has_more": false, "page_size": 50 } }
+```
+
+## A note on filters
+
+`list_tasks` filters are **top-level parameters, not nested**. An unrecognized key is
+**ignored rather than rejected**, so a filter that does not narrow the result almost
+always means a misspelled name. Use the exact names in
+[read tools](/mcp/read-tools#list_tasks).

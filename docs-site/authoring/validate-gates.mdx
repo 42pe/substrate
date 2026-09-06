@@ -1,0 +1,78 @@
+---
+title: "Validate your gates"
+description: "Prove the rails actually fire before you rely on them."
+---
+
+<Warning>
+  A silently-dead gate is worse than no gate: it reads as protection that is not there.
+</Warning>
+
+First, be precise about what "validate" means here. A guard enforces the **transition** —
+it blocks the move when the gate field is unset. It does not verify the field is *true*;
+the agent self-attests `tests_passing` and nothing runs your tests. So the goal is to
+**prove the rail fires**, not to prove the work happened.
+
+## 1. The static check
+
+```sh
+substrate validate
+```
+
+Loads the boards and policies without starting a server. A corrupt or unparseable
+substrate prints the actionable error and **exits non-zero** — which makes it a good CI
+step. It also emits advisory warnings for logical smells the load does not catch, such
+as a guard whose `from_group` equals its `to_group` and therefore can never fire on a
+real move. Warnings are advisory and exit 0.
+
+This is a structural lint, not a behavioural one. Do the live probe too.
+
+## 2. The live probe
+
+<Steps>
+  <Step title="Create a probe task">
+    `create_task` on the new board, in the stage **before** the gate, with the gate field
+    unset or false.
+  </Step>
+  <Step title="Try to cross the gate">
+    `update_task` moving it across. Expect a **`transition_blocked`** error naming the
+    field.
+  </Step>
+  <Step title="Satisfy the gate and retry">
+    `update_task` with `custom_data: { "<field>": true }`, then move again. Expect
+    success — and check the `policies_fired` envelope.
+  </Step>
+  <Step title="Check your responsibilities">
+    For an `agent_responsibility`, write a task that matches its `when` and confirm the
+    `message` appears in `policies_fired`.
+  </Step>
+  <Step title="Clean up">
+    `archive_task` the probe task.
+  </Step>
+</Steps>
+
+If a guard did **not** block when it should have, the `definition` is wrong. Check the
+`from_group` / `to_group` ids and the `field` paths against
+[the DSL](/authoring/write-policies).
+
+## 3. Spot-check without a throwaway task
+
+```
+check_transition({ task_id, to_group })
+```
+
+Dry-runs "would moving this task there be allowed?" against the real guards and writes
+nothing. It returns `{ allowed, from_group, to_group, blocked_by? }` — handy for
+confirming a gate is live on an existing task, or for seeing exactly what a move needs
+before attempting it.
+
+## Testing a human gate
+
+A `human_only` field cannot be set by an agent at all, so the probe is:
+
+1. `check_transition` → expect `allowed: false`, with the gate named in `blocked_by`.
+2. `substrate approve <task_id> <field>` as the human.
+3. `check_transition` again → expect `allowed: true`.
+4. `substrate unapprove <task_id> <field>` to put the probe back.
+
+That round trip is the only way to see both halves of the asymmetry that makes the gate
+real.

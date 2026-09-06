@@ -1,0 +1,71 @@
+---
+title: "Authoring a substrate"
+description: "Turn the process you already follow into boards, fields, and gates."
+---
+
+Authoring is **describing a process you already have**, not inventing a new one. The
+input is a team's workflow — from their docs, their README, or a conversation. The
+output is a board whose stages match the real stages and whose gates match the real exit
+criteria.
+
+## Two equivalent surfaces
+
+Substrate-as-code is read fresh on every call, so both of these take effect immediately.
+
+**Edit the JSON.** Write `.substrate/boards/<id>.json` directly. Best when authoring a
+whole board at once — you can see the entire workflow in one file.
+
+**Use the substrate-edit MCP tools.** `create_board`, `create_group`, `reorder_groups`,
+`create_policy`, the `update_*` and `archive_*` family. Each needs `agent_name`; updates
+need the current `version`. Best for incremental changes to a live board.
+
+Either way, the shapes are the same.
+
+## The four moves
+
+<Steps>
+  <Step title="Stages become groups">
+    Ordered by `position`. See [map a process](/authoring/map-a-process).
+  </Step>
+  <Step title="Per-item metadata becomes field_schema.task">
+    Including a boolean **gate field** for each exit criterion you intend to enforce.
+  </Step>
+  <Step title="Rules become policies">
+    Hard gates are `transition_guard`; conventions and reminders are
+    `agent_responsibility`. See [write policies](/authoring/write-policies).
+  </Step>
+  <Step title="Prove the rails fire">
+    A gate that never engages is worse than no gate — it reads as protection that is not
+    there. See [validate your gates](/authoring/validate-gates).
+  </Step>
+</Steps>
+
+<Warning>
+  The hard part is policies. A policy `definition` is free-form JSON, so the tool schema
+  will not tell you the shape — and a definition the engine cannot read produces a gate
+  that loads fine and silently never engages. Author against
+  [the DSL](/authoring/write-policies), then validate.
+</Warning>
+
+## Start from the worked example
+
+The bundled `web-delivery` template is a complete, working substrate: a
+Spec → Plan → Build → Review → QA → Done board with real gates, plus a
+`substrate-template.json` manifest that makes it a shareable template.
+
+```sh
+substrate init --template web-delivery
+```
+
+Reading its `boards/delivery.json` alongside these pages is the fastest way in. Adapting
+it beats authoring from scratch.
+
+## Tips
+
+- **Keep ids stable and readable** (`spec`, `gate-done`). Policies and tasks reference
+  them.
+- **`enabled: false`** keeps a policy as documentation without enforcing it.
+- **Archive a stage you do not use** and drop its gate, rather than leaving both in
+  place.
+- **Prefer extending a board over adding one.** Two boards modelling one flow is how a
+  substrate stops being a single source of truth.

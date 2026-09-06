@@ -1,0 +1,55 @@
+---
+title: "substrate export / import"
+description: "Move a whole substrate as a .tar.gz archive."
+---
+
+## Export
+
+```sh
+substrate export <path>
+```
+
+Writes a `.tar.gz` of the substrate to any path — workflow **and** runtime state. Use it
+to move a project between machines, or to hand someone a substrate in full.
+
+## Import
+
+```sh
+substrate import <path>
+substrate import <path> --force
+```
+
+Restores an archive into `.substrate/`.
+
+<ParamField path="--force" type="flag">
+  Overwrite an existing project. Without it, import refuses when a `config.json` is
+  already present.
+</ParamField>
+
+### Two refusals
+
+**An existing project.** A `config.json` in place means import stops unless you pass
+`--force`.
+
+**A live server.** If a running `serve` holds `.substrate/substrate.pid`, import refuses
+outright — writing over a live database would corrupt it. Stop the server first.
+
+<Warning>
+  `--force` replaces the substrate, including its task database. Run
+  [`substrate backup`](/cli/backup) first.
+</Warning>
+
+Archives are validated against path traversal before extraction.
+
+## Moving state between checkouts
+
+This is the supported way to get task state into a worktree or fresh clone, whose
+`data.sqlite` is gitignored and therefore starts empty:
+
+```sh
+substrate export /tmp/substrate.tar.gz    # in the main checkout
+substrate import /tmp/substrate.tar.gz    # in the other checkout
+```
+
+Explicit and one-directional — you decide which side is authoritative. See
+[worktrees and fresh clones](/agents/worktrees-and-clones).

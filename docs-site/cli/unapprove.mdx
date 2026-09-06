@@ -1,0 +1,37 @@
+---
+title: "substrate unapprove"
+description: "Revoke a mistaken approval so the gate re-blocks."
+---
+
+```sh
+substrate unapprove <task_id> <field>
+```
+
+[`substrate approve`](/cli/approve) run in reverse: same board resolution, same
+`human_only` guard, same optimistic write, same `human:<os-user>` event stamp — except
+that instead of setting the field it **deletes the key** from `custom_data`.
+
+Deletion, not `false`, is the right primitive: an absent key reads as `undefined`, so a
+guard checking `exists` re-blocks, and so does one checking `eq true`.
+
+## Arguments
+
+<ParamField path="<task_id>" type="string" required>
+  The task id.
+</ParamField>
+<ParamField path="<field>" type="string" required>
+  The `human_only` field to clear.
+</ParamField>
+
+## It never moves the task
+
+<Warning>
+  If the task already advanced past the gate on the mistaken approval, `unapprove` warns
+  that the task is now **stranded** — sitting in a group it could no longer reach — and
+  leaves it there. Moving it back is your call.
+</Warning>
+
+The stranding check looks for an active `transition_guard` whose `to_group` is the task's
+current group and whose `require` tree references the field. It is a direct match, not a
+multi-hop reachability analysis, so it can miss a case — a false negative merely omits the
+warning; it never moves or blocks anything.

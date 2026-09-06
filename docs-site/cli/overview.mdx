@@ -1,0 +1,67 @@
+---
+title: "CLI overview"
+description: "Every substrate command in v0.7.0, at a glance."
+---
+
+```
+substrate <command> [args] [flags]
+```
+
+Running `substrate` with **no subcommand** is an alias for [`serve`](/cli/serve). There
+is no `--version` flag in v0.7.0 — `substrate --help` names the version on its first line.
+
+## Commands
+
+### Setting up
+
+| Command | Does |
+| --- | --- |
+| [`init`](/cli/init) | Create a `.substrate/` in the current directory, optionally from a template. |
+| [`add`](/cli/add) | Apply a shared template into an existing `.substrate/`. Dry-run by default. |
+| [`install-skill`](/cli/install-skill) | Refresh the packaged agent skill in `~/.claude/skills/`. |
+
+### Running
+
+| Command | Does |
+| --- | --- |
+| [`mcp`](/cli/mcp) | Start the stdio MCP server. Spawned by agent runtimes. |
+| [`serve`](/cli/serve) | Start the localhost read-only web inspector. |
+
+### The human channel
+
+| Command | Does |
+| --- | --- |
+| [`pending-approval`](/cli/pending-approval) | List every task waiting on a human sign-off. |
+| [`approve`](/cli/approve) | Set a `human_only` field on a task. |
+| [`unapprove`](/cli/unapprove) | Revoke a mistaken approval. |
+
+### Data and diagnostics
+
+| Command | Does |
+| --- | --- |
+| [`backup`](/cli/backup) | Timestamped archive into `.substrate/backups/`. |
+| [`export`](/cli/export-import) / [`import`](/cli/export-import) | Move a whole substrate as a `.tar.gz`. |
+| [`validate`](/cli/validate) | Lint boards and policies without a server. CI-friendly. |
+| [`diagnose`](/cli/diagnose) | Environment and substrate health. |
+| [`logs`](/cli/logs) | Recent lines from the persistent log. |
+| [`explain`](/cli/explain) | Self-contained HTML map of the substrate. |
+
+## Global behaviour
+
+**Working directory is the addressing scheme.** Every command operates on the
+`.substrate/` in the directory it runs from. There is no `--project` flag and no global
+registry. This is also the mechanism for pointing a process at another checkout — see
+[worktrees and fresh clones](/agents/worktrees-and-clones).
+
+**Unknown flags are rejected** per command, rather than silently ignored.
+
+**Exit codes:**
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success. Advisory warnings still exit 0. |
+| `1` | A handled Substrate error — the message says what and how to fix it. Also a failing `validate`, `diagnose`, or `install-skill --check`. |
+| `2` | An unexpected error. Prints a stack trace. |
+
+**Network:** none. No Substrate command fetches anything, including `add` and
+`init --template` — templates are always local directories.

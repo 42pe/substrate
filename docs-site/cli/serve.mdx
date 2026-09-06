@@ -1,0 +1,43 @@
+---
+title: "substrate serve"
+description: "Start the localhost read-only web inspector."
+---
+
+```sh
+substrate serve
+substrate            # same thing — serve is the default subcommand
+```
+
+Binds to **127.0.0.1** and prints the URL. Localhost only; nothing is exposed off the
+machine.
+
+## Port selection
+
+The preferred port is **7475**. If it is taken, `serve` scans upward through
+**7475–7499** for the first free port so several projects' inspectors can coexist, and
+prints the port it bound. Exhausting the range fails with a clear error.
+
+The bound port is recorded in `.substrate/serve.json`, so
+[`substrate diagnose`](/cli/diagnose) can answer "which port is this project on?" without
+`lsof`.
+
+## One owner per directory
+
+`serve` takes a single-owner lock via `.substrate/substrate.pid`, created exclusively so
+two near-simultaneous starts cannot both win.
+
+- A live PID → the second `serve` refuses.
+- A stale PID from a crashed process → reclaimed.
+
+`SIGINT` and `SIGTERM` shut down cleanly: the HTTP server and the database client are
+closed, and both the PID file and `serve.json` are cleared.
+
+## Read-only
+
+The UI observes and never writes — no drag-and-drop, no editing. See
+[the web UI](/concepts/web-ui) for what it shows.
+
+## Requirements
+
+Refuses if there is no `.substrate/` in the current directory. Run
+[`substrate init`](/cli/init) first.

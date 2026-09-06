@@ -1,0 +1,54 @@
+---
+title: "Backup, export, and import"
+description: "Snapshot a substrate, and move one deliberately between machines or checkouts."
+---
+
+## Backup
+
+```sh
+substrate backup
+```
+
+Writes a timestamped `.tar.gz` into `.substrate/backups/` and prints the path.
+
+<Note>
+  There is no retention or pruning in v0.7.0 — backups accumulate until you delete them.
+</Note>
+
+## Export
+
+```sh
+substrate export /path/to/substrate.tar.gz
+```
+
+The same archive, written wherever you point it. Use it to move a project between
+machines, or to hand a substrate to someone else in full — workflow **and** runtime
+state.
+
+## Import
+
+```sh
+substrate import /path/to/substrate.tar.gz
+substrate import /path/to/substrate.tar.gz --force
+```
+
+Restores an archive into `.substrate/`. Two refusals protect you:
+
+- **An existing project.** If a `config.json` is already there, import refuses unless you
+  pass `--force`.
+- **A live server.** If a running `serve` holds the PID file, import refuses outright —
+  writing over a live database would corrupt it. Stop the server first.
+
+Archives are validated against path traversal before extraction.
+
+## What to commit
+
+Boards yes, database no — and `substrate init` sets that up for you.
+
+| | |
+| --- | --- |
+| **Commit** | `config.json`, `boards/*.json`, `members/*.json` |
+| **Never commit** | `data.sqlite` (+ `-wal`, `-shm`), `attachments/`, `logs/`, `substrate.pid`, `serve.json` |
+
+Export and import are the supported way to move task state across that boundary. See
+[worktrees and fresh clones](/agents/worktrees-and-clones) for why it matters.

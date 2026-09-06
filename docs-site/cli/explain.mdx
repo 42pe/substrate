@@ -1,0 +1,30 @@
+---
+title: "substrate explain"
+description: "Write a self-contained HTML map of the substrate."
+---
+
+```sh
+substrate explain
+substrate explain --out docs/workflow.html
+```
+
+Writes a single self-contained HTML file — no assets, no build step, openable straight in
+a browser. Default output is `./substrate-explain.html`.
+
+## Options
+
+<ParamField path="--out <file>" type="string" default="./substrate-explain.html">
+  Where to write the file.
+</ParamField>
+
+## What the map shows
+
+Per board: an **inline-SVG flow diagram** of the groups in `position` order with the
+guards drawn on the transitions they gate, plus tables of the `field_schema` and the
+policies with their conditions rendered readably.
+
+It reads substrate-as-code only. It never opens `data.sqlite`, so it works with no
+database at all — including in a fresh clone — and it never contains task data.
+
+That makes it the right artifact for showing someone your workflow: check it into the repo,
+attach it to a PR that changes a gate, or hand it to a teammate who does not run Substrate.

@@ -1,0 +1,55 @@
+---
+title: "substrate add"
+description: "Apply a shared substrate template into an existing .substrate/."
+---
+
+```sh
+substrate add <path>                 # preview — writes nothing
+substrate add <path> --yes           # apply
+substrate add <path> --yes --as <id> # apply, renaming a single-board template
+```
+
+Applies a template's **workflow** — boards with their groups, `field_schema` and policies
+— into an existing `.substrate/`. Never tasks, comments, or database contents.
+
+Applying **forks** the workflow in. You own the copy from that moment; there is no
+upstream link and no update path.
+
+## Arguments and options
+
+<ParamField path="<path>" type="string" required>
+  A **local directory**. The CLI is network-free and never clones — your agent (or you)
+  clones the repo first.
+
+  The directory resolves via a `substrate-template.json` manifest at its root, or by
+  convention if its boards live under `.substrate/boards/` or `boards/`.
+</ParamField>
+
+<ParamField path="--yes" type="flag">
+  Apply. Without it, `add` validates and previews and **writes nothing**.
+</ParamField>
+
+<ParamField path="--as <id>" type="string">
+  Rename a **single-board** template's board on the way in. Use it when the template's
+  board id collides with one you already have.
+</ParamField>
+
+## Dry run by default
+
+<Note>
+  Run it without `--yes` first, always. The preview validates the template and shows
+  exactly what would be written.
+</Note>
+
+## Collisions and rollback
+
+A board-id collision is **refused** by default — `add` will not overwrite a board you
+already have. `--as <id>` is the escape hatch for a single-board template.
+
+An apply is transactional in spirit: if a write fails partway, the files **this apply
+created** are removed in reverse order. Pre-existing boards are never touched.
+
+## See also
+
+- [`substrate init --template`](/cli/init) — apply into a fresh project instead.
+- [Publish a template](/authoring/publish-a-template) — the manifest format.

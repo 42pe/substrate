@@ -1,0 +1,43 @@
+---
+title: "substrate validate"
+description: "Lint boards and policies without starting a server."
+---
+
+```sh
+substrate validate
+```
+
+Loads the boards, members and policies and reports what it finds — no server, no database
+required.
+
+## What it catches
+
+**Errors — exit non-zero.** Anything that would fail a load: malformed JSON, a board that
+does not match the schema, a policy `definition` that does not parse against its type, a
+`from_group` or `to_group` that resolves to no group, an `enum` field with no `values`,
+duplicate ids. The message names the file and how to fix it.
+
+**Warnings — advisory, exit 0.** Logical smells a load does not care about:
+
+- a guard whose `from_group` equals its `to_group`, which can therefore never fire on a
+  real move;
+- a `team[].member` with no registry file;
+- a binding `groups` id that is not a group on the board;
+- a duplicate member id, or a malformed member file (warned and skipped).
+
+## In CI
+
+Exit-code discipline makes it a clean gate:
+
+```yaml
+- run: substrate validate
+```
+
+A corrupt substrate fails the build; advisory warnings do not.
+
+<Warning>
+  This is a **structural** lint, not a behavioural one. It cannot tell you that a guard
+  names the wrong group or that a `field` path resolves to nothing — the definition is
+  well-formed either way. Do the live probe too:
+  [validate your gates](/authoring/validate-gates).
+</Warning>
