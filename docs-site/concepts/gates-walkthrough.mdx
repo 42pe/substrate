@@ -1,0 +1,471 @@
+---
+title: "Walkthrough: a board with gates"
+description: "One board, four tasks, and the operations that get blocked — with the real requests and responses."
+---
+
+Everything on this page is a transcript of an actual session against the board below.
+Responses are real; long `state` echoes are abridged where they repeat what you already
+know, and those are marked.
+
+## The board
+
+Four stages, six custom fields, four policies.
+
+```
+Spec  ──gate-build──▶  Build  ──gate-review──▶  Review  ──┐
+                                                          ├──gate-done──▶  Done
+                          (any group) ─────────────────────┘
+```
+
+<CodeGroup>
+```json Groups
+[
+  { "id": "spec",   "name": "Spec",   "position": 0 },
+  { "id": "build",  "name": "Build",  "position": 1 },
+  { "id": "review", "name": "Review", "position": 2 },
+  { "id": "done",   "name": "Done",   "position": 3 }
+]
+```
+
+```json Fields
+"field_schema": {
+  "task": {
+    "priority":         { "type": "enum", "values": ["low", "med", "high"] },
+    "spec_doc":         { "type": "string" },
+    "plan_approved":    { "type": "boolean" },
+    "tests_passing":    { "type": "boolean" },
+    "reviewer":         { "type": "string" },
+    "shipped_approved": { "type": "boolean", "human_only": true }
+  },
+  "comments": {}
+}
+```
+
+```json Policies
+[
+  { "id": "gate-build", "type": "transition_guard", "definition": {
+      "from_group": "spec", "to_group": "build",
+      "require": [{ "field": "task.plan_approved", "op": "eq", "value": true }],
+      "on_failure_message": "Set plan_approved=true once the plan is signed off." }},
+
+  { "id": "gate-review", "type": "transition_guard", "definition": {
+      "from_group": "build", "to_group": "review",
+      "require": [{ "field": "task.tests_passing", "op": "eq", "value": true }],
+      "on_failure_message": "Run the tests and set tests_passing=true before asking for review." }},
+
+  { "id": "gate-done", "type": "transition_guard", "definition": {
+      "from_group": "*", "to_group": "done",
+      "require": [
+        { "field": "task.reviewer", "op": "not_empty" },
+        { "field": "task.shipped_approved", "op": "eq", "value": true }
+      ],
+      "on_failure_message": "Done needs a reviewer and a human sign-off: substrate approve <task_id> shipped_approved" }},
+
+  { "id": "resp-tests", "type": "agent_responsibility", "definition": {
+      "when": [{ "field": "task.group_id", "op": "eq", "value": "build" }],
+      "message": "Write tests as you go — tests_passing gates the move to Review." }}
+]
+```
+</CodeGroup>
+
+Three of these are rails. The fourth, `resp-tests`, never blocks anything — it rides
+along on writes and says something.
+
+The one that matters most is **`gate-done`**: it requires `shipped_approved`, and that
+field is `human_only`. An agent has no way to set it.
+
+Before doing anything else, confirm the board loads and the policies parse:
+
+```sh
+$ substrate validate
+Board delivery (Delivery): 4 policies, 4 groups
+✓ 1 board(s), 4 policies, 0 member(s) — loaded; definitions parse + group refs resolve, no warnings.
+```
+
+## Operation 1 — create work
+
+Three tasks: two in Spec, one dropped straight into Build.
+
+```json create_task
+{ "board_id": "delivery", "group_id": "spec",
+  "title": "Add CSV export to the reports page",
+  "description": "Users want the report table as a file.",
+  "custom_data": { "priority": "high", "spec_doc": "docs/specs/csv-export.md" },
+  "agent_name": "claude-code" }
+```
+
+```json response
+{
+  "ok": true,
+  "applied": { "entity": "task", "id": "6fb97c36-…", "version": 1, "state": { "…": "…" } },
+  "policies_fired": []
+}
+```
+
+Nothing fired — a task in Spec matches no policy. Now the one created **in Build**:
+
+```json create_task
+{ "board_id": "delivery", "group_id": "build",
+  "title": "Fix flaky signup test",
+  "custom_data": { "priority": "low", "plan_approved": true },
+  "agent_name": "claude-code" }
+```
+
+```json response (abridged state)
+{
+  "ok": true,
+  "applied": { "entity": "task", "id": "68be5428-…", "version": 1, "state": { "…": "…" } },
+  "policies_fired": [
+    {
+      "policy_id": "resp-tests",
+      "policy_name": "Tests during development",
+      "policy_type": "agent_responsibility",
+      "description": "Reminder attached to every write on a task in Build.",
+      "message": "Write tests as you go — tests_passing gates the move to Review."
+    }
+  ]
+}
+```
+
+<Note>
+  **This is the whole point of `agent_responsibility`.** The reminder does not sit in a
+  README the agent read forty thousand tokens ago. It arrives attached to the write that
+  put the task in Build, at the moment it is relevant.
+</Note>
+
+Note also that this task **entered Build without passing `gate-build`**. Guards fire on
+transitions, not on creation — an agent can create a task directly in any group. If that
+matters to you, do not model a stage you never want tasks to appear in directly.
+
+## Operation 2 — move without meeting the gate
+
+The CSV task is in Spec with `plan_approved` unset. First, ask without committing:
+
+```json check_transition
+{ "task_id": "6fb97c36-…", "to_group": "build" }
+```
+
+```json response
+{
+  "allowed": false,
+  "from_group": "spec",
+  "to_group": "build",
+  "blocked_by": {
+    "policy_id": "gate-build",
+    "message": "Set plan_approved=true once the plan is signed off."
+  }
+}
+```
+
+Attempt it anyway:
+
+```json update_task
+{ "id": "6fb97c36-…", "version": 1, "group_id": "build", "agent_name": "claude-code" }
+```
+
+```json response
+{
+  "ok": false,
+  "error": {
+    "code": "transition_blocked",
+    "message": "Set plan_approved=true once the plan is signed off.",
+    "details": { "policy_id": "gate-build", "from_group": "spec", "to_group": "build" }
+  }
+}
+```
+
+Three things to take from this:
+
+- **The `on_failure_message` is the error message.** Write it as an instruction, not a
+  complaint — it is the only thing the agent sees.
+- **A blocked write changes nothing, including the version.** The task is still at
+  `version: 1`, so the agent's next attempt does not need a re-read.
+- **The block is recorded.** A `move_blocked` event lands in the task's history, so the
+  board remembers what a task was not allowed to do.
+
+## Operation 3 — satisfy the gate and move, in one write
+
+The gate is evaluated against the task **as it would look after the move**, so setting
+the field and moving are a single call:
+
+```json update_task
+{ "id": "6fb97c36-…", "version": 1, "group_id": "build",
+  "custom_data": { "plan_approved": true }, "agent_name": "claude-code" }
+```
+
+```json response (abridged state)
+{
+  "ok": true,
+  "applied": { "entity": "task", "id": "6fb97c36-…", "version": 2,
+    "state": { "group_id": "build",
+      "custom_data": { "priority": "high", "spec_doc": "docs/specs/csv-export.md",
+                       "plan_approved": true }, "…": "…" } },
+  "policies_fired": [
+    { "policy_id": "resp-tests", "policy_type": "agent_responsibility",
+      "message": "Write tests as you go — tests_passing gates the move to Review.", "…": "…" }
+  ]
+}
+```
+
+Two behaviours visible at once. The move succeeded because the post-move task satisfies
+`gate-build`. And `resp-tests` fired, because the task's group after the write is `build`
+— responsibilities are evaluated against the written state too.
+
+`custom_data` **merged**: `priority` and `spec_doc` are still there even though the call
+only sent `plan_approved`.
+
+## Operation 4 — a stale version
+
+Meanwhile another agent (or the same one, working from a cached read) tries an edit with
+the version it read earlier:
+
+```json update_task
+{ "id": "6fb97c36-…", "version": 1, "title": "Add CSV export", "agent_name": "claude-code" }
+```
+
+```json response
+{
+  "ok": false,
+  "error": {
+    "code": "version_mismatch",
+    "message": "This task has been updated since you last read it. Call get_task to re-read, reconcile any conflicts, then retry with the new version.",
+    "details": { "id": "6fb97c36-…", "current_version": 2 }
+  }
+}
+```
+
+The current version comes back in `details`. The correct response is re-read, reconcile,
+retry — **not** resend the same body with `version: 2`, which would silently overwrite
+whatever the other writer did.
+
+## Operation 5 — the second gate
+
+Build → Review needs `tests_passing`. Skipping it fails the same way:
+
+```json response
+{
+  "ok": false,
+  "error": {
+    "code": "transition_blocked",
+    "message": "Run the tests and set tests_passing=true before asking for review.",
+    "details": { "policy_id": "gate-review", "from_group": "build", "to_group": "review" }
+  }
+}
+```
+
+Setting the flag and moving works, and the task lands in Review at `version: 3`.
+
+<Warning>
+  **Nothing ran the tests.** The agent set `tests_passing: true` itself. The gate recorded
+  that the claim was made and refused to proceed until it was — that is the guarantee, and
+  it is a real one, but it is not verification. See
+  [what a gate actually guarantees](/concepts/policies-and-gates#what-a-gate-actually-guarantees).
+</Warning>
+
+## Operation 6 — the human gate
+
+`gate-done` requires two things: a non-empty `reviewer`, and `shipped_approved`. Ask
+first:
+
+```json check_transition
+// { "task_id": "6fb97c36-…", "to_group": "done" }
+{
+  "allowed": false,
+  "from_group": "review",
+  "to_group": "done",
+  "blocked_by": {
+    "policy_id": "gate-done",
+    "message": "Done needs a reviewer and a human sign-off: substrate approve <task_id> shipped_approved"
+  }
+}
+```
+
+So the agent tries to satisfy both fields at once:
+
+```json update_task
+{ "id": "6fb97c36-…", "version": 3,
+  "custom_data": { "reviewer": "dana", "shipped_approved": true },
+  "agent_name": "claude-code" }
+```
+
+```json response
+{
+  "ok": false,
+  "error": {
+    "code": "forbidden",
+    "message": "Field(s) shipped_approved are human-only — a human must set them (e.g. `substrate approve 6fb97c36-54cb-466b-a010-ab5fb4097461 shipped_approved`). An agent cannot set them via update_task.",
+    "details": { "fields": ["shipped_approved"] }
+  }
+}
+```
+
+<Note>
+  **`forbidden`, not `transition_blocked`** — and the whole write is rejected, including
+  the legitimate `reviewer`. The refusal happens before anything is applied, and the error
+  hands the agent the exact command a human needs to run.
+</Note>
+
+The agent sets what it legitimately can, then stops:
+
+```json update_task — reviewer only
+// request:  { "id": "6fb97c36-…", "version": 3,
+//             "custom_data": { "reviewer": "dana" }, "agent_name": "claude-code" }
+{ "ok": true, "applied": { "version": 4, "…": "…" }, "policies_fired": [] }
+```
+
+Attempting the move now still fails — `reviewer` is satisfied, `shipped_approved` is not:
+
+```json response
+{
+  "ok": false,
+  "error": {
+    "code": "transition_blocked",
+    "message": "Done needs a reviewer and a human sign-off: substrate approve <task_id> shipped_approved",
+    "details": { "policy_id": "gate-done", "from_group": "review", "to_group": "done" }
+  }
+}
+```
+
+This is the point where a well-behaved agent stops retrying and **reports**:
+
+```json list_pending_approvals
+// request: no arguments (optional board_id filter)
+{
+  "project_name": "demo",
+  "count": 3,
+  "items": [
+    {
+      "board_id": "delivery", "board_name": "Delivery",
+      "task_id": "6fb97c36-…", "task_title": "Add CSV export to the reports page",
+      "group_id": "review",
+      "gate": { "policy_id": "gate-done", "policy_name": "Shipping is a human decision",
+                "to_group": "done" },
+      "awaiting_fields": ["shipped_approved"]
+    },
+    { "…": "two more" }
+  ]
+}
+```
+
+<Warning>
+  **Why three, when only one task was being moved?** Because `gate-done` is a
+  `"*" → done` wildcard: *every* task on the board is one move away from a gate it cannot
+  pass, so every task is technically pending. A wildcard human gate makes this report
+  noisy on a busy board. If that bothers you, gate a specific `from_group` instead.
+</Warning>
+
+## Operation 7 — the human decides
+
+Same report, from the terminal:
+
+```sh
+$ substrate pending-approval
+3 task(s) pending human approval in demo:
+
+Delivery
+  Task                                  Move           Awaiting          Approve
+  Add CSV export to the r…  (6fb97c36)  review → done  shipped_approved  substrate approve 6fb97c36-54cb-466b-a010-ab5fb4097461 shipped_approved
+  Fix flaky signup test     (68be5428)  build → done   shipped_approved  substrate approve 68be5428-0a59-4f30-b2a2-0c4ee6c1b652 shipped_approved
+  Rate-limit the public A…  (3c2559b6)  spec → done    shipped_approved  substrate approve 3c2559b6-5c54-4b8e-9a39-3d0ceb6f2a4f shipped_approved
+```
+
+Each row carries the command that clears it. Run one:
+
+```sh
+$ substrate approve 6fb97c36-54cb-466b-a010-ab5fb4097461 shipped_approved
+Approved: set shipped_approved = true on task 6fb97c36-54cb-466b-a010-ab5fb4097461 (as human:diegoferreyra, version 5).
+```
+
+Two details worth noticing: the write is stamped **`human:diegoferreyra`**, not an agent
+name — the history will show a person did this. And it bumped the version to 5, so the
+agent's cached `version: 4` is now stale; it must re-read, which it would do anyway.
+
+The agent re-checks and moves:
+
+```json check_transition
+{ "allowed": true, "from_group": "review", "to_group": "done" }
+```
+
+```json update_task — the move
+// request:  { "id": "6fb97c36-…", "version": 5, "group_id": "done",
+//             "agent_name": "claude-code" }
+{ "ok": true, "applied": { "version": 6, "state": { "group_id": "done", "…": "…" } },
+  "policies_fired": [] }
+```
+
+Note that **approving did not move the task**. `substrate approve` sets a field; the
+agent still performs the move. The human decides, the agent acts.
+
+## Operation 8 — revoking an approval
+
+Suppose the sign-off was a mistake:
+
+```sh
+$ substrate unapprove 6fb97c36-54cb-466b-a010-ab5fb4097461 shipped_approved
+Revoked: cleared shipped_approved (was true) on task 6fb97c36-54cb-466b-a010-ab5fb4097461 (as human:diegoferreyra, version 7).
+Warning: task 6fb97c36-54cb-466b-a010-ab5fb4097461 is in group 'done', past the gate that required shipped_approved.
+         unapprove does not move tasks — move it back on the board if that was a mistake.
+```
+
+The field is **deleted**, not set to `false` — so both an `exists` check and an
+`eq true` check re-block. And because the task had already crossed the gate, Substrate
+tells you it is now **stranded**: sitting somewhere it could no longer reach. It will not
+move it back for you.
+
+## What the history remembers
+
+Every one of those operations left a trace. Read it with `get_task_history`:
+
+| # | Event | What it records |
+| --- | --- | --- |
+| 1 | `created` | `initial_state` — group `spec`, title, `custom_data`. |
+| 4 | `move_blocked` | `gate-build`, `spec → build`, and the failure message. |
+| 5 | `updated` | before/after group and `custom_data`, plus the `policies_fired` list. |
+| 6 | `move_blocked` | `gate-review`, `build → review`. |
+| 7 | `updated` | Into Review with `tests_passing`. |
+| 8 | `updated` | `reviewer` set. Actor `claude-code`. |
+| 9 | `move_blocked` | `gate-done`, `review → done`. |
+| 10 | `updated` | `shipped_approved` set. Actor **`human:diegoferreyra`**. |
+| 11 | `updated` | `review → done`. Actor `claude-code`. |
+
+```json event 10, verbatim
+{
+  "id": 10,
+  "task_id": "6fb97c36-…",
+  "event_type": "updated",
+  "changes": {
+    "before": { "custom_data": { "…": "…", "reviewer": "dana" } },
+    "after":  { "custom_data": { "…": "…", "reviewer": "dana", "shipped_approved": true } }
+  },
+  "actor_agent_name": "human:diegoferreyra",
+  "occurred_at": "2026-09-06T23:32:45.074Z"
+}
+```
+
+The blocked attempts are as informative as the successful ones. Three `move_blocked`
+events say the rails engaged three times, and the single `human:` actor says exactly
+where a person entered the loop.
+
+## What this board does and does not give you
+
+**It gives you** an agent that cannot quietly skip a stage; a reminder delivered at the
+moment it applies rather than in a prompt; a durable record of every attempt, including
+the refused ones; and one step that genuinely waits on a person.
+
+**It does not give you** verified tests. `plan_approved` and `tests_passing` are
+self-attested — the gate is a confession step. `shipped_approved` is the exception,
+because no agent can write it.
+
+**And the rails are themselves data.** An agent could `archive_policy` the guard blocking
+it. That is a git-visible, event-logged act rather than a silent bypass, but it is the
+residual risk in the model — worth knowing before you describe a gate to someone as a
+guarantee.
+
+<CardGroup cols={2}>
+  <Card title="Policies and gates" icon="shield" href="/concepts/policies-and-gates">
+    The full DSL behind the four policies above.
+  </Card>
+  <Card title="Validate your gates" icon="circle-check" href="/authoring/validate-gates">
+    Prove a rail fires before you rely on it.
+  </Card>
+</CardGroup>
