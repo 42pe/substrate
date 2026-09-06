@@ -1,0 +1,143 @@
+---
+title: "Policies and gates"
+description: "The two policy classes, the condition grammar, and what a gate actually guarantees."
+---
+
+A policy is a rule attached to a board. v0.7.0 ships two classes, and the difference
+between them is whether they can say no.
+
+| Type | Effect | Definition |
+| --- | --- | --- |
+| `transition_guard` | **Blocks** a group move | `{ from_group, to_group, require?, on_failure_message? }` |
+| `agent_responsibility` | Attaches a **suggestion**, never blocks | `{ when?, message }` |
+
+Both carry `id`, `name`, `description`, `priority`, `enabled` and a `version`. Setting
+`enabled: false` keeps a policy as documentation without enforcing it.
+
+## transition_guard
+
+```json
+{
+  "from_group": "spec",
+  "to_group": "build",
+  "require": [{ "field": "task.plan_approved", "op": "eq", "value": true }],
+  "on_failure_message": "Get the plan approved before building."
+}
+```
+
+The guard **engages** when the move matches `from_group` → `to_group`; `"*"` is a
+wildcard on either side. When engaged, the move is blocked with a `transition_blocked`
+error unless **every** `require` condition passes — evaluated against the task *as it
+would look after the move*.
+
+`require` is an implicit `all_of`. A `"*" → done` guard is the idiomatic
+definition-of-done gate.
+
+## agent_responsibility
+
+```json
+{
+  "when": [{ "field": "task.group_id", "op": "eq", "value": "build" }],
+  "message": "Write tests during development, not after."
+}
+```
+
+When `when` matches a written task, the policy appears in that write's `policies_fired`
+with its `message`. An absent or empty `when` always matches. Nothing is ever blocked —
+use it for conventions and reminders you want surfaced at the moment they apply.
+
+## Conditions
+
+A leaf condition:
+
+```json
+{ "field": "task.tests_passing", "op": "eq", "value": true }
+```
+
+**Field references resolve literal-first, then `custom_data`.** `task.tests_passing`
+checks the literal field, then falls back to `task.custom_data.tests_passing` — so your
+custom fields are simply `task.<name>`. Built-in fields are available too:
+`task.group_id`, `task.title`, `task.description`, `task.parent_id`.
+
+### Operators
+
+`value` for scalar operators, `values` for set and array operators, neither for
+existence operators.
+
+| Group | Operators |
+| --- | --- |
+| Existence | `exists`, `not_exists`, `is_empty`, `not_empty` |
+| Equality | `eq`, `neq` |
+| Sets | `in`, `not_in` (use `values`) |
+| Numeric | `gt`, `gte`, `lt`, `lte` |
+| String | `contains`, `not_contains`, `starts_with`, `ends_with`, `matches_regex`, `matches_any_keyword` (`values`) |
+| Array | `has_any`, `has_all` (use `values`) |
+
+<Note>
+  Operators never throw. A type mismatch, a bad operand or an invalid regex evaluates to
+  "condition not met" rather than crashing a write.
+
+  String operators coerce scalars but **not** arrays — a `string_list` field will not
+  match `contains`. Use `has_any` / `has_all` for lists.
+</Note>
+
+### Compounds
+
+Nest conditions with `all_of`, `any_of` and `none_of`:
+
+```json
+{
+  "any_of": [
+    { "field": "task.tests_passing", "op": "eq", "value": true },
+    { "all_of": [
+      { "field": "task.priority", "op": "eq", "value": "low" },
+      { "field": "task.labels", "op": "has_any", "values": ["chore"] }
+    ]}
+  ]
+}
+```
+
+A misspelled key is a validation error, not a silently-ignored field: definitions are
+validated strictly at `create_policy` / `update_policy` time and on load.
+
+## What a gate actually guarantees
+
+<Warning>
+  A `transition_guard` is a real structural rail — it blocks the move and returns
+  `transition_blocked` at write time. But the field it checks is **self-attested**. The
+  agent sets `tests_passing: true` itself; nothing runs your tests.
+</Warning>
+
+A gate is a **confession step**, not a control. It records that the claim was made and
+blocks until it is. An agent that would skip review under pressure can also set the flag
+under pressure.
+
+The one exception is a [`human_only` field](/concepts/fields-and-schema#human-only-fields):
+an agent's write tools structurally refuse it, so a guard requiring it genuinely waits
+on a person.
+
+Two habits follow from this:
+
+- **Prove your rails fire.** A malformed guard used to load fine and never engage.
+  Definitions are validated now, but the behavioural check still matters — see
+  [validate your gates](/authoring/validate-gates).
+- **Dry-run instead of guessing.** `check_transition` answers "would moving this task to
+  that group be allowed?" against the real guards, without writing anything.
+
+## Reading the result
+
+Every write returns an envelope listing the policies that engaged:
+
+```json
+{
+  "ok": true,
+  "applied": { "entity": "task", "id": "…", "version": 4, "state": { "…": "…" } },
+  "policies_fired": [
+    { "policy_id": "…", "policy_name": "Tests before review",
+      "policy_type": "agent_responsibility", "message": "Write tests during development." }
+  ]
+}
+```
+
+Blocked writes come back as an error envelope with code `transition_blocked` and a
+message naming what is missing. See [envelopes and errors](/mcp/envelopes-and-errors).

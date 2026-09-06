@@ -1,0 +1,137 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Substrate",
+  "description": "Local-first, agent-collaborative work tracking exposed over MCP.",
+  "colors": {
+    "primary": "#2563eb",
+    "light": "#3b82f6",
+    "dark": "#1d4ed8"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "index",
+              "getting-started/installation",
+              "getting-started/quickstart",
+              "getting-started/mcp-setup"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/boards-and-tasks",
+              "concepts/fields-and-schema",
+              "concepts/policies-and-gates",
+              "concepts/team-members",
+              "concepts/web-ui"
+            ]
+          },
+          {
+            "group": "Working with agents",
+            "pages": ["agents/agent-workflow", "agents/conventions", "agents/worktrees-and-clones"]
+          },
+          {
+            "group": "Authoring a substrate",
+            "pages": [
+              "authoring/overview",
+              "authoring/map-a-process",
+              "authoring/write-policies",
+              "authoring/validate-gates",
+              "authoring/publish-a-template"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/backup-and-restore",
+              "operations/diagnostics",
+              "operations/upgrading"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["cli/overview"]
+          },
+          {
+            "group": "Setting up",
+            "pages": ["cli/init", "cli/add", "cli/install-skill"]
+          },
+          {
+            "group": "Running",
+            "pages": ["cli/mcp", "cli/serve"]
+          },
+          {
+            "group": "Human channel",
+            "pages": ["cli/pending-approval", "cli/approve", "cli/unapprove"]
+          },
+          {
+            "group": "Data & diagnostics",
+            "pages": [
+              "cli/backup",
+              "cli/export-import",
+              "cli/validate",
+              "cli/diagnose",
+              "cli/logs",
+              "cli/explain"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "MCP tools",
+        "groups": [
+          {
+            "group": "Reference",
+            "pages": [
+              "mcp/overview",
+              "mcp/read-tools",
+              "mcp/task-and-comment-tools",
+              "mcp/substrate-edit-tools",
+              "mcp/envelopes-and-errors"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/42pe/substrate",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Issues",
+        "href": "https://github.com/42pe/substrate/issues"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/42pe/substrate"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/42pe/substrate"
+    }
+  }
+}

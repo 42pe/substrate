@@ -1,0 +1,78 @@
+---
+title: "Task and comment tools"
+description: "The everyday writes. All seven return an envelope."
+---
+
+Every tool here requires `agent_name`. Task writes require the `version` from your last
+read; comment writes do not.
+
+## Tasks
+
+### `create_task`
+
+<ParamField path="board_id" type="string" required />
+<ParamField path="group_id" type="string" required />
+<ParamField path="title" type="string" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="description" type="string">Markdown.</ParamField>
+<ParamField path="custom_data" type="object">Validated lazily against the board's `field_schema`.</ParamField>
+<ParamField path="parent_id" type="string">Makes it a subtask.</ParamField>
+
+<Note>
+  `custom_data` cannot include a `human_only` field. The tool refuses it — that is the
+  mechanism behind [human gates](/concepts/fields-and-schema#human-only-fields).
+</Note>
+
+### `update_task`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required>From your last read. Stale → `version_mismatch`.</ParamField>
+<ParamField path="agent_name" type="string" required />
+<ParamField path="title" type="string" />
+<ParamField path="description" type="string" />
+<ParamField path="custom_data" type="object">**Merges key-by-key**; `null` deletes a key.</ParamField>
+<ParamField path="group_id" type="string">Changing this **is** the move a guard inspects.</ParamField>
+
+Send only the fields you are changing.
+
+A blocked move returns `transition_blocked` and appends a `move_blocked` event to the
+task's history. Read the message, satisfy the requirement, retry.
+
+### `archive_task` / `unarchive_task`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+
+Soft delete and restore. `archived_at` is set or cleared; history is preserved. Nothing
+hard-deletes a task.
+
+## Comments
+
+### `add_comment`
+
+<ParamField path="task_id" type="string" required />
+<ParamField path="body" type="string" required>Markdown.</ParamField>
+<ParamField path="agent_name" type="string" required />
+<ParamField path="parent_id" type="string">Makes it a reply.</ParamField>
+<ParamField path="custom_data" type="object">Against `field_schema.comments`.</ParamField>
+
+### `edit_comment`
+
+<ParamField path="id" type="string" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="body" type="string" />
+<ParamField path="custom_data" type="object" />
+
+**Last-write-wins** — no `version`. Comments carry `version: null` in the envelope.
+
+### `archive_comment`
+
+<ParamField path="id" type="string" required />
+<ParamField path="agent_name" type="string" required />
+
+## Fields or comments?
+
+Put in a **field** anything a policy must read, anything you will filter on, and anything
+that represents state. Put in a **comment** the reasoning: why this approach, what was
+rejected, what the next session needs to know. Nothing reads prose.

@@ -1,0 +1,21 @@
+---
+title: "substrate backup"
+description: "Write a timestamped archive into .substrate/backups/."
+---
+
+```sh
+substrate backup
+```
+
+Writes a timestamped `.tar.gz` of the substrate into `.substrate/backups/` and prints the
+path.
+
+<Note>
+  No retention or pruning in v0.7.0 — backups accumulate until you remove them.
+</Note>
+
+Take one before anything you are unsure about: a `substrate import --force`, a hand-edit
+of several board files, or a template apply into a substrate you care about.
+
+To write the archive somewhere other than `.substrate/backups/`, use
+[`substrate export`](/cli/export-import).

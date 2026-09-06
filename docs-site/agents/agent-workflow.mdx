@@ -1,0 +1,86 @@
+---
+title: "The agent loop"
+description: "What a well-behaved agent does with Substrate's tools, in order."
+---
+
+## Always start with `whoami`
+
+It returns the project, every board with its id, and a few hints. One call orients a
+fresh session that has no memory of the last one.
+
+Then `get_board_substrate` for the board you will work in — its groups, `field_schema`,
+policies and resolved `team` — and cache it. That payload is what stops an agent from
+guessing ids or inventing fields.
+
+## The loop
+
+<Steps>
+  <Step title="Orient">
+    `whoami` → pick the board → `get_board_substrate`.
+  </Step>
+  <Step title="See what exists">
+    `list_tasks` before planning anything. Reconcile your plan with the board rather
+    than adding a parallel copy of work already tracked.
+
+    Filters are **top-level params**, not nested: `board_id`, `group_id`, `in_groups`,
+    `not_in_groups`, `text_search`, `custom_field`, `missing_required_fields`,
+    `parent_id`, `has_subtasks`, `archived`, and the `created_*` / `updated_*` windows.
+    An unrecognized key is **ignored**, so a filter that does not narrow the result
+    usually means a wrong name.
+  </Step>
+  <Step title="Record the work">
+    `create_task` with `board_id`, `group_id`, `title` and `agent_name`; optionally a
+    markdown `description` and `custom_data`.
+  </Step>
+  <Step title="Advance it">
+    `update_task` to change fields or move groups. Send only what changed, plus the
+    `version` from your last read and your `agent_name`.
+  </Step>
+  <Step title="Explain it">
+    `add_comment` for decisions and rationale. `get_task_history` to see what happened
+    while you were away.
+  </Step>
+</Steps>
+
+## Read the envelope
+
+Every write returns:
+
+```json
+{
+  "ok": true,
+  "applied": { "entity": "task", "id": "…", "version": 4, "state": { "…": "…" } },
+  "policies_fired": [ … ]
+}
+```
+
+Two things to do with it every time: **keep the returned `version`** for your next
+update, and **read `policies_fired`**. A `transition_guard` entry means a rail engaged;
+an `agent_responsibility` entry carries a `message` written by whoever authored the
+board, aimed at exactly this moment. Surface it or act on it — do not treat it as noise.
+
+## When a move is blocked
+
+A blocked write returns `transition_blocked` with a message naming what is missing.
+Read it, do the prerequisite, retry.
+
+If the missing field is `human_only`, **stop trying**. Your write tools refuse it by
+design; that refusal is what makes the gate real. Call `list_pending_approvals` and
+report what is waiting, grouped by board, naming the exact command for each:
+
+```sh
+substrate approve <task_id> <field>
+```
+
+The human can also run [`substrate pending-approval`](/cli/pending-approval) for the
+same report, or see a "pending approval" pill on the task in the UI.
+
+## Verify a gate without a throwaway task
+
+`check_transition` dry-runs "would moving task X to group Y be allowed?" against the
+real guards and writes nothing. It returns `{ allowed, from_group, to_group, blocked_by? }`
+— useful both for confirming a gate is live and for seeing exactly what a move needs.
+
+<Card title="Conventions" icon="list-check" href="/agents/conventions">
+  The rules that keep a shared board trustworthy across sessions.
+</Card>

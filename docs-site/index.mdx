@@ -1,0 +1,67 @@
+---
+title: "Substrate"
+description: "A local-first, agent-collaborative work tracker that lives in your repo and is driven over MCP."
+---
+
+Substrate keeps your development process **out of the agent's head and in your repo**.
+
+You define the process once as data — boards, stages, the fields a work item carries,
+and the gates it must pass. Every agent that touches the project, this session or the
+next, reads the same durable state from `.substrate/` and is held to the same rails at
+write time. The agent spends its context on the work instead of re-deriving where
+things stand.
+
+It is a single binary in your project. Agents read and write boards, tasks, comments
+and policies over a **stdio MCP server**; you watch the same data in a localhost web
+UI. Everything is local: a JSON definition of your workflow plus a SQLite database of
+runtime state, sitting beside your code. No accounts, no cloud, no telemetry.
+
+<Note>
+  Not the [Polkadot Substrate](https://substrate.io/) blockchain framework. This is a
+  work tracker for coding agents.
+</Note>
+
+## Why not a todo list, a CLAUDE.md, or GitHub Issues?
+
+Two things those cannot do, which are the whole reason Substrate exists.
+
+**State that survives the context window.** A harness-native todo list is per-session —
+it evaporates when the context resets. A markdown file is durable but unstructured, and
+agents drift from it as context fills. Substrate's state lives in `.substrate/`, so a
+new session or a second agent reads exactly where work stands, and which gates are
+unmet, without reconstructing it from `git log`.
+
+**Enforcement at the moment of the action.** A convention in a prompt is advisory. A
+[`transition_guard`](/concepts/policies-and-gates) returns `transition_blocked` at the
+instant of the offending write, with perfectly-timed feedback about what is missing.
+
+## What Substrate is not
+
+- **Not a verifier.** A gate checks a field the agent sets itself. It records a claim
+  and blocks until the claim is made; it does not run your tests. See
+  [what gates do and do not do](/concepts/policies-and-gates#what-a-gate-actually-guarantees).
+- **Not a permission system.** Board `team` membership is descriptive metadata. The one
+  real rail against an autonomous agent is a [`human_only` field](/concepts/fields-and-schema#human-only-fields).
+- **Not multiplayer or hosted.** One project, one checkout, localhost only.
+
+## Start here
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/getting-started/installation">
+    Get the binary and check it runs.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
+    Initialize a substrate and watch an agent drive it.
+  </Card>
+  <Card title="Connect an agent" icon="plug" href="/getting-started/mcp-setup">
+    Register the MCP server with your agent runtime.
+  </Card>
+  <Card title="Author a workflow" icon="diagram-project" href="/authoring/overview">
+    Turn the process you already follow into boards and gates.
+  </Card>
+</CardGroup>
+
+<Info>
+  This documentation describes Substrate **v0.7.0**. Behaviour is documented for the
+  current release only; earlier versions are not covered.
+</Info>

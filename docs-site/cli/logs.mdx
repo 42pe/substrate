@@ -1,0 +1,40 @@
+---
+title: "substrate logs"
+description: "Print recent lines from the persistent log."
+---
+
+```sh
+substrate logs
+substrate logs -n 200
+substrate logs --errors
+```
+
+Reads `.substrate/logs/substrate.log` — gitignored and local-only. Reading crosses a
+rotation boundary, so `-n` is honoured even when the log just rotated.
+
+## Options
+
+<ParamField path="-n <N>" type="number" default="50">
+  How many lines to print.
+</ParamField>
+
+<ParamField path="--errors" type="flag">
+  Filter to errors only.
+</ParamField>
+
+## Who writes to it
+
+Only the long-lived processes — [`substrate mcp`](/cli/mcp) and
+[`substrate serve`](/cli/serve). Short-lived commands do not log, so `substrate logs`
+after a failed one-shot command will not explain it.
+
+An agent's handled tool errors land here, which makes `substrate logs --errors` the way an
+agent reviews its own error trail. Routine gate blocks and stale-version retries are
+excluded on purpose — they are normal operation, not faults.
+
+## Two empty states
+
+| What you see | What it means |
+| --- | --- |
+| The log file is **absent** | The sink never ran — no `mcp` or `serve` has logged here. |
+| Present, **no errors** | It ran cleanly. |
