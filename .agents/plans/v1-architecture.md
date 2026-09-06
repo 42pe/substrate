@@ -13,7 +13,7 @@
 
 ## 1. Overview
 
-Implement Substrate v1 per PRD v0.3: a local-first, per-project TypeScript binary distributed via npm (`@diegoferreyra/substrate`) that exposes an MCP server (stdio) for agents and a local web UI for human inspection. Two policy classes in v1 (`transition_guard` + `agent_responsibility`), stdio MCP only, OSS from day one (MIT, public GitHub).
+Implement Substrate v1 per PRD v0.3: a local-first, per-project TypeScript binary distributed via npm (`@diegoferreyra/substrate`) that exposes an MCP server (stdio) for agents and a local web UI for human inspection. Two policy classes in v1 (`transition_guard` + `agent_responsibility`), stdio MCP only, OSS from day one (MIT, public GitHub). *(Superseded 2026-09-06: Apache-2.0 — see `decisions.md` “Licensing (2026-09-06)”.)*
 
 The build sequences as **seven implementation phases** (revised from 6 in v1.0 after Phase 2 split):
 
@@ -94,7 +94,7 @@ substrate/                              # repo root
 ├── dist/                               # build output (gitignored)
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
-├── LICENSE                             # MIT
+├── LICENSE                             # MIT (superseded: Apache-2.0)
 ├── README.md
 ├── SUPPORT.md
 ├── package.json
@@ -420,7 +420,7 @@ substrate/                              # repo root
 - `SUPPORT.md` — solo project, weekly triage cadence, no SLAs, Windows/WSL best-effort statement.
 - `CONTRIBUTING.md` — PRs welcome for bugs with repro; architecture-changing PRs declined by default.
 - `CHANGELOG.md` — starts at v0.1.0.
-- `LICENSE` — MIT, copyright Diego Ferreyra.
+- `LICENSE` — MIT, copyright Diego Ferreyra. *(Superseded 2026-09-06: Apache-2.0 — see `decisions.md` “Licensing (2026-09-06)”.)*
 - `examples/` — placeholder `README.md` ("Substrates here as we dogfood; first one coming"). Real example added during Phase 7.
 - GitHub Actions:
   - `ci.yml`: **OS matrix `[ubuntu-latest, macos-latest, windows-latest]`** for install + test + build. **Windows non-blocking** (jobs marked `continue-on-error: true`) but failures *visible* in CI.

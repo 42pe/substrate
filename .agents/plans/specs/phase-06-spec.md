@@ -57,7 +57,7 @@ Everything in this phase is delivered **in-repo + dry-run-verified**. The live `
 | File | Create/overwrite | Content (concise, authoritative) |
 |---|---|---|
 | `README.md` | overwrite | One-paragraph "what it is" (local-first, per-project, agent-collaborative PM substrate via MCP + localhost UI). **3-command quick-start**: `npx @diegoferreyra/substrate init` → `npx @diegoferreyra/substrate serve` (UI on `http://localhost:7475`) → `npx @diegoferreyra/substrate mcp` (or the `.mcp.json` snippet for Claude Code). Supported-platforms statement: **macOS + Linux primary; Windows + WSL best-effort, CI-visible**. Link to `LICENSE`, link to `examples/`, link to `SUPPORT.md`/`CONTRIBUTING.md`. |
-| `LICENSE` | overwrite | MIT, `Copyright (c) 2026 Diego Ferreyra`. Standard MIT text. |
+| `LICENSE` | overwrite | MIT, `Copyright (c) 2026 Diego Ferreyra`. Standard MIT text. *(Superseded 2026-09-06: Apache-2.0 — see `decisions.md` “Licensing (2026-09-06)”.)* |
 | `CONTRIBUTING.md` | create | Bug-fix PRs **with a repro** welcome. **Architecture-changing PRs declined by default** (solo-owned design; open an issue first). How to run the test suite. Point to `SUPPORT.md` for expectations. |
 | `SUPPORT.md` | create | Solo project; **weekly triage cadence; no SLAs**. Generic **Windows/WSL best-effort** support line. Where to file (issue templates). *(No jsdom/dompurify caveat — see N2 below; it does not apply to the shipped binary.)* |
 | `CHANGELOG.md` | overwrite | "Keep a Changelog"-style. **Starts at `v0.1.0`** (the first public release). May fold the Phase 1–5b build-up into a single summarized "0.1.0 — initial public release" entry (MCP surface, policy engine, read API, read-only UI, OSS artifacts). |

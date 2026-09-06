@@ -35,7 +35,7 @@ Files created in Phase 1:
 - `vitest.config.ts` — Node environment, fixtures path, coverage settings.
 - `.gitignore` — `node_modules/`, `dist/`, `.substrate/data.sqlite*`, `.substrate/attachments/`, OS junk.
 - `README.md` — placeholder (full README is Phase 6).
-- `LICENSE` — MIT, copyright Diego Ferreyra (full text).
+- `LICENSE` — MIT, copyright Diego Ferreyra (full text). *(Superseded 2026-09-06: Apache-2.0 — see `decisions.md` “Licensing (2026-09-06)”.)*
 - `CHANGELOG.md` — `## v0.0.1 — Phase 1 internal milestone` entry.
 - `.gitattributes` — `* text=auto eol=lf`.
 

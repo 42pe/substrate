@@ -2,7 +2,8 @@
 
 **Status:** Reviewed v1.1 — Architect-Reviewer APPROVE-WITH-CHANGES (all cited loci verified correct; CONCERN-1 CHANGELOG-ownership + CONCERN-2 UI-smoke-rationale + guard-commit-home + manifest-location folded in). Written against the spec's recommended D1–D4 defaults; §"Decision dependencies" maps what changes if Diego chooses otherwise.
 **Author:** Architect
-**Last updated:** 2026-06-10
+**Last updated:** 2026-09-06 (v1.2 — licensing delta folded in; see §3b)
+**Previously updated:** 2026-06-10 (v1.1)
 **Spec:** [`specs/phase-10-public-launch-spec.md`](specs/phase-10-public-launch-spec.md) (Architect-Reviewer pass incorporated; pending D1–D4)
 **Workflow:** [`../workflow.md`](../workflow.md)
 **Predecessor:** Phase 7b (`phase-07b-complete`, v0.4.0). Phase 9 merged; Phase 8 unbuilt + independent.
@@ -38,6 +39,24 @@ All four resolved to the recommended default, so this plan executes **as written
 | **D4** order | B → A | Step 5 runbook re-orders; A-before-B documented as not-recommended (spec §3.1) |
 
 These shape steps but don't block planning. Confirm with Diego at the spec gate.
+
+## 3b. Deltas since v1.1 was written (2026-09-06)
+
+This plan was authored at v0.4.0 against an MIT-licensed repo. Four things changed
+underneath it. **None invalidate the plan's shape**; each re-points a step.
+
+| Change | Where it lands |
+|---|---|
+| **Relicensed MIT → Apache-2.0 + DCO** (`4aa8501`) | Step 3 sweep widened; new Steps 3b + 3c; Step 6 reviewer focus |
+| **Version is `0.7.0`, not `0.4.0`** | D2's `0.5.0` is stale — Step 4 targets the **then-current** release number, set at the release gate (`pnpm release`), not a number hardcoded here |
+| **`files` now ships `skills/`** | Step 7 dry-run whitelist gains `skills/**` |
+| **`funding` field added** (`4e3d864`) | Step 7 dry-run whitelist — `package.json` carries it; no separate tarball entry |
+
+**NOTICE file — a deliberate no.** Apache-2.0 §4(d) only binds a redistributor when
+the upstream work *has* a `NOTICE` file. Substrate has none and vendors no Apache-licensed
+source into its own tree, so none is required and none is added. Recorded here so a reviewer
+reads it as a decision rather than an omission. (Third-party code *bundled into the tarball*
+is a separate matter — Step 3c.)
 
 ## 4. Implementation order
 
@@ -76,7 +95,17 @@ Commit: `ci(launch): enable npm provenance (pnpm 9) + fix stale publish.yml/CHAN
 
 ### Step 3 — Go-live doc updates (§3.4) — (Technical Writer)
 
-Flip the docs from "armed but private/unpublished" to "installable." **Broad sweep, not a narrow term list:** `git grep -niE 'published to npm|not (yet )?published|isn.t published|on npm|repo is private|once.*public|local clone|won.t resolve|pre-release'` over `README.md AGENTS.md SUPPORT.md CONTRIBUTING.md skills/`.
+Flip the docs from "armed but private/unpublished" to "installable." **Broad sweep, not a narrow term list** — and it now covers **licensing** as well as go-live phrasing, because the relicense (§3b) landed after this plan was written:
+
+```sh
+# go-live phrasing
+git grep -niE 'published to npm|not (yet )?published|isn.t published|on npm|repo is private|once.*public|local clone|won.t resolve|pre-release' \
+  -- README.md AGENTS.md SUPPORT.md CONTRIBUTING.md skills/
+# licensing (net-new in v1.2) — repo-wide, .agents/ included
+git grep -niwE 'MIT|CLA' && git grep -niE 'licen[cs]|DCO|sign-off'
+```
+
+The licensing sweep is **repo-wide, not scoped to the five go-live docs**, because D1 (§3) publishes all of `.agents/` — a planning doc asserting MIT is public-facing at launch.
 
 - **`README.md`:**
   - Remove the **"Pre-release note"** (`:51`).
@@ -84,15 +113,76 @@ Flip the docs from "armed but private/unpublished" to "installable." **Broad swe
   - Update **"Once Substrate is on npm, the link step goes away…"** (`:96–98`) → npm is the primary path; keep from-source as the contributor alternative.
 - **Known stale hits to fix** (verified): `AGENTS.md:28` ("Once Substrate is **published to npm**…") and `skills/substrate/SKILL.md:36` ("Until Substrate is **published to npm**…"). Update to present-tense install; **keep the from-source/`pnpm link` path documented** for contributors.
 - **`SUPPORT.md` / `CONTRIBUTING.md` / `skills/substrate/AUTHORING.md`:** apply the sweep; fix any hit.
+- **Known stale *licensing* hits** (verified 2026-09-06 — all now carry a superseded note; re-confirm none regressed): `.agents/plans/v1-architecture.md:16,97,423`, `.agents/plans/phase-06-oss-release.md:37`, `.agents/plans/specs/phase-01-walking-skeleton-spec.md:38`, `.agents/plans/specs/phase-06-spec.md:60`. **Convention: mark superseded, do not rewrite history-of-record** — the same treatment `decisions.md:153,239` already uses. These are records of what past phases decided; erasing MIT from them would falsify the record.
+- **Phase-06 re-verify caveat:** `specs/phase-06-spec.md:60` is an *acceptance row*. Anyone re-running the Phase-6 packaging verification (task remaining-work item 1) against the unannotated row would read Apache-2.0 as a regression. The superseded note is what prevents that.
 - **Sequencing caveat (do NOT mis-handle):** these edits describe a *published, public* state and land in the **merge commit** so the launch **tarball's README** is correct — but the state is only true after B+A. Acceptable because the repo stays private until B and B precedes A in one operator session. The runbook (Step 5) restates: don't merge-then-sit-public-for-days before publishing.
 
 _Reviewer focus (Step 6):_ post-edit sweep returns only intentional contributor mentions; README coherent for **both** install paths; no half-edited "still private" sentence.
 
 Commit: `docs(launch): present-tense install in README/AGENTS/SKILL + support docs (Step 3)`.
 
-### Step 4 — Version bump → launch version (D2 default: 0.5.0) (§3.5) — (Backend)
+### Step 3b — Enforce the DCO (net-new in v1.2) — (DevOps)
 
-4 sources + 1 guard (the repo's established lockstep; all loci verified to exist):
+`CONTRIBUTING.md` now **requires** a `Signed-off-by` on every commit, and `README.md` repeats
+it — but nothing checks. Today there is no DCO job in `ci.yml`, no DCO GitHub App, and no PR
+template. Going public with an unenforced assertion means the first outside PR arrives unsigned
+and is bounced by hand, after the contributor has already done the work. **Enforcement must exist
+before trigger B**, not after — a check added later retroactively invalidates PRs already open.
+
+- **`.github/workflows/dco.yml`** (or a `dco` job in `ci.yml`): on `pull_request`, assert every
+  commit in the PR range carries a `Signed-off-by:` trailer whose email matches the commit author.
+  Fail with a message that names the fix (`git commit -s`, or `git rebase --signoff <base>`).
+  **Alternative:** install the [DCO GitHub App](https://github.com/apps/dco) and make it a required
+  check — zero maintenance, but an operator step (§5), not an in-repo change. **Recommend the
+  workflow** so the rule lives in the repo and is visible to a reader of the tree.
+- **`.github/pull_request_template.md`** (net-new): a short checklist — sign-off present, tests
+  green locally, docs updated. One line links `CONTRIBUTING.md#developer-certificate-of-origin`.
+- **Maintainer's own commits:** the repo's history predates the DCO and is **not** retroactively
+  signed. Scope the check to the **PR commit range**, never to `main`'s history, or every PR fails
+  on ancestry it did not author.
+
+_Reviewer focus (Step 6):_ the check reads the PR range only (not full history); the failure
+message names the remedy; the template link resolves; if the App route was chosen instead, §5
+carries it as an operator prereq and the workflow is absent (not both).
+
+Commit: `ci(launch): enforce the DCO on pull requests + PR template (Step 3b)`.
+
+### Step 3c — Third-party attribution for the shipped tarball (net-new in v1.2) — (DevOps)
+
+**The gap:** `files` ships `dist/**`. `dist/server/**` is `tsc` output with dependencies left
+**external** (npm resolves them at install) — nothing to attribute. But `dist/ui/**` is a
+**`vite build` bundle**: React, `marked`, `dompurify`, and the Tailwind/ShadCN layer are compiled
+and minified **into** the published artifact. Their MIT/BSD terms require the copyright notice to
+travel with redistributions, and the tarball currently carries none.
+
+This was equally true under MIT — the relicense did not create it, it surfaced it. It is in scope
+here because this phase cuts the **first tarball anyone else receives**; before that, redistribution
+had no audience.
+
+- Generate **`THIRD-PARTY-NOTICES.md`** at build time from the `ui/` production dependency tree
+  (`license-checker-rseidelsohn`, `oss-attribution-generator`, or equivalent) — name + version +
+  license + copyright notice per bundled package.
+- Add it to `package.json` `files` so it ships **and** to the Step 7 dry-run whitelist.
+- Wire generation into `build:ui` (or a `pretest`/`prepack` hook) so it cannot silently go stale as
+  `ui/` dependencies move. A checked-in file with no regeneration step is the failure mode to avoid.
+- **Scope note:** production `ui/` dependencies only. `devDependencies` and the root package's
+  external runtime deps are **not** redistributed and do not belong in the file.
+
+_Reviewer focus (Step 6):_ the file is generated, not hand-written; it covers exactly the bundled
+production set; it is in both `files` and the whitelist assertion; regeneration is wired to the
+build, not a one-off.
+
+Commit: `chore(launch): generate THIRD-PARTY-NOTICES for the bundled UI (Step 3c)`.
+
+### Step 4 — Version bump → launch version (D2 default: 0.5.0 — **stale, see §3b**) (§3.5) — (Backend)
+
+4 sources + 1 guard (the repo's established lockstep; all loci verified to exist).
+
+**`0.5.0` below is stale (§3b): the repo is at `0.7.0`.** Read every `0.5.0` in this step and in
+Steps 5–7 as **`<LAUNCH_VERSION>`** — the number the release gate sets. Since this plan was written
+the repo also gained `pnpm release`, which owns the version bump + CHANGELOG rotation across all
+sites (`RELEASING.md`); prefer it over hand-editing the four sources, and use the list below as the
+**verification checklist** for what it must have touched.
 
 1. `src/core/version.ts:22` `BINARY_VERSION` → `'0.5.0'`. `:10` `BINARY_SCHEMA_VERSION` stays `2`.
 2. `package.json:3` `version` → `0.5.0`.
@@ -124,6 +214,9 @@ One Code Reviewer over `git diff main...HEAD`. No product logic, so the lenses s
 
 - **Provenance config:** `id-token: write` + `--provenance` + `publishConfig.provenance:true` all present and consistent; stale comments corrected; no dependency/lockfile change.
 - **Scrub completeness:** `git grep -nE '/Users/|/home/'` clean; the go-live phrasing sweep clean (only intentional contributor mentions); `git ls-files .claude` empty; the exposure manifest matches the tracked surface.
+- **Licensing coherence (net-new in v1.2):** the repo-wide licensing sweep (Step 3) returns only *superseded-annotated* MIT references and intentional prose; `LICENSE` is canonical Apache-2.0 with the appendix copyright filled; `package.json` `license` is `Apache-2.0`; README/CONTRIBUTING agree on Apache-2.0 + DCO + no-CLA; no `NOTICE` file appeared (§3b).
+- **DCO enforcement (Step 3b):** the check exists, reads the PR commit range only, and its failure message names `git commit -s`; PR template present and linked.
+- **Third-party attribution (Step 3c):** `THIRD-PARTY-NOTICES.md` generated from the bundled `ui/` production set, listed in `files`, present in the dry-run whitelist, and regenerated by the build.
 - **Version lockstep:** 4 sources = `0.5.0`/`v0.5.0 (public launch)`; schema `2`; `whoami.test.ts:76` guard untouched, `:77` updated.
 - **Docs coherence:** README valid for both install paths; no sentence still implying private/unpublished.
 - **Runbook:** orders B→A, gates each trigger, names irreversibility, automation-token + tag==version + provenance-fallback present.
@@ -138,11 +231,16 @@ Fix BLOCKERs + CONCERNs in a `fix(review)` commit (only if findings).
 - `pnpm test` + `pnpm --dir ui test`.
 - `tsc` root + ui; `eslint` root + ui; `prettier --check`.
 - `pnpm test:smoke:concurrency`; manual MCP smoke (`node tests/manual/run-smoke.mjs`) — expect identical to `phase-07b-complete` save the `v0.5.0` string + the `:77` assertion.
-- **Packaging at 0.5.0:** `pnpm build` THEN `pnpm publish --dry-run` (whitelist-exact: `dist/**` incl. `dist/ui/**` + README + LICENSE + CHANGELOG + package.json; no `src`/`tests`/`.agents`/`.substrate`/dotfiles; `CONTRIBUTING`/`SUPPORT` absent) THEN `pnpm pack` + `npx ./<tgz> --help` (prints `Substrate v0.5.0`) + `init`.
+- **Packaging at `<LAUNCH_VERSION>`:** `pnpm build` THEN `pnpm publish --dry-run` THEN `pnpm pack` + `npx ./<tgz> --help` (prints `Substrate v<LAUNCH_VERSION>`) + `init`.
+  - **Whitelist-exact — updated for §3b/Step 3c:** `dist/**` (incl. `dist/ui/**`) + **`skills/**`** + `README.md` + `LICENSE` + `CHANGELOG.md` + **`THIRD-PARTY-NOTICES.md`** + `package.json`. Nothing else.
+  - `skills/**` is **EXPECTED-present, not an extra** — `files` gained it so the published package can self-install its agent skill (this closes the task's "consider bundling `skills/`" item; it is **done**, not pending).
+  - Still absent: `src/`, `tests/`, `.agents/`, `.substrate/`, dotfiles, `CONTRIBUTING.md`, `SUPPORT.md`.
+  - `package.json` now carries a `funding` field (`4e3d864`) — assert it survives into the published manifest; it is metadata, not a separate tarball entry.
+  - **`LICENSE` is Apache-2.0** — assert the shipped file is the full canonical text, not a truncation.
 - **Provenance flag (D3=ON):** `pnpm publish --provenance --dry-run` does not error.
 - **`dist/server` UI-dep-free grep** (no react/marked/dompurify).
 - **UI smoke (`pnpm test:smoke:ui`, Playwright) intentionally skipped** — no UI code path changed since `phase-09-complete`, and `dist/ui/**` shipping is already asserted by the dry-run whitelist. (Consistent with `phase-07b-complete`, which also omitted it.) Stated so the omission is a conscious call, not a silent gap, for the phase that cuts the first public tarball.
-- **Scrub sweeps clean** (both: `/Users|/home` paths AND go-live phrasing).
+- **Scrub sweeps clean** (all three: `/Users|/home` paths, go-live phrasing, AND the licensing sweep of §Step 3).
 - Confirm the 4 version sources + the `PHASE_STRING ⊇ BINARY_VERSION` guard.
 
 Then:
@@ -156,6 +254,11 @@ Commits: `chore(phase-10): acceptance pass + v0.5.0 (Step 7)`, `docs(phase-10): 
 
 Per the Step 5 runbook, in order: confirm D1–D4 → own/verify the `@diegoferreyra` npm scope + 2FA + mint an **automation** token → add `NPM_TOKEN` Actions secret → **(B)** flip repo public + confirm CI green on a push → final review of the public tree/history vs the manifest → **(A)** review dry-run + push `v0.5.0` + watch `publish.yml` + verify `npx` resolves and provenance is viewable → fresh-machine quick-start walk-through (macOS + Linux). Removing `private` (Phase 6) armed publish; this phase arms the rest. **Nothing in the agent's deliverable pulls either trigger.**
 
+**Added by v1.2 (§3b):** if the **DCO GitHub App** route is chosen over the in-repo workflow (Step 3b),
+installing it and marking it a **required status check** is an operator prereq — it must be in place
+**before** trigger B, since it cannot be applied retroactively to PRs opened while the repo was open
+without a check.
+
 ## 6. Test mapping (spec §5 → plan)
 
 | Spec requirement | Plan location |
@@ -167,6 +270,10 @@ Per the Step 5 runbook, in order: confirm D1–D4 → own/verify the `@diegoferr
 | `dist/server` UI-dep-free | Step 7 |
 | exposure scrub sweep clean (`/Users|/home`); `.claude` empty; manifest written | Step 1 + Step 7 |
 | go-live phrasing sweep clean (README/AGENTS/SKILL/SUPPORT/CONTRIBUTING) | Step 3 + Step 7 |
+| licensing sweep clean repo-wide; MIT references superseded-annotated, not erased | Step 3 + Step 6 + Step 7 |
+| DCO enforced on PRs; check scoped to the PR range; PR template present | Step 3b + Step 6 |
+| `THIRD-PARTY-NOTICES.md` generated, shipped, whitelisted, build-wired | Step 3c + Step 6 + Step 7 |
+| DCO check passing on a real PR | **operator §5** (needs a live PR on the public repo) |
 | CI on a real push (workflows' first run) | **operator §6.4** (not provable in-repo) |
 | real provenance attestation observed | **operator §6.6** |
 
@@ -180,13 +287,25 @@ Per the Step 5 runbook, in order: confirm D1–D4 → own/verify the `@diegoferr
 - **R6 — README "briefly lies" window.** Mitigated by private-until-B + B-precedes-A-in-one-session + the runbook's "don't sit public-with-unpublished" note.
 - **R7 — history retains scrubbed paths (D1 default = no rewrite).** Accepted: low-sensitivity (username already public via the npm scope/author email); rewrite would break all 10 tags + audit-cited SHAs for ~zero gain. If anything is truly sensitive, D1 option (c) move-out is the answer, not a rewrite.
 
+- **R8 — a public repo asserting two licenses (net-new in v1.2).** D1 publishes all of `.agents/`; six planning loci said MIT while `LICENSE` says Apache-2.0. A reader hitting a doc that names MIT has a colourable argument they relied on it. Mitigated by the Step 3 licensing sweep + the superseded annotations (applied 2026-09-06), and by Step 6 re-running the sweep over the whole diff. **Residual:** git *history* still contains the pre-relicense text — accepted for the same reason as R7 (a relicense is prospective; the historical record is supposed to show what the terms used to be).
+- **R9 — DCO asserted but unenforced at go-live.** `CONTRIBUTING.md`/`README.md` require a sign-off with nothing checking it. Mitigated by Step 3b landing enforcement **before** trigger B. If Step 3b slips, the honest fallback is to soften the CONTRIBUTING wording to "please sign off" rather than ship a rule that is not applied — **do not** ship the strong claim unenforced.
+- **R10 — bundled third-party code redistributed without notices.** `dist/ui/**` embeds React/`marked`/`dompurify` under terms requiring their notices to travel. Mitigated by Step 3c. **Not** created by the relicense — pre-existing, and first *consequential* at this phase because this is the first tarball with an audience.
+
 ## 8. Definition of Done
 
 - All step commits on `feature/phase-10-public-launch`.
 - D1–D4 confirmed by Diego (plan written for defaults; non-default choices re-route per §3).
-- Exposure scrub clean (both sweeps) + manifest written; provenance config in place + flag-accepted (D3=ON); go-live docs present-tense + coherent; `v0.5.0` lockstep across 4 sources + guard.
+- Exposure scrub clean (all three sweeps: paths, go-live phrasing, licensing) + manifest written; provenance config in place + flag-accepted (D3=ON); go-live docs present-tense + coherent; `v<LAUNCH_VERSION>` lockstep across 4 sources + guard.
+- **Licensing coherent repo-wide (v1.2):** every surviving MIT reference is superseded-annotated; `LICENSE`/`package.json`/README/CONTRIBUTING all say Apache-2.0 + DCO + no CLA; the no-`NOTICE` call is recorded (§3b).
+- **DCO enforced** on pull requests before trigger B, scoped to the PR range, with a PR template (Step 3b).
+- **`THIRD-PARTY-NOTICES.md`** generated from the bundled `ui/` production set, shipped in `files`, and asserted by the dry-run whitelist (Step 3c).
 - Single Code Reviewer pass done (Step 6); BLOCKER/CONCERN resolved.
-- Acceptance battery green; packaging whitelist-exact at 0.5.0; `dist/server` UI-dep-free.
+- Acceptance battery green; packaging whitelist-exact at `<LAUNCH_VERSION>` (incl. `skills/**` + `THIRD-PARTY-NOTICES.md`); `dist/server` UI-dep-free.
 - Operator go-live runbook shipped (B→A, gated, irreversibility + fallback documented).
 - Assistant audit clean → `.agents/audits/phase-10-audit.md`.
-- Fast-forward merge to `main`, tag `phase-10-complete`. **The repo-public flip and the `v0.5.0` publish remain operator-gated** — fired by Diego via the runbook.
+- Fast-forward merge to `main`, tag `phase-10-complete`. **The repo-public flip and the `v<LAUNCH_VERSION>` publish remain operator-gated** — fired by Diego via the runbook.
+
+> **Branching note (post-v1.1):** this plan predates the `dev` → `main` model. Feature work now
+> branches off **`dev`** and merges to **`dev`**; `main` advances only on a release, tracked on the
+> **Release** board per `RELEASING.md`. Read every "merge to `main`" above as "merge to `dev`, then
+> promote via the release flow." See `CLAUDE.md`.
