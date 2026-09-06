@@ -6,6 +6,7 @@
   "license": "Apache-2.0",
   "author": "Diego Ferreyra <diego@404.pe>",
   "homepage": "https://github.com/42pe/substrate",
+  "funding": "https://ko-fi.com/42pe",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/42pe/substrate.git"
