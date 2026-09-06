@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SPEC — Typed document references</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      .q {
+        background: #3b82f611;
+        border-left: 3px solid #3b82f6;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .rec {
+        background: #22c55e14;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .warn {
+        background: #f5a62314;
+        border-left: 3px solid #f5a623;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SPEC — Typed document references</h1>
+    <p class="meta">
+      dev board · task 69cd3660 (<code>typed-document-references</code>) ·
+      <span class="status">Draft v1 — awaiting plan_approved</span> ·
+      <a href="../plans/typed-document-references.html">plan →</a>
+    </p>
+    <p class="meta">
+      Roadmap authority: <code>1aafe9e5</code> “Typed document references on tasks” (<code
+        >roadmap_approved</code
+      >
+      2026-09-06). <strong>Blocks</strong> dev task <code>9abed851</code> (approval review surface)
+      — its evidence panel is built on the checked references defined here, not on
+      <code>spec_doc</code>.
+    </p>
+
+    <h2>Re-measured: the baseline the plan quotes is stale</h2>
+    <div class="warn">
+      The roadmap plan’s headline cites
+      <em>“3 of 7 tasks and 6 of 14 document links point at files that do not exist”</em> and calls
+      it “the current, measured baseline”.
+      <strong>That was true on 2026-09-05 and is not true today.</strong>
+    </div>
+    <p>
+      <strong>Re-measured 2026-09-06</strong> against the live <code>.substrate/</code> and the
+      working tree:
+    </p>
+    <table>
+      <tr>
+        <th></th>
+        <th>2026-09-05 (before PR #35)</th>
+        <th>2026-09-06 (now)</th>
+      </tr>
+      <tr>
+        <td><code>dev</code> tasks carrying <code>spec_doc</code></td>
+        <td>7</td>
+        <td><strong>7</strong></td>
+      </tr>
+      <tr>
+        <td>Document links in those fields</td>
+        <td>14</td>
+        <td><strong>14</strong></td>
+      </tr>
+      <tr>
+        <td>Links resolving to a file</td>
+        <td>8</td>
+        <td><strong>14</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Dangling</strong></td>
+        <td><strong>6 (43%), on 3 tasks</strong></td>
+        <td><strong>0</strong></td>
+      </tr>
+    </table>
+    <p>
+      Commit <code>f17694a</code> (“docs(specs): restore the three missing spec/plan pairs”, PR #35)
+      added exactly the six missing files — <code>board-team-composition</code>,
+      <code>submit-feedback</code> and <code>unapprove-revoke-approval</code>, spec and plan each.
+      Verified: <code>git ls-tree -r f17694a^ -- docs/</code> lists 8 HTML files; the tree today
+      lists 14.
+      <strong>Do not quote 43% as a present-tense fact anywhere.</strong>
+    </p>
+    <div class="rec">
+      <strong>The argument survives, and is stronger stated historically.</strong> Three tasks
+      cleared the <code>plan_approved</code> gate — a gate whose own
+      <code>on_failure_message</code> says “make sure the spec + plan HTML docs exist under
+      <code>docs/specs/</code> and <code>docs/plans/</code> … first” — and merged with links to
+      files that were not there. Nobody noticed for weeks, until a deliberate restore effort.
+      <strong
+        >The check is justified by the undetected drift, not by a current failure rate.</strong
+      >
+      A rate that has since been hand-fixed is in fact the better evidence: the convention was
+      written down, agreed, and gated on, and it drifted anyway — on the repo whose product thesis
+      is that a <code>CLAUDE.md</code> convention is advisory and agents drift from it as context
+      fills.
+    </div>
+
+    <h2>Problem</h2>
+    <p>
+      Substrate models the shape of work and knows nothing about the artifacts the work consumed or
+      produced. Every document a task depends on is buried in prose or hand-jammed into a bespoke
+      field invented board by board. We are doing this in three places, incompatibly:
+    </p>
+    <ul>
+      <li>
+        <strong>The <code>dev</code> board</strong> invented <code>spec_doc</code>: one
+        <code>markdown</code> field holding two links glued together —
+        <code>[Spec](docs/specs/x.html) · [Plan](docs/plans/x.html)</code>.
+      </li>
+      <li>
+        <strong>The shipped <code>web-delivery</code> template</strong> — the thing a new user is
+        handed — independently invented <strong>three</strong> fields for the same job:
+        <code>spec_doc</code>, <code>plan_doc</code>, <code>audit_doc</code>, all
+        <code>type: 'string'</code> (<code>src/cli/templates/web-delivery.board.ts:38-46</code>).
+      </li>
+      <li>
+        <strong>The release board’s docs-verification gate</strong> enumerates every document the
+        release touched by reconstructing it from <code>git log</code>, every time.
+      </li>
+    </ul>
+    <p>
+      Three boards, three vocabularies, zero shared meaning — and, decisively,
+      <strong>nothing checkable</strong>. There is no “the spec” to resolve, only a string that
+      happens to contain brackets. A dangling link is indistinguishable from a live one until a
+      human clicks it.
+    </p>
+
+    <h2>Goals</h2>
+    <ul>
+      <li>
+        <strong>The references are true.</strong> Resolution checking is the core; everything else
+        is a consequence of it.
+      </li>
+      <li>
+        <strong>Roles, not a bag of strings.</strong> A reference carries a role (<code>spec</code>,
+        <code>plan</code>, <code>reference</code>, <code>design</code> as the starting vocabulary),
+        and <strong>a board declares which roles it expects</strong>. Per the plan: if roles get
+        cut, cut the feature.
+      </li>
+      <li>
+        <strong>Repo-relative, enforced at the point of writing.</strong> Absolute paths and paths
+        escaping the repo are refused with a message that says why.
+      </li>
+      <li>
+        <strong>Per-task visibility</strong> for agent and human, with dead references marked dead.
+      </li>
+      <li><strong>A minimal per-board listing</strong>, filterable by stage and role.</li>
+      <li>
+        <strong>One vocabulary replaces three.</strong> Migrate <code>dev</code> off
+        <code>spec_doc</code>; retire the template’s three fields.
+      </li>
+      <li>
+        <strong>Remove the <code>.substrate/attachments/</code> scaffolding</strong> and correct the
+        PRD.
+      </li>
+      <li>
+        <strong>Advisory, always.</strong> A dangling reference is surfaced, never fatal — matching
+        the member registry’s posture exactly.
+      </li>
+    </ul>
+
+    <h2>Non-goals</h2>
+    <p>Carried literally from the approved plan.</p>
+    <ul>
+      <li>
+        <strong>Untyped attachments.</strong> A list of paths with no role is <code>spec_doc</code>
+        with extra ceremony.
+      </li>
+      <li>
+        <strong>URLs, PR links, issue links, Figma links — any non-path reference.</strong> They
+        cannot be resolution-checked, which is the one thing this feature is for. The
+        <code>dev</code> board already has a <code>pr</code> field and that is the right shape.
+        <strong>This is the scope creep that would sink the feature, and it is out.</strong>
+      </li>
+      <li>
+        <strong
+          >Storing, copying, uploading, serving, previewing, rendering or diffing document
+          contents.</strong
+        >
+        References only. No size limits, no binary handling, no attachment routes.
+      </li>
+      <li><strong>Attachments on comments.</strong> Tasks only.</li>
+      <li>
+        <strong>Automatic discovery, inference or backfill</strong> of which documents belong to a
+        task. Declared, or absent.
+      </li>
+      <li>
+        <strong>An artifact-centric index</strong> (one document listed once with all its
+        referrers).
+      </li>
+      <li>
+        <strong
+          >Ordering, captions, descriptions or any per-reference presentation metadata.</strong
+        >
+      </li>
+      <li>
+        <strong>A UI for adding or editing references.</strong> The inspector displays; it does not
+        author.
+      </li>
+      <li>
+        <strong>A gate that requires references to resolve.</strong> The right eventual answer,
+        parked deliberately — it changes how gates are evaluated. (It is also already on the roadmap
+        as “gates backed by verifiable evidence — command exit codes / CI status /
+        <em>file existence</em>”, <code>decisions.md:145</code>.)
+      </li>
+      <li>
+        <strong>Anything named “attachments.”</strong> The word carries the copied-file model this
+        plan exists to end.
+      </li>
+    </ul>
+
+    <h2>Design — a new <code>field_schema</code> type, not a new entity</h2>
+    <p>
+      The plan leaves the mechanism to this spec. The answer that costs least and fits the product
+      best is a <strong>new field type in the board’s own <code>field_schema</code></strong
+      >:
+    </p>
+    <pre>
+// .substrate/boards/dev.json
+"field_schema": {
+  "task": {
+    "documents": {
+      "type": "document_refs",
+      "roles": ["spec", "plan"]          // THE BOARD DECLARES ITS VOCABULARY
+    },
+    ...
+  }
+}
+
+// a task's custom_data
+"documents": [
+  { "role": "spec", "path": "docs/specs/typed-document-references.html" },
+  { "role": "plan", "path": "docs/plans/typed-document-references.html" }
+]</pre
+    >
+    <pre>
+// src/core/types.ts
+export interface FieldSchemaEntry {
+  type: 'string' | 'number' | 'boolean' | 'enum' | 'markdown' | 'string_list' | 'document_refs';
+  required?: boolean;
+  format?: string;
+  values?: string[];   // required when type = 'enum'
+  roles?: string[];    // REQUIRED when type = 'document_refs' — the board's role vocabulary
+  human_only?: boolean;
+}
+
+/** One typed reference to a document that lives in the repo. */
+export interface DocumentRef {
+  role: string;   // must be one of the declaring field's `roles`
+  path: string;   // repo-relative, forward slashes, no `..`, no leading `/`
+}</pre
+    >
+    <div class="rec">
+      <strong>Why a field type and not a new first-class entity.</strong> Five things fall out for
+      free, and each would otherwise be new code:
+      <ul>
+        <li>
+          <strong>Per-board role vocabulary</strong> is exactly what <code>field_schema</code> is
+          for — it is the mechanism <code>enum</code>/<code>values</code> already uses.
+        </li>
+        <li>
+          <strong>Write-time enforcement</strong> lands in
+          <code>src/substrate/field-validator.ts</code>, which every write already calls with
+          <code>touched_keys</code>. Refusing an absolute path is one more
+          <code>checkType</code> arm.
+        </li>
+        <li>
+          <strong>Storage</strong> is <code>custom_data</code> — no table, no migration, no
+          <code>BINARY_SCHEMA_VERSION</code> bump.
+        </li>
+        <li>
+          <strong>The split the plan asks for happens by construction</strong>: “a board’s role
+          vocabulary travels with a template, while the paths stay behind with the tasks.” Field
+          schema is board config (travels in a template); <code>custom_data</code> is task state
+          (stays in the gitignored DB). That is the correct split, and it is free.
+        </li>
+        <li>
+          <strong>A second board wanting documents declares the field</strong> — it does not invent
+          a fourth string field. That is the whole “one vocabulary instead of three” goal.
+        </li>
+      </ul>
+    </div>
+    <p>
+      <strong
+        ><code>roles</code> is required when <code>type</code> is <code>document_refs</code></strong
+      >, mirroring <code>values</code> for <code>enum</code>. A board that cannot say what its roles
+      mean has the feature the plan told us to cut.
+    </p>
+
+    <h3>Write-time enforcement — string validation only, no filesystem</h3>
+    <p>A <code>document_refs</code> value is rejected with <code>schema_violation</code> when:</p>
+    <table>
+      <tr>
+        <th>Rejected</th>
+        <th>Why</th>
+      </tr>
+      <tr>
+        <td>Not an array of <code>{ role, path }</code> objects</td>
+        <td>Shape</td>
+      </tr>
+      <tr>
+        <td><code>role</code> not in the field’s declared <code>roles</code></td>
+        <td>Roles are the feature</td>
+      </tr>
+      <tr>
+        <td>Absolute path (<code>/Users/…</code>, <code>C:\…</code>, <code>~/…</code>)</td>
+        <td>
+          The go-live exposure scrub exists to strip <code>/Users/diegoferreyra/…</code> out of
+          tracked files; a first-class agent-written path field would manufacture that at scale
+        </td>
+      </tr>
+      <tr>
+        <td>Escapes the repo (any <code>..</code> segment surviving normalisation)</td>
+        <td>Portability + exposure</td>
+      </tr>
+      <tr>
+        <td>Contains a URL scheme (<code>https://</code>, <code>file://</code>)</td>
+        <td>Unverifiable — the hard non-goal</td>
+      </tr>
+      <tr>
+        <td>Backslash separators, empty path, empty role</td>
+        <td>One canonical form</td>
+      </tr>
+      <tr>
+        <td>Duplicate <code>(role, path)</code> pair</td>
+        <td>Nothing means anything different the second time</td>
+      </tr>
+    </table>
+    <div class="rec">
+      <strong>The write path never touches the filesystem.</strong> It validates the string and
+      stops. Two reasons, both load-bearing: writes stay pure and fast (the validator is called on
+      every <code>create_task</code>/<code>update_task</code>), and
+      <strong>referencing a document you are about to write must be legal</strong> — the Planner
+      links the spec, then authors it. Resolution is a separate, advisory, read-time concern. That
+      separation is what lets the check be strict about form and gentle about existence.
+    </div>
+
+    <h3>Resolution checking — the core</h3>
+    <p>
+      A pure function <code>resolveDocumentRefs(repoRoot, refs)</code> →
+      <code>{ role, path, exists }[]</code>. The repo root is the parent of the
+      <code>.substrate/</code> directory — the same convention
+      <code>substrateRootFromCwd(cwd) = join(cwd, '.substrate')</code> already establishes. Each
+      path is joined, canonicalised, asserted to sit under the repo root (reusing
+      <code>assertPathUnder</code>, which is written and tested), then existence-checked.
+    </p>
+    <p>Surfaced in the plan’s stated priority order:</p>
+    <ol>
+      <li>
+        <strong><code>substrate validate</code></strong> — the CI-friendly lint and the natural home
+        for “your substrate says things that aren’t true”. One advisory warning per dangling
+        reference, on the existing <code>substrate.warnings</code> channel.
+        <strong>Exit code stays 0.</strong>
+      </li>
+      <li>
+        <strong>The inspector’s task detail</strong> — a Documents section, dead entries marked
+        dead, via <code>GET /api/tasks/:id/documents</code>.
+      </li>
+      <li>
+        <strong>The board listing</strong> — <code>GET /api/boards/:id/documents</code>, rendered on
+        the board detail page, filterable by group and role,
+        <strong>marking dead entries rather than omitting them</strong>. An index that hides its own
+        rot is the failure the raw idea correctly feared.
+      </li>
+    </ol>
+    <div class="warn">
+      <strong
+        >A decision the plan did not cover: <code>substrate validate</code> is DB-free
+        today.</strong
+      >
+      It calls <code>loadSubstrate(root)</code> and nothing else — it never opens
+      <code>data.sqlite</code>. Document references live in task <code>custom_data</code>, which is
+      in the DB, and <strong>the DB is gitignored — in CI there is no database at all.</strong>
+      <br /><br />
+      <strong>Resolution:</strong> <code>validate</code> opens the database
+      <em>if the file is present</em>, using <code>openClient</code> (which does
+      <strong>not</strong> migrate — a lint must never migrate a user’s data). If the file is
+      absent, or its schema version is ahead of the binary, it prints one line —
+      <code>Document references not checked (no database at &lt;path&gt;).</code> — and still exits
+      0. So CI keeps validating boards and policies exactly as today, and a developer with a local
+      DB gets the document check. This is the honest shape; the alternative (making
+      <code>validate</code> require a DB) would break the CI use case the command exists for.
+    </div>
+
+    <h3>Where the listing lives — a decision the plan left open</h3>
+    <p>
+      The plan asks for “one minimal listing … chosen for where it is actually consumed”, and says
+      plainly that this is its weakest part.
+      <strong>Choice: the inspector, not a CLI command and not an MCP tool.</strong>
+    </p>
+    <ul>
+      <li>
+        <strong>Not MCP</strong> — no agent has this question. An agent picking up a task asks about
+        <em>its</em> task, which <code>get_task</code> already answers. Adding a tool would pay the
+        documented context tax for no asker.
+      </li>
+      <li>
+        <strong>Not a new CLI command</strong> — the human asker (the release docs auditor) is
+        served by <code>substrate validate</code>’s dangling warnings for the part that matters, and
+        a whole command for the weakest item in the plan is not proportionate.
+      </li>
+      <li>
+        <strong>The inspector</strong> — it is where a human already browses a board, it costs one
+        read route and one panel, and the plan already ranks it second in the warning priority
+        order.
+      </li>
+    </ul>
+
+    <h2>Migration off <code>spec_doc</code></h2>
+    <ul>
+      <li>
+        <code>dev.json</code>: add
+        <code>documents: { type: 'document_refs', roles: ['spec', 'plan'] }</code>; remove
+        <code>spec_doc</code> from <code>field_schema.task</code>; bump <code>version</code> 10 →
+        11.
+      </li>
+      <li>
+        Update the two policy strings that name <code>spec_doc</code> — the
+        <code>gate-spec-build</code> <code>on_failure_message</code> and the
+        <code>resp-spec-authoring</code> message — to name <code>documents</code> and the two roles.
+      </li>
+      <li>
+        Rewrite all 7 tasks’ <code>spec_doc</code> as two typed references and delete the old key
+        (<code>null</code> on a touched key means “delete” — the partial-merge rule the validator
+        already documents). All 14 links resolve today, so
+        <strong>zero references are dropped and nothing needs honest-emptying</strong> — the plan’s
+        contingency for the three dangling entries is moot as of PR #35.
+      </li>
+      <li>
+        Note that removing <code>spec_doc</code> from <code>field_schema</code> does not itself
+        delete the value: undeclared keys are accepted and preserved silently. The key must be
+        explicitly cleared, per task.
+      </li>
+      <li>
+        <code>docs/README.md</code> is updated to describe the roles rather than
+        <code>spec_doc</code>.
+      </li>
+    </ul>
+    <p>
+      <strong><code>web-delivery</code> template</strong> (separable, but in scope): replace
+      <code>spec_doc</code> / <code>plan_doc</code> / <code>audit_doc</code> with
+      <code>documents: { type: 'document_refs', roles: ['spec', 'plan', 'audit'] }</code> in
+      <strong>both</strong> <code>src/cli/templates/web-delivery.board.ts</code> and
+      <code>examples/web-delivery/.substrate/boards/delivery.json</code>, or the parse-equal drift
+      test fails.
+    </p>
+
+    <h2>Removing the <code>.substrate/attachments/</code> scaffolding</h2>
+    <p>
+      Verified inert: the directory is empty and has been through ten minor versions; nothing
+      references it beyond its own creation.
+    </p>
+    <table>
+      <tr>
+        <th>Location</th>
+        <th>Action</th>
+      </tr>
+      <tr>
+        <td>
+          <code>src/shared/paths.ts</code> — <code>attachmentsDir</code>,
+          <code>attachmentTaskDir</code>
+        </td>
+        <td>Remove (interface + implementation)</td>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/init.ts:100</code> — <code>mkdir(p.attachmentsDir)</code></td>
+        <td>Remove</td>
+      </tr>
+      <tr>
+        <td>
+          <code>src/cli/commands/init.ts:37</code> — the
+          <code>.substrate/attachments/</code> gitignore line
+        </td>
+        <td>Remove</td>
+      </tr>
+      <tr>
+        <td>
+          <code>src/shared/paths.test.ts:31-38</code>,
+          <code>src/cli/commands/init.test.ts:31,69</code>
+        </td>
+        <td>Remove the assertions</td>
+      </tr>
+      <tr>
+        <td><code>prd.md</code> §6.12 (line 231), §6.4 (line 169), lines 89-90, 137, 143</td>
+        <td>Rewrite to describe typed document references</td>
+      </tr>
+      <tr>
+        <td><code>tests/manual/README.md:70</code></td>
+        <td>Correct the directory list</td>
+      </tr>
+      <tr>
+        <td>
+          <strong><code>src/http/middleware/path-canonical.ts</code></strong>
+        </td>
+        <td>
+          <strong>KEEP.</strong> It guards the static route regardless. Update only its comment,
+          which currently promises attachment-serving routes that will now never exist.
+        </td>
+      </tr>
+    </table>
+    <p>
+      <strong>Existing installs</strong> already carrying the gitignore line and an empty folder:
+      leave them. Substrate does not rewrite a user’s <code>.gitignore</code>, and an empty ignored
+      folder is harmless. No cleanup step, no migration, no warning.
+    </p>
+
+    <h2>Coupling — two tasks depend on this one</h2>
+    <h3>Downstream: <code>9abed851</code> — approval review surface</h3>
+    <p>
+      Its evidence panel shows “the task body and its linked spec/plan” at the moment a human clears
+      a gate. Built on <code>spec_doc</code> it would render unverified links at exactly the instant
+      the product asks a human to be rigorous.
+      <strong
+        >That panel reads the <code>document_refs</code> field defined here, through the same
+        <code>GET /api/tasks/:id/documents</code> resolution endpoint, and marks dead entries
+        dead.</strong
+      >
+      Its spec cites this document by name; if this one changes shape, that one changes with it.
+    </p>
+    <h3>
+      Cross-plan edit: <code>c6f0cc89</code> / roadmap <code>748e34a8</code> — templates producer
+    </h3>
+    <p>
+      That plan lists <code>attachments/</code> among things excluded from a bundle by construction.
+      <strong>Once the scaffolding is removed that bullet is moot and must be struck</strong> —
+      there is no folder to exclude. The one genuine interaction to state in its place: a board’s
+      <em>role vocabulary</em> travels with a template (it is <code>field_schema</code>); the
+      <em>paths</em> stay behind with the tasks (they are <code>custom_data</code>). A comment has
+      been left on <code>c6f0cc89</code> recording this; the edit itself belongs to whichever of the
+      two ships second.
+    </p>
+
+    <h2>Acceptance criteria</h2>
+    <ul>
+      <li>
+        <strong>AC1.</strong> <code>FieldSchemaEntry.type</code> accepts
+        <code>'document_refs'</code>, with <code>roles: string[]</code>. A
+        <code>document_refs</code> declaration with no <code>roles</code>, or an empty
+        <code>roles</code>, is rejected at board load with an actionable error — the same tier as an
+        <code>enum</code> with no <code>values</code>.
+      </li>
+      <li>
+        <strong>AC2.</strong> A write of a well-formed array of <code>{ role, path }</code> whose
+        roles are all declared succeeds.
+      </li>
+      <li>
+        <strong>AC3.</strong> Each rejection case in the enforcement table returns
+        <code>schema_violation</code> naming the field and saying <em>why</em>: an absolute path, a
+        <code>..</code> escape, a URL, a backslash, an undeclared role, a non-array, a malformed
+        element, a duplicate pair.
+      </li>
+      <li>
+        <strong>AC4.</strong> The write path performs <strong>no filesystem access</strong> — proven
+        by a test that writes a reference to a path that does not exist and asserts the write
+        succeeds.
+      </li>
+      <li>
+        <strong>AC5.</strong> <code>resolveDocumentRefs</code> reports <code>exists</code> correctly
+        for a present file, an absent file, and a path that resolves outside the repo root (which is
+        reported as unresolved rather than read).
+      </li>
+      <li>
+        <strong>AC6.</strong> <code>substrate validate</code> emits one advisory warning per
+        dangling reference, naming board, task id, role and path — and <strong>exits 0</strong>.
+      </li>
+      <li>
+        <strong>AC7.</strong> With <code>data.sqlite</code> absent, <code>substrate validate</code>
+        prints the “not checked” line, still lints boards and policies, and exits 0. It never runs a
+        migration.
+      </li>
+      <li>
+        <strong>AC8.</strong> A board load never fails because of a document reference, dangling or
+        malformed-on-disk. Advisory, always — matching the member registry.
+      </li>
+      <li>
+        <strong>AC9.</strong> <code>GET /api/tasks/:id/documents</code> returns each reference with
+        its <code>exists</code> flag; the inspector’s task detail renders them with dead entries
+        visibly marked.
+      </li>
+      <li>
+        <strong>AC10.</strong> <code>GET /api/boards/:id/documents</code> lists every active task’s
+        references for that board, filterable by group and role, <strong>including</strong> dead
+        ones, marked.
+      </li>
+      <li>
+        <strong>AC11.</strong> <code>get_task</code> returns the references (they are
+        <code>custom_data</code>, so this is inherited). <strong>Known consequence:</strong> because
+        the value is an array, <code>list_tasks</code>’ summary view drops it into
+        <code>custom_data_omitted</code> (<code>src/core/task-summary.ts</code> keeps only small
+        scalars). That is correct behaviour and is documented, not worked around — the per-task read
+        and the listing endpoint are the intended surfaces.
+      </li>
+      <li>
+        <strong>AC12.</strong> All 7 <code>dev</code> tasks carry typed <code>spec</code> +
+        <code>plan</code> references; every one resolves; no task retains a
+        <code>spec_doc</code> key; <code>dev.json</code> no longer declares
+        <code>spec_doc</code> and is at <code>version</code> 11; the two policy messages name
+        <code>documents</code>.
+      </li>
+      <li>
+        <strong>AC13.</strong> The <code>web-delivery</code> template declares
+        <code>documents</code> with three roles and no <code>*_doc</code> string fields, in both
+        mirrors, with the parse-equal drift test passing.
+      </li>
+      <li>
+        <strong>AC14.</strong> <code>attachmentsDir</code> and <code>attachmentTaskDir</code> no
+        longer exist; <code>substrate init</code> creates no <code>attachments/</code> directory and
+        writes no gitignore line for it; <code>path-canonical.ts</code> is still present, still
+        tested, with a corrected comment; <code>prd.md</code> describes references rather than
+        copies; the word “attachments” survives nowhere as a Substrate feature.
+      </li>
+      <li>
+        <strong>AC15.</strong> No database migration. <code>BINARY_SCHEMA_VERSION</code> unchanged
+        at 2.
+      </li>
+      <li>
+        <strong>AC16.</strong> No gate anywhere requires a reference to resolve; no write is refused
+        because a file is missing.
+      </li>
+    </ul>
+
+    <h2>Open questions (for Diego)</h2>
+    <div class="q">
+      <strong>Q1 — A field type rather than a first-class entity.</strong> Recommended above. The
+      trade-off: references ride in <code>custom_data</code>, so they inherit its behaviours —
+      including being omitted from <code>list_tasks</code> summaries (AC11). Worth confirming,
+      because it is the one visible cost.
+    </div>
+    <div class="q">
+      <strong>Q2 — <code>validate</code> opens the DB when present.</strong> The plan calls
+      <code>validate</code> the natural home but the command is DB-free today and the DB is
+      gitignored. The proposal keeps CI working and checks locally. Alternative, if you would rather
+      <code>validate</code> stay strictly substrate-as-code: put the dangling check only in the
+      inspector and drop AC6/AC7. That costs the CI-shaped surface the plan wanted most.
+    </div>
+    <div class="q">
+      <strong
+        >Q3 — Field name <code>documents</code>, role names
+        <code>spec</code>/<code>plan</code>/<code>reference</code>/<code>design</code>.</strong
+      >
+      The <code>dev</code> board only declares <code>spec</code> and <code>plan</code>; the wider
+      vocabulary is documentation for other boards. The template adds <code>audit</code>. Push back
+      on any of these names now — they are the part that is hard to change later.
+    </div>
+    <div class="q">
+      <strong>Q4 — Listing in the inspector only.</strong> Reasoned above. If the release docs
+      auditor wants it at a terminal, the cheapest follow-on is <code>--json</code> on a future
+      <code>validate</code>, not a new command.
+    </div>
+  </body>
+</html>

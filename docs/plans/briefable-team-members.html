@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Briefable team members</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      .q {
+        background: #3b82f611;
+        border-left: 3px solid #3b82f6;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .rec {
+        background: #22c55e14;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .warn {
+        background: #f5a62314;
+        border-left: 3px solid #f5a623;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Briefable team members</h1>
+    <p class="meta">
+      dev board · task 15d45ca7 (<code>briefable-team-members</code>) ·
+      <span class="status">Draft v1 — awaiting plan_approved</span> ·
+      <a href="../specs/briefable-team-members.html">spec →</a>
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      The mechanism is small and lands almost entirely as
+      <em>additive optional fields on paths that already exist</em>. The v0.7.0 member layer did the
+      structural work: a registry, a binding, a resolver, an advisory warning channel, and a UI
+      card. This adds one nested object to two schemas and lets it flow.
+    </p>
+    <p>
+      Three properties of the existing code make this cheap, and one makes it a real change rather
+      than a docs edit:
+    </p>
+    <ul>
+      <li>
+        <code>getBoardSubstrateHandler</code> splices the whole <code>Member</code> object into the
+        payload by reference (<code>src/mcp/tools/read/get-board-substrate.ts:70-77</code>), so the
+        registry brief reaches MCP, HTTP and the UI the moment it survives parsing.
+      </li>
+      <li>
+        <code>GET /api/boards/:id</code> reuses the MCP handler verbatim
+        (<code>src/http/routes/api/index.ts:63-66</code>) — zero HTTP work.
+      </li>
+      <li>
+        The warning channel (<code>Substrate.warnings: string[]</code>, printed by
+        <code>substrate validate</code>, counted by <code>diagnose</code>) already exists and
+        already exits 0.
+      </li>
+      <li>
+        <strong>The blocker:</strong> every schema in <code>src/substrate/schemas.ts</code> is a
+        plain <code>z.object</code> — zod’s default <em>strip</em>. A <code>brief</code> written
+        into a member file today parses fine and is <strong>silently discarded</strong>. That is the
+        one thing that must change in code before any content authoring has any effect, so it is
+        Step 1.
+      </li>
+    </ul>
+    <p>
+      Ordering principle:
+      <strong>mechanism first, content second, and content is the bulk.</strong> Steps 1–4 are
+      perhaps a third of the work; Step 5 (authoring 12 member records and one board binding, then
+      de-duplicating <code>concerns</code> against <code>guardrails</code>) is the rest, exactly as
+      the roadmap plan predicted.
+    </p>
+
+    <h2>Step-by-step work</h2>
+
+    <h3>Step 1 — Types + schemas (the field must survive parsing)</h3>
+    <ul>
+      <li>
+        <code>src/core/types.ts</code>: add the <code>Brief</code> interface with the docblock from
+        the spec (it carries the “no spawn mechanics” boundary — that comment is load-bearing and
+        should not be trimmed). Add <code>brief?: Brief</code> to <code>Member</code> and to
+        <code>TeamBinding</code>.
+      </li>
+      <li>
+        <code>src/substrate/schemas.ts</code>: add <code>BriefSchema</code> (plain
+        <code>z.object</code>, all keys optional, strings <code>.min(1)</code>,
+        <code>guardrails: z.array(z.string().min(1)).optional()</code>). Add
+        <code>brief: BriefSchema.optional()</code> to <code>MemberSchema</code> and
+        <code>TeamBindingSchema</code>.
+      </li>
+      <li>
+        No change to <code>Substrate</code>, so this avoids the ~18-file synthetic-literal churn
+        that the members work caused in <code>00504e5</code>. Verify that claim by running the suite
+        before touching anything else.
+      </li>
+    </ul>
+    <p>
+      <strong>Test now, before going further:</strong> a member JSON carrying
+      <code>brief</code> round-trips through <code>MemberSchema</code> with the field intact, and a
+      <code>TeamBindingSchema</code> parse keeps a binding brief. Both fail on <code>main</code>;
+      both pass after this step. That is the regression proof for AC2.
+    </p>
+
+    <h3>Step 2 — Read-surface pass-through</h3>
+    <ul>
+      <li>
+        <code>src/mcp/tools/read/get-board-substrate.ts</code>: add <code>brief?: Brief</code> to
+        <strong>both arms</strong> of the <code>ResolvedTeamMember</code> union (the
+        <code>unresolved: true</code> arm included — a board-local brief survives a dangling member
+        ref, per AC5). In the map at line 70, spread the binding’s brief:
+        <code>...(binding.brief ? { brief: binding.brief } : {})</code> — conditional so an absent
+        brief adds no key, matching the codebase’s <code>policies_fired</code> idiom.
+      </li>
+      <li>
+        <strong>Deliberately no merging.</strong> The handler does not concatenate strings, union
+        arrays, or key-wise override. Two objects out; the consumer composes.
+      </li>
+      <li>
+        <code>ui/src/lib/api.ts</code>: mirror the union change (lines ~101-110). This is a
+        hand-maintained duplicate of the server type — it will not error if forgotten, so it is on
+        the checklist rather than left to the compiler.
+      </li>
+      <li>
+        Update the <code>get_board_substrate</code> tool description’s <code>team[]</code> sentence
+        (currently at <code>get-board-substrate.ts:103</code>) to name both briefs, state the
+        composition rule, and repeat that the brief is descriptive — confers no permission, launches
+        nothing. Keep it to one added sentence: this string is in every orienting agent’s context.
+      </li>
+    </ul>
+
+    <h3>Step 3 — The brevity lint</h3>
+    <ul>
+      <li>
+        <code>src/substrate/validator.ts</code>: a pure
+        <code>checkBriefBrevity(label: string, brief: Brief | undefined, warn)</code>, called from
+        <code>checkRegistryIntegrity</code> (label <code>Member '&lt;id&gt;'</code>) and from
+        <code>checkTeamIntegrity</code> (label
+        <code>Board '&lt;board&gt;' team member '&lt;id&gt;'</code>).
+      </li>
+      <li>
+        Constants in one exported block: <code>BRIEF_MANDATE_MAX = 280</code>,
+        <code>BRIEF_DELIVERABLE_MAX = 280</code>, <code>BRIEF_GUARDRAIL_MAX = 200</code>,
+        <code>BRIEF_GUARDRAILS_MAX = 5</code>. Named so retuning is one diff.
+      </li>
+      <li>
+        Message strings follow the existing validator format exactly (see the four current strings
+        at
+        <code>validator.ts:73,103,110,117</code>) and end with the word <em>Advisory.</em>
+      </li>
+      <li>
+        Because it runs inside <code>validateSubstrate</code>, it reaches all three existing sinks
+        for free: <code>Substrate.warnings</code> (load →
+        <code>validate</code>/<code>diagnose</code>), and <code>teamCtx.warn</code> on the
+        <code>update_board</code> write path (log-only).
+        <strong>No new plumbing.</strong>
+      </li>
+      <li>
+        Nothing about it can fail a load or refuse a write; assert that explicitly in a test, not
+        just by inspection.
+      </li>
+    </ul>
+    <div class="warn">
+      This step is the only part of the plan the roadmap did not ask for. It is isolated to one
+      function and one call site pair so it can be dropped whole if Diego says no (spec Q1).
+    </div>
+
+    <h3>Step 4 — UI: render the brief in the Team card</h3>
+    <ul>
+      <li>
+        <code>ui/src/routes/BoardDetail.tsx</code>, <code>TeamCard</code> (lines ~162-221). After
+        the existing <code>full_description</code> / <code>Traits:</code> /
+        <code>Concerns:</code> lines, add, all conditional:
+        <ul>
+          <li><code>Mandate:</code> — the imperative sentence, in normal text.</li>
+          <li><code>Deliverable:</code> — same treatment.</li>
+          <li>
+            <code>Guardrails:</code> — a small list rather than a comma join; these are read one at
+            a time, unlike traits.
+          </li>
+        </ul>
+      </li>
+      <li>
+        Board-local brief renders under a small <code>on this board</code> label so a reader can
+        tell the two apart without opening the JSON. This is the human half of “side by side, never
+        merged”.
+      </li>
+      <li>
+        Keep it inside the existing collapsed <code>&lt;details&gt;</code> disclosure — no new card,
+        no layout change.
+      </li>
+      <li>
+        The unresolved arm keeps rendering id + <code>unresolved</code> badge, now plus a
+        board-local brief when the binding carries one.
+      </li>
+    </ul>
+
+    <h3>Step 5 — Author the content (the bulk of the work)</h3>
+    <p>
+      Twelve member records and one board binding. Do it as one careful pass, not mechanically — a
+      generic mandate is the plan’s stated <strong>kill signal</strong>, so each one must be
+      something an orchestrator would actually paste.
+    </p>
+    <p><strong>5a — the 8 live members</strong> in <code>.substrate/members/*.json</code>:</p>
+    <table>
+      <tr>
+        <th>Member</th>
+        <th>Mandate (charge)</th>
+        <th>Deliverable (hand-back)</th>
+      </tr>
+      <tr>
+        <td><code>planner</code></td>
+        <td>Turn one approved feature into a spec + plan with explicit acceptance criteria.</td>
+        <td>
+          <code>docs/specs/&lt;slug&gt;.html</code> + <code>docs/plans/&lt;slug&gt;.html</code>,
+          linked from the task.
+        </td>
+      </tr>
+      <tr>
+        <td><code>builder</code></td>
+        <td>Implement the approved plan in the surrounding style, testing as you go.</td>
+        <td>A branch off <code>dev</code> with the full local gate green.</td>
+      </tr>
+      <tr>
+        <td><code>reviewers</code></td>
+        <td>Review independently, with a lens distinct from the other reviewer’s.</td>
+        <td>APPROVE or BLOCK, each finding a checkable file:line claim.</td>
+      </tr>
+      <tr>
+        <td><code>integrator</code></td>
+        <td>Fold in review findings and drive the PR to Diego’s approval.</td>
+        <td>A PR against <code>dev</code> and an honest status line.</td>
+      </tr>
+      <tr>
+        <td><code>product-shaper</code></td>
+        <td>Shape one raw idea into a product plan; kill it if it is weak.</td>
+        <td>Five sections in the task description. No files.</td>
+      </tr>
+      <tr>
+        <td><code>doc-auditor</code></td>
+        <td>Check every doc claim against the code before the version is cut.</td>
+        <td>A pass/fail per doc, with the contradicting line quoted.</td>
+      </tr>
+      <tr>
+        <td><code>release-engineer</code></td>
+        <td>Cut the release per <code>RELEASING.md</code>: versions, CHANGELOG, tag, merge.</td>
+        <td>A tagged <code>main</code> and a reinstalled global binary.</td>
+      </tr>
+      <tr>
+        <td><code>validator</code></td>
+        <td>Run the full local gate and report what actually ran.</td>
+        <td>The command output, pass or fail, unedited.</td>
+      </tr>
+    </table>
+    <p>
+      The table is the shape, not the final wording — write the real sentences in the files. For
+      each member also write 1–3 guardrails and then
+      <strong>re-read <code>concerns</code> against them</strong>: today’s
+      <code>concerns</code> arrays contain several entries that are really guardrails (e.g.
+      <code>reviewers</code>: “never self-grade”, “re-review the fix round”; <code>validator</code>:
+      “CI is billing-blocked, so local IS the gate”). Move them, do not copy them. No sentence in
+      both fields (AC8).
+    </p>
+    <p>
+      <strong>5b — de-smuggle <code>reviewers</code>.</strong> Strip “Shared across the dev and
+      release boards; on release the lenses are tuned to…” from <code>full_description</code>, and
+      the release-specific entries from <code>concerns</code>. Put them in
+      <code>.substrate/boards/release.json</code>’s <code>reviewers</code> binding as a board-local
+      <code>brief</code>. Leave the <code>dev</code> binding with no brief — the registry brief is
+      the dev lens.
+    </p>
+    <p>
+      <strong>5c — bump the board version.</strong> <code>release.json</code> <code>version</code> 5
+      → 6 and refresh <code>updated_at</code>. This repo’s convention (commit
+      <code>00504e5</code> bumped <code>dev</code> 8→9 and <code>release</code> 2→3 for exactly this
+      kind of hand edit) is followed in practice but written down nowhere; follow it, and add the
+      rule to AUTHORING.md in Step 7 so the next hand-edit does not have to infer it. Only
+      <code>release.json</code> changes here — <code>dev.json</code> and <code>roadmap.json</code>
+      keep their bindings as-is.
+    </p>
+    <p>
+      <strong>5d — the 4 bundled <code>web-delivery</code> members</strong>, in
+      <strong>both</strong> mirrors or the parse-equal drift test fails:
+      <code>src/cli/templates/web-delivery.members.ts</code> and
+      <code>examples/web-delivery/.substrate/members/{planner,builder,reviewer,qa}.json</code>.
+      These are the product’s public demonstration of the feature, so they should read as well as
+      ours.
+    </p>
+
+    <h3>Step 6 — Tests</h3>
+    <p>See “Test strategy”.</p>
+
+    <h3>Step 7 — Docs</h3>
+    <ul>
+      <li>
+        <code>skills/substrate/AUTHORING.md</code> §“Team members — the registry + board binding”
+        (line ~184): the three slots, the composition rule, the <code>concerns</code>-vs-<code
+          >guardrails</code
+        >
+        line, the soft limits, and the bump-<code>version</code>-on-hand-edit convention.
+      </li>
+      <li>
+        <code>README.md</code> / <code>prd.md</code>: wherever the member record’s fields are
+        enumerated, add the brief. Keep it to the field list — do not add a new pitch paragraph.
+      </li>
+      <li>
+        <code>CHANGELOG.md</code>: an <code>Unreleased</code> entry. (Per the release board, docs
+        verification happens at release time; this is just the entry.)
+      </li>
+    </ul>
+
+    <h2>Files / touchpoints (real paths)</h2>
+    <table>
+      <tr>
+        <th>File</th>
+        <th>Change</th>
+      </tr>
+      <tr>
+        <td><code>src/core/types.ts</code></td>
+        <td>
+          <code>Brief</code> interface; <code>brief?</code> on <code>Member</code> +
+          <code>TeamBinding</code>
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/substrate/schemas.ts</code></td>
+        <td>
+          <code>BriefSchema</code>; <code>brief</code> on <code>MemberSchema</code> +
+          <code>TeamBindingSchema</code>
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/substrate/validator.ts</code></td>
+        <td><code>checkBriefBrevity</code> + 4 constants; called from both integrity checks</td>
+      </tr>
+      <tr>
+        <td><code>src/mcp/tools/read/get-board-substrate.ts</code></td>
+        <td>
+          <code>ResolvedTeamMember.brief</code> (both arms); conditional spread; tool description
+        </td>
+      </tr>
+      <tr>
+        <td><code>ui/src/lib/api.ts</code></td>
+        <td>Mirror the union change (hand-maintained duplicate)</td>
+      </tr>
+      <tr>
+        <td><code>ui/src/routes/BoardDetail.tsx</code></td>
+        <td>
+          <code>TeamCard</code>: mandate / deliverable / guardrails, plus the board-local block
+        </td>
+      </tr>
+      <tr>
+        <td><code>.substrate/members/*.json</code> (8)</td>
+        <td>Author <code>brief</code>; move mis-filed <code>concerns</code> entries</td>
+      </tr>
+      <tr>
+        <td><code>.substrate/boards/release.json</code></td>
+        <td><code>reviewers</code> binding gains <code>brief</code>; <code>version</code> 5 → 6</td>
+      </tr>
+      <tr>
+        <td><code>src/cli/templates/web-delivery.members.ts</code></td>
+        <td>Briefs for the 4 bundled members</td>
+      </tr>
+      <tr>
+        <td><code>examples/web-delivery/.substrate/members/*.json</code> (4)</td>
+        <td>The same briefs — source of truth for the mirror</td>
+      </tr>
+      <tr>
+        <td>
+          <code>skills/substrate/AUTHORING.md</code>, <code>README.md</code>, <code>prd.md</code>,
+          <code>CHANGELOG.md</code>
+        </td>
+        <td>Docs</td>
+      </tr>
+    </table>
+    <p>
+      <strong>Not touched:</strong> <code>src/substrate/loader.ts</code> (the malformed-file
+      warn-and-skip path already covers a bad brief), <code>src/substrate/writer.ts</code> (writes
+      members verbatim), the HTTP route, <code>whoami</code>, <code>explain</code>, and every write
+      tool.
+    </p>
+
+    <h2>Risks &amp; mitigations</h2>
+    <table>
+      <tr>
+        <th>Risk</th>
+        <th>Mitigation</th>
+      </tr>
+      <tr>
+        <td>
+          <strong
+            >The kill signal fires: briefs read as generic, so orchestrators keep hand-writing
+            them.</strong
+          >
+          The plan says this would mean the missing piece was task context, not member definition.
+        </td>
+        <td>
+          Step 5 is written as prose by a human/agent pass, not templated. The acceptance bar is
+          “would you paste this?” — if a mandate restates the member’s name, it has failed. Watch
+          for it in dogfood over the 4 weeks the plan names.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Drift back into a second <code>CLAUDE.md</code>.</strong> Briefs grow every time
+          someone has a thought.
+        </td>
+        <td>
+          The brevity lint (Step 3), plus the composition rule keeping board-specific text out of
+          the shared record.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Silent strip.</strong> Someone authors a brief against a binary that predates Step
+          1 and sees nothing happen — no error, no warning.
+        </td>
+        <td>
+          Nothing to do in code (strip is zod’s default and matching it keeps the schemas uniform),
+          but the regression test in Step 1 and a CHANGELOG line make the version boundary explicit.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>The UI duplicate falls out of sync</strong> —
+          <code>ui/src/lib/api.ts</code> re-declares <code>ResolvedTeamMember</code> and will not
+          fail to compile if forgotten.
+        </td>
+        <td>
+          Explicit checklist item in Step 2; the <code>BoardDetail</code> test renders a brief, so a
+          missed mirror shows up as a type error there.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Guardrails read as enforcement.</strong> The word invites “Substrate stops me
+          doing this”, which is false.
+        </td>
+        <td>
+          Say it in three places: the <code>Brief</code> docblock, the tool description,
+          AUTHORING.md. The whole member layer is already documented as descriptive; this keeps that
+          line intact.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Hand-edit vs. in-flight write on <code>release.json</code>.</strong> Board
+          <code>version</code> is an OCC key, and a hand edit that does not bump it lets a
+          concurrent <code>update_board</code> CAS pass against a stale-but-equal number.
+        </td>
+        <td>Step 5c bumps it. Make the edit when no agent is mid-write on that board.</td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Template multiplier overclaimed</strong> while <code>ba3b8c01</code> is open.
+        </td>
+        <td>
+          Spec says so explicitly; do not write the claim into README until <code>add</code> can
+          carry members.
+        </td>
+      </tr>
+    </table>
+
+    <h2>Test strategy</h2>
+    <p>
+      Every existing member/team test file is the template; extend rather than invent. Local gate
+      only — CI is billing-blocked.
+    </p>
+    <ul>
+      <li>
+        <strong><code>src/substrate/member-schema.test.ts</code></strong> — a member with a full
+        brief parses and <strong>retains</strong> it; a member with a partial brief (mandate only)
+        parses; a binding with a brief parses; <code>brief: { mandate: '' }</code> rejects;
+        <code>guardrails: 'nope'</code> rejects; a member with no brief still parses (backward
+        compat).
+      </li>
+      <li>
+        <strong><code>src/substrate/validator.test.ts</code></strong> — one warning per over-long
+        mandate / deliverable / guardrail entry / oversized guardrails list, on both the registry
+        and the binding, with the label naming the board for the latter; a within-limits brief is
+        inert; <code>validateSubstrate</code> never throws; <code>checkTeamIntegrity</code> never
+        throws.
+      </li>
+      <li>
+        <strong><code>src/substrate/loader.test.ts</code></strong> — a member file with a malformed
+        brief is warned and skipped while its neighbours still load (inherits the existing
+        warn-and-skip assertions).
+      </li>
+      <li>
+        <strong><code>src/mcp/tools/read/get-board-substrate.test.ts</code></strong> — registry
+        brief appears inside <code>member</code>; binding brief appears as a sibling and is
+        <strong>not</strong> merged into <code>member</code>; the shared-member case (two boards,
+        same member) returns an identical <code>member</code> object and different sibling briefs —
+        the AC4 test, modelled on the existing <code>groups</code> version; a binding brief on an
+        unresolved member is returned alongside <code>unresolved: true</code>.
+      </li>
+      <li>
+        <strong><code>src/cli/commands/validate.test.ts</code></strong> — a substrate with an
+        over-long brief prints the warning and <strong>exits 0</strong>. (There is no
+        member-specific case in this file today; this adds the first.)
+      </li>
+      <li>
+        <strong><code>tests/integration/board-team-migration.test.ts</code></strong> — extend the
+        live-<code>.substrate/</code> assertions: all 8 members carry a mandate, a deliverable and
+        ≥1 guardrail; <code>reviewers.full_description</code> contains no board-specific clause; the
+        <code>release</code> binding for <code>reviewers</code> carries a brief and the
+        <code>dev</code> one does not; <code>s.warnings</code> is still <code>[]</code>.
+      </li>
+      <li>
+        <strong><code>tests/integration/example-substrate.test.ts</code></strong> +
+        <strong><code>src/cli/templates/index.test.ts</code></strong> — the parse-equal drift check
+        already covers the two mirrors; add that all 4 bundled members carry a brief and that
+        <code>loadTemplateMembers</code> still throws on a malformed one (the strict-defaults gate).
+      </li>
+      <li>
+        <strong><code>src/http/routes/api/api.test.ts</code></strong> —
+        <code>GET /api/boards/:id</code>
+        surfaces both briefs (proves the free pass-through did not regress).
+      </li>
+      <li>
+        <strong><code>ui/src/routes/BoardDetail.test.tsx</code></strong> — a member with a brief
+        renders mandate, deliverable and each guardrail; a board-local brief renders under its own
+        label; a member with no brief renders exactly as today; the <code>Team (0)</code> /
+        <code>No team declared.</code> and unresolved cases are unchanged.
+      </li>
+      <li>
+        <strong>Manual, once:</strong> <code>substrate serve</code> and read the dev and release
+        Team cards — the real check is whether the release Reviewers entry now tells a reader
+        something the dev one doesn’t.
+      </li>
+    </ul>
+    <p>
+      <strong>Local gate before <code>tests_green</code>:</strong> <code>pnpm build</code>,
+      <code>tsc --noEmit</code> at the root <em>and</em> in <code>ui/</code> (the root build skips
+      test files), <code>pnpm lint</code>, <code>pnpm format:check</code>, <code>pnpm test</code>,
+      plus <code>substrate validate</code> against the live <code>.substrate/</code>.
+    </p>
+
+    <h2>Rollout</h2>
+    <ol>
+      <li>Branch off <code>dev</code>. One PR into <code>dev</code>; never <code>main</code>.</li>
+      <li>
+        Commits in step order —
+        <code>feat(members): brief on the member record and the board binding</code>, then a
+        separate <code>chore(members): author briefs for the live team</code>
+        so the mechanism diff stays reviewable apart from the prose diff.
+      </li>
+      <li>
+        Two independent reviewers, distinct lenses. Suggested split: (a) schema/back-compat — does a
+        pre-brief project still load byte-identically, is the lint truly non-blocking; (b)
+        content/product — do the twelve briefs pass the “would you paste this?” bar, and is the
+        <code>concerns</code>/<code>guardrails</code> line actually held.
+      </li>
+      <li>
+        <strong>Zero migration.</strong> No DB change, no schema version bump, no data backfill.
+        Older projects load unchanged; older binaries reading a newer member file strip the brief
+        silently (forward-compatible by accident, and harmless — the layer is advisory).
+      </li>
+      <li>
+        Dogfood window: the roadmap plan asks for 4 weeks. The observable is whether coordinator
+        prompts start quoting the board instead of composing a brief. Record it in the dogfood
+        journal; if they don’t, the plan’s kill signal has fired and the answer was task context,
+        not member definition.
+      </li>
+    </ol>
+  </body>
+</html>
