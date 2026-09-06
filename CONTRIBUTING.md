@@ -56,4 +56,25 @@ document for a project this size, but the bar is "act like a professional."
 ## License
 
 By contributing, you agree your contributions are licensed under the project's
-[MIT License](LICENSE).
+[Apache License 2.0](LICENSE).
+
+## Developer Certificate of Origin
+
+Every commit must carry a sign-off certifying that you wrote the patch, or otherwise
+have the right to submit it under the project's license. Add it with:
+
+```sh
+git commit -s
+```
+
+which appends a line like `Signed-off-by: Your Name <you@example.com>`. The full text
+is at [developercertificate.org](https://developercertificate.org/).
+
+**There is no CLA.** You keep the copyright to your contributions — the sign-off is a
+statement about provenance, not a transfer of rights.
+
+## Maintainership
+
+Substrate is maintained by Diego Ferreyra, who reviews and merges every change and sets
+the project's direction. Issues and pull requests are welcome; a contribution being
+well-made is not by itself a commitment to merge it.

@@ -6,6 +6,26 @@ Format: **Decision** — Alternatives — Why — Date.
 
 ---
 
+## Licensing (2026-09-06)
+
+### Apache-2.0 with a DCO; no CLA
+**Decision:** Relicense from MIT to **Apache-2.0** before the first public release, and accept
+contributions under a **DCO** sign-off rather than a CLA. **Alternatives:** stay MIT (no patent
+grant, and Apache's §5 inbound-contribution clause is strictly better); **AGPL-3.0 + CLA**
+(protects a future hosted/commercial product from competitors, but its whole cost is adoption —
+the one thing we won't spend, since the PRD's kill criteria depend on usage evidence);
+**Apache + CLA** (keeps the right to relicense the public project later, at the cost of
+contributor friction and "open core" suspicion). **Why:** maximum openness to contributors, in an
+ecosystem that is a near-monoculture of MIT/Apache — nothing comparable to Substrate is AGPL.
+Apache adds an express patent grant MIT lacks and states that contributions arrive under the
+same license. Crucially, a permissive license already allows a **commercial product built on
+this code, by anyone including us**; what the CLA would have bought is only the right to
+relicense *the public project itself*, which we don't need — a commercial product, if it ever
+happens, gets its own codebase. **Note:** MIT was never actually chosen; `decisions.md` recorded
+it as "MIT (default)" and no alternative was ever weighed. This entry replaces that placeholder.
+**Timing:** done pre-publish deliberately — every high-profile tightening after launch produced a
+fork (Terraform→OpenTofu, Elasticsearch→OpenSearch, Redis→Valkey). **Date:** 2026-09-06.
+
 ## Dogfood fixes (2026-07-07)
 
 ### "Pending human approval" — a derived signal + a UI pill (sprint pending-approval)
@@ -130,7 +150,7 @@ can't forge a log line.
 
 
 ### Tech stack locked (2026-05-09)
-**Decision:** Node ≥20 LTS / TypeScript / `@libsql/client` (native binding — see "libsql WASM rejected" entry below) / Hono HTTP / React 18 + Tailwind v4 + ShadCN + Vite + TanStack Router / marked + DOMPurify for markdown / official MCP TS SDK on stdio. Independent-process architecture, shared SQLite via WAL. npm name `@diegoferreyra/substrate`. Repo `diegoferreyra/substrate`. MIT. **Alternatives considered and rejected:** `better-sqlite3` (sync API doesn't match the async-everywhere stack; libsql is the modern equivalent with prebuilds for the same platforms); Fastify (Hono is lighter for our needs); HTMX + server-rendered HTML (cuts off ShadCN's component leverage); single-long-lived-process with IPC (adds plumbing complexity without payoff — SQLite WAL handles multi-process natively); `substrate-mcp` unscoped name (scoping resolves namespace ambiguity, signals authorship, leaves room for sibling packages). **Why:** the combination optimizes for (a) acceptable OSS install on every platform via npm prebuilds, (b) modern TypeScript ergonomics throughout, (c) a UI path that can leverage existing component libraries (ShadCN), (d) processes that just-work via WAL with no IPC code. **Date:** 2026-05-09.
+**Decision:** Node ≥20 LTS / TypeScript / `@libsql/client` (native binding — see "libsql WASM rejected" entry below) / Hono HTTP / React 18 + Tailwind v4 + ShadCN + Vite + TanStack Router / marked + DOMPurify for markdown / official MCP TS SDK on stdio. Independent-process architecture, shared SQLite via WAL. npm name `@diegoferreyra/substrate`. Repo `diegoferreyra/substrate`. MIT *(superseded 2026-09-06: Apache-2.0)*. **Alternatives considered and rejected:** `better-sqlite3` (sync API doesn't match the async-everywhere stack; libsql is the modern equivalent with prebuilds for the same platforms); Fastify (Hono is lighter for our needs); HTMX + server-rendered HTML (cuts off ShadCN's component leverage); single-long-lived-process with IPC (adds plumbing complexity without payoff — SQLite WAL handles multi-process natively); `substrate-mcp` unscoped name (scoping resolves namespace ambiguity, signals authorship, leaves room for sibling packages). **Why:** the combination optimizes for (a) acceptable OSS install on every platform via npm prebuilds, (b) modern TypeScript ergonomics throughout, (c) a UI path that can leverage existing component libraries (ShadCN), (d) processes that just-work via WAL with no IPC code. **Date:** 2026-05-09.
 
 ### Phase 0 spike result: libsql WASM rejected; native binding accepted
 **Decision:** Use `@libsql/client` native binding, not `@libsql/client-wasm`. The original v0.3 stack-lock specified WASM for "no native deps"; Phase 0 spike (2026-05-09) proved WASM doesn't fit the use case. **Spike findings (macOS arm64, Node 24.15):** (a) `@libsql/client-wasm` returns `SQLITE_CANTOPEN` immediately when given a `file:` URL — it uses `@libsql/libsql-wasm-experimental`, designed for browser/edge contexts (Cloudflare Workers, etc.) without filesystem access. (b) `@libsql/client` native binding: 4 concurrent processes for 60 seconds wrote 8,821 rows total, zero errors, persisted count matched reported count exactly. **Engineering implications:** schema bootstrap must be centralized (only `substrate init` and migration runner touch DDL); every connection sets `PRAGMA busy_timeout = 5000`; `PRAGMA journal_mode = WAL` and `PRAGMA synchronous = NORMAL` set once at init. **Alternative considered:** switch to `better-sqlite3` (same native-dep class, more battle-tested, sync API). Rejected because the rest of the stack (Hono, MCP SDK) is async; libsql's async API matches; and Turso/libsql is forward-compatible with a hypothetical hosted-sync v2. **Date:** 2026-05-09. *Spike artifacts retained at `/Users/diegoferreyra/WebDevelopment/substrate-spike-libsql/` for verification.*
@@ -217,6 +237,7 @@ One per substrate instance, auto-created. Stored in `config.json`.
 
 ### Open source from day one, repo public *— KEPT*
 MIT (default). v0.3 adds explicit pre-public artifact checklist (§6.16).
+*Superseded 2026-09-06:* relicensed to Apache-2.0 with a DCO — see "Licensing (2026-09-06)" above.
 
 ### Stack: TypeScript + Node + SQLite, locked *— KEPT*
 Confirmed in v0.3.
