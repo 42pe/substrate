@@ -3,7 +3,7 @@
   "version": "0.7.0",
   "description": "Local-first, per-project agent-collaborative substrate exposed via MCP.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Diego Ferreyra <diego@404.pe>",
   "homepage": "https://github.com/42pe/substrate",
   "repository": {

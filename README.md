@@ -135,4 +135,7 @@ See [`examples/`](examples/) — real example substrates land as the project dog
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Diego Ferreyra.
+Apache License 2.0 — see [LICENSE](LICENSE). Copyright 2026 Diego Ferreyra.
+
+Contributions are accepted under the same license with a [DCO](https://developercertificate.org/)
+sign-off (`git commit -s`). There is no CLA; you keep the copyright to your work.

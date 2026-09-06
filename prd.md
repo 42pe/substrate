@@ -45,7 +45,7 @@ Secondary domains (PM, researcher) served by the same primitives as long as the 
 - Engineer can author a minimal useful substrate (one board, three groups, two policies) by editing JSON in under 10 minutes.
 - Agent can bootstrap (`whoami` → `get_board_substrate`) and reach a useful first write in one MCP session.
 - Diego personally uses it on ≥2 real projects for ≥8 consecutive weeks.
-- Repo public and OSS (MIT) from day one.
+- Repo public and OSS (Apache-2.0) from day one.
 
 ### Non-goals (v1) — *required, not optional*
 - Not a hosted SaaS, not a service, not multi-user. One project, one user, one machine. Period.
@@ -286,7 +286,7 @@ Stack locked 2026-05-09:
 - **Process architecture:** independent processes. `npx substrate` runs the long-lived HTTP UI server; `npx substrate mcp` is spawned per-agent-session by the agent runtime via `.mcp.json`. All processes share state via SQLite WAL. User runs at most one command (`npx substrate`); the HTTP UI is optional for agent operation (agents work without it).
 - **npm package name:** **`@diegoferreyra/substrate`** (scoped). Product name displayed everywhere is "Substrate." CLI binary is `substrate`.
 - **GitHub repo:** `42pe/substrate`. (Originally planned public day one; revised — kept **private** until dogfooded on at least one real project, then made public + published to npm.)
-- **License:** MIT.
+- **License:** Apache-2.0. Contributions under a DCO sign-off; no CLA.
 - **Packaging:** npm package, runnable via `npx @diegoferreyra/substrate <command>`. Postinstall scripts kept minimal.
 - **Capacity:** solo, 8–20 hrs/week, no ship date.
 - **Infra costs:** zero.
