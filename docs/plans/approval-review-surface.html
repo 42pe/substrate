@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PLAN — Approval review surface in the inspector</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 820px;
+        margin: 2rem auto;
+        padding: 0 1.2rem;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f0f10;
+          color: #e8e8e8;
+        }
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0.2rem 0;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        border-bottom: 1px solid #8883;
+        padding-bottom: 0.3rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin-top: 1.4rem;
+      }
+      .meta {
+        color: #8a8a8a;
+        font-size: 0.9rem;
+      }
+      code {
+        background: #8881;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #8881;
+        padding: 0.8rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.82em;
+        line-height: 1.45;
+      }
+      .status {
+        display: inline-block;
+        background: #f5a62333;
+        color: #a5680c;
+        border-radius: 999px;
+        padding: 0.15rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      a {
+        color: #3b82f6;
+      }
+      .q {
+        background: #3b82f611;
+        border-left: 3px solid #3b82f6;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .rec {
+        background: #22c55e14;
+        border-left: 3px solid #22c55e;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      .warn {
+        background: #f5a62314;
+        border-left: 3px solid #f5a623;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0 6px 6px 0;
+        margin: 0.6rem 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9em;
+        margin: 0.6rem 0;
+      }
+      th,
+      td {
+        border: 1px solid #8883;
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PLAN — Approval review surface in the inspector</h1>
+    <p class="meta">
+      dev board · task 9abed851 (<code>approval-review-surface</code>) ·
+      <span class="status">Draft v1 — awaiting plan_approved</span> ·
+      <a href="../specs/approval-review-surface.html">spec →</a>
+    </p>
+    <p class="meta">
+      Sequenced <strong>after</strong> dev task 69cd3660 —
+      <a href="typed-document-references.html">typed document references</a>. Its
+      <code>GET /api/tasks/:id/documents</code> is the contract this feature’s evidence panel reads.
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+      Almost everything this needs is already built and already correct. The pending-approval
+      aggregate, the per-task gate derivation, the comments and history reads, the approve/revoke
+      pipeline including its stranded-task detection — all shipped. What is missing is
+      <strong
+        >one narrowly-scoped human write path over HTTP, and a place to stand while making the
+        decision.</strong
+      >
+    </p>
+    <p>
+      So the plan is deliberately back-to-front from how the feature reads. The
+      <strong>refactor comes first</strong>, and it is the part that deserves the review attention:
+    </p>
+    <ol>
+      <li>
+        <strong>Extract the approval operation</strong> so the <code>human_only</code> assertion —
+        the single check the whole feature’s safety rests on — exists once.
+      </li>
+      <li>
+        <strong>Mount it on HTTP</strong>, with the origin tightening and without widening
+        <code>ApiDeps</code>.
+      </li>
+      <li><strong>Build the queue view</strong> (pure read, no affordance).</li>
+      <li><strong>Build the evidence panel</strong>, then attach the control below it.</li>
+      <li><strong>Throughput + docs.</strong></li>
+    </ol>
+    <p>
+      Steps 1–2 are where a mistake would matter and where nothing is visible; steps 3–5 are where
+      most of the diff is and where a mistake is obvious. Reviewing them in that order is the point
+      of the ordering.
+    </p>
+
+    <h3>The three invariants to hold while building</h3>
+    <ul>
+      <li>
+        <strong><code>ApiDeps</code> gains nothing.</strong> It is
+        <code>Pick&lt;ToolDeps, 'client' | 'config' | 'loadSubstrate'&gt;</code> precisely so HTTP
+        cannot reach the substrate-write root. An approval writes a task row and reads the board
+        from substrate-as-code — it needs neither <code>root</code> nor a file write. If a step
+        seems to need <code>root</code>, the design has drifted; stop.
+      </li>
+      <li>
+        <strong>One <code>human_only</code> check.</strong> Not one per channel. This is why Step 1
+        exists.
+      </li>
+      <li>
+        <strong>No affordance without evidence.</strong> Any approve control outside the task-detail
+        panel is a bug, not a convenience.
+      </li>
+    </ul>
+
+    <h2>Step-by-step work</h2>
+
+    <h3>Step 1 — Extract <code>src/operations/approval.ts</code></h3>
+    <p>Pure refactor. No behaviour change; the existing CLI tests are the proof.</p>
+    <ul>
+      <li>
+        Two exported functions —
+        <code>setHumanField(deps, { taskId, field, value, actor, channel })</code> and
+        <code>clearHumanField(deps, { taskId, field, actor, channel })</code> — taking
+        <code>Pick&lt;ToolDeps, 'client' | 'loadSubstrate'&gt;</code>, matching
+        <code>list-pending-approvals.ts</code>’s narrowed-dep shape.
+      </li>
+      <li>
+        Move, unchanged: the board resolution, the <code>human_only</code> assertion and its exact
+        error wording, <code>validateFieldSchema</code>, the OCC <code>updateTask</code>, the
+        <code>appendEvent</code>, and (for clear) <code>unapprove</code>’s stranded-gate detection,
+        returned as data rather than printed.
+      </li>
+      <li>
+        Add <code>channel</code> to the event <code>changes</code>. Backfill the CLI callers with
+        <code>'cli'</code> in this same step, so the field is never ambiguous by omission.
+      </li>
+      <li>
+        <code>currentUser()</code> moves here too — it is duplicated verbatim in both commands
+        today.
+      </li>
+      <li>
+        <code>approve.ts</code> and <code>unapprove.ts</code> become argument parsing, a call, and
+        printing. Their existing tests must pass <strong>unmodified</strong>; that is the refactor’s
+        acceptance bar.
+      </li>
+    </ul>
+
+    <h3>Step 2 — The HTTP write routes</h3>
+    <ul>
+      <li>
+        <code>POST /api/tasks/:id/approvals</code> — body <code>{ field, value? }</code>,
+        <code>value</code> defaulting to <code>true</code>.
+        <code>DELETE /api/tasks/:id/approvals/:field</code>.
+      </li>
+      <li>
+        Actor: <code>human:${currentUser()}</code>, from the <code>serve</code> process’s own OS
+        user. Channel: <code>'inspector'</code>.
+      </li>
+      <li>
+        <strong>Origin tightening.</strong> A small middleware applied to
+        <strong>these two routes only</strong>: <code>Origin</code> must be present and allowlisted
+        (the base middleware allows it absent). Do not change <code>originAllowlist</code> itself —
+        the read surface’s curl/server-to-server behaviour is deliberate and other things depend on
+        it.
+      </li>
+      <li>
+        Errors ride the existing <code>errorHandler</code>: <code>not_found</code> → 404,
+        <code>schema_violation</code> → 4xx, <code>version_mismatch</code> → its mapped status. No
+        new error shapes.
+      </li>
+      <li>
+        Replace the “Reads only — NO write route is ever registered” comment above
+        <code>registerApiRoutes</code> with the sharpened two-channel property from the spec.
+        Leaving a comment that the code contradicts is exactly the rot this project keeps
+        correcting.
+      </li>
+      <li>
+        <code>ui/src/lib/api.ts</code>: <code>apiPost</code>/<code>apiDelete</code> helpers
+        alongside <code>apiGet</code>, plus the two typed calls. Its header comment (“GET only — the
+        server exposes no write routes”) needs the same correction.
+      </li>
+    </ul>
+
+    <h3>Step 3 — The <code>/approvals</code> queue</h3>
+    <ul>
+      <li>
+        <code>ui/src/routes/Approvals.tsx</code> + a route in <code>main.tsx</code>, reading
+        <code>GET /api/pending-approvals</code>. No new endpoint, no new aggregate.
+      </li>
+      <li>
+        Grouped by board, mirroring the CLI table’s columns (title, short id,
+        <code>group → to_group</code>, awaiting fields) so the two surfaces read the same.
+      </li>
+      <li>
+        <strong>Rows are links. Nothing else.</strong> AC8 asserts the absence of any button or
+        checkbox in the rendered DOM — a negative test, deliberately, because this is the non-goal
+        most likely to be “helpfully” re-added later.
+      </li>
+      <li>A nav entry with a count, using the existing polling hook.</li>
+    </ul>
+
+    <h3>Step 4 — The evidence panel</h3>
+    <ul>
+      <li>
+        A fourth tab in <code>ui/src/routes/TaskDetail.tsx</code>, shown when the task is pending
+        <em>or</em> any <code>human_only</code> field is set. Computing that needs the board’s
+        <code>field_schema</code>, so the route fetches <code>GET /api/boards/:id</code> as well —
+        which also supplies the guard’s <code>on_failure_message</code>.
+      </li>
+      <li>
+        Compose the seven blocks in the spec’s order from existing reads plus
+        <code>GET /api/tasks/:id/documents</code>. <strong>Read-only composition</strong> — no new
+        server aggregate; every piece is a call the inspector already makes somewhere.
+      </li>
+      <li>
+        The documents block degrades cleanly: no <code>document_refs</code> field on the board ⇒ the
+        block is absent, not an error state. That keeps the panel correct for any user’s board, not
+        only ours.
+      </li>
+      <li>
+        <strong>Layout is load-bearing.</strong> The control sits at the bottom, after the evidence.
+        No sticky footer, no button beside the title, no duplicate at the top. Scrolling past what
+        you are approving is the mechanism.
+      </li>
+      <li>
+        Per awaiting field: an Approve button naming the field and the transition it unblocks. Per
+        currently-set <code>human_only</code> field: a Revoke button, with the stranded warning
+        rendered when the operation reports it.
+      </li>
+      <li>
+        On success, refetch the task and the approval state (the version has moved) and render the
+        outcome plus “Next pending →”. On <code>version_mismatch</code>, render “this task changed —
+        re-read before approving” with a refresh, never a retry-with-stale-version.
+      </li>
+    </ul>
+
+    <h3>Step 5 — Throughput, then docs</h3>
+    <ul>
+      <li>
+        “Next pending →” reads the queue and navigates to the next item’s Approval tab. Just
+        navigation — it never approves, and there is no keyboard shortcut that could approve without
+        a deliberate click.
+      </li>
+      <li>
+        <code>README.md</code>: the human channel is now “<code>substrate approve</code> <em>or</em>
+        the inspector”; correct the line that says the UI is read-only, using the sharpened property
+        rather than deleting the claim.
+      </li>
+      <li>
+        <code>prd.md</code> §6.13 / §6.17: the same restatement. This is the plan’s “conscious
+        trade, not a slide” — write it down as one.
+      </li>
+      <li>
+        <code>decisions.md</code>: a dated entry recording the one deliberate UI write and the
+        two-channel split.
+      </li>
+      <li><code>CHANGELOG.md</code>.</li>
+      <li>
+        <strong>Not</strong> the B3 overclaim in README and the code comment — that is dev task
+        <code>d3f38afb</code>, independent. Do not absorb it.
+      </li>
+    </ul>
+
+    <h2>Files / touchpoints (real paths)</h2>
+    <table>
+      <tr>
+        <th>File</th>
+        <th>Change</th>
+      </tr>
+      <tr>
+        <td><code>src/operations/approval.ts</code></td>
+        <td>
+          <strong>New.</strong> <code>setHumanField</code> / <code>clearHumanField</code> +
+          <code>currentUser</code>
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/cli/commands/approve.ts</code>, <code>unapprove.ts</code></td>
+        <td>Reduced to parse → call → print; stamp <code>channel: 'cli'</code></td>
+      </tr>
+      <tr>
+        <td><code>src/http/routes/api/index.ts</code></td>
+        <td>The two write routes; the corrected reads-only comment</td>
+      </tr>
+      <tr>
+        <td><code>src/http/middleware/</code></td>
+        <td><strong>New.</strong> Strict-origin middleware for the write routes only</td>
+      </tr>
+      <tr>
+        <td><code>ui/src/lib/api.ts</code></td>
+        <td>
+          <code>apiPost</code>/<code>apiDelete</code>, two typed calls, corrected header comment
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>ui/src/routes/Approvals.tsx</code>, <code>main.tsx</code>, <code>Layout.tsx</code>
+        </td>
+        <td><strong>New route</strong> + nav entry with count</td>
+      </tr>
+      <tr>
+        <td><code>ui/src/routes/TaskDetail.tsx</code></td>
+        <td>The Approval tab: evidence blocks + controls</td>
+      </tr>
+      <tr>
+        <td>
+          <code>README.md</code>, <code>prd.md</code>, <code>decisions.md</code>,
+          <code>CHANGELOG.md</code>
+        </td>
+        <td>Docs</td>
+      </tr>
+    </table>
+    <p>
+      <strong>Not touched:</strong> <code>src/policy/*</code> (gate evaluation unchanged),
+      <code>src/mcp/*</code> (no tool added or changed; agent tools still refuse
+      <code>human_only</code>), <code>src/operations/list-pending-approvals.ts</code>, every
+      migration, and <code>src/http/server.ts</code>’s binding (still <code>127.0.0.1</code>).
+    </p>
+
+    <h2>Risks &amp; mitigations</h2>
+    <table>
+      <tr>
+        <th>Risk</th>
+        <th>Mitigation</th>
+      </tr>
+      <tr>
+        <td>
+          <strong>The <code>human_only</code> check diverges between channels</strong> — the failure
+          that would quietly turn the flagship gate into theatre.
+        </td>
+        <td>
+          Step 1 makes it physically single. AC1 asserts no second copy; the CLI tests passing
+          unmodified prove the extraction was faithful.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>The read-only slide.</strong> “While we’re here, let the UI edit a task.” The plan
+          names this as the reason the property must be restated rather than waived.
+        </td>
+        <td>
+          The property is written into the code comment, the README, the PRD and
+          <code>decisions.md</code>. The operation is physically incapable of writing a non-<code
+            >human_only</code
+          >
+          field, so the slide requires a deliberate, reviewable change — not a small addition.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Batch creeping back in</strong> as a “small convenience” — a button on the queue
+          row, a select-all, a keyboard shortcut.
+        </td>
+        <td>
+          AC8 is a negative DOM assertion, so re-adding it breaks a test with a name that explains
+          why. Reviewer (b) is briefed on it specifically.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Evidence that isn’t evidence.</strong> A dead spec link rendered as a live one —
+          precisely the failure the dependency on <code>69cd3660</code> exists to prevent.
+        </td>
+        <td>
+          Dead references are marked and unlinked (AC10). If <code>69cd3660</code> slips, ship
+          without the documents block; never fall back to <code>spec_doc</code>.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Widening <code>ApiDeps</code></strong> because something “needs the root”.
+        </td>
+        <td>
+          Named as an invariant above and asserted by AC3. Nothing in this feature writes a file.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Approving a stale task.</strong> The reviewer reads evidence, an agent writes, the
+          approval lands on a task that has moved.
+        </td>
+        <td>
+          OCC is already there. AC14 requires the conflict to surface as “re-read before approving”,
+          never a silent retry — a retry would defeat the whole evidence premise.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Overclaiming the security property</strong> in the docs written in Step 5 — the
+          mistake this project has already corrected once.
+        </td>
+        <td>
+          The spec states the corrected B3 property; the doc edits quote it rather than
+          paraphrasing. “Matches the CLI’s trust boundary”, never “airtight”.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <strong>Making approval easier without making it better.</strong> The plan’s own honest
+          check: if the approval rate stays 100% forever, the gate is ceremony regardless of
+          surface.
+        </td>
+        <td>
+          Not a code risk and not fixable in code. Watch it in the dogfood journal — the signal the
+          plan names is Diego occasionally declining or asking a question back.
+        </td>
+      </tr>
+    </table>
+
+    <h2>Test strategy</h2>
+    <p>Local gate only — CI is billing-blocked.</p>
+    <ul>
+      <li>
+        <strong
+          ><code>src/cli/commands/approve.test.ts</code>, <code>unapprove.test.ts</code></strong
+        >
+        — <strong>unmodified</strong>, passing after the extraction. The refactor’s acceptance bar.
+      </li>
+      <li>
+        <strong><code>src/operations/approval.test.ts</code></strong> — new. Sets and clears a
+        <code>human_only</code> field; refuses a plain field, an undeclared field, and a
+        <code>human_only</code> field from another board; stamps actor and channel; bumps the
+        version; appends the event; reports stranded on a clear past a cleared gate; surfaces
+        <code>version_mismatch</code>.
+      </li>
+      <li>
+        <strong><code>src/http/routes/api/api.test.ts</code></strong> — POST sets a field and
+        returns the updated task; DELETE clears it; a non-<code>human_only</code> field is refused;
+        unknown task 404s; absent and non-allowlisted <code>Origin</code> are refused on the write
+        routes and accepted on the reads; a
+        <strong
+          >type-level assertion that <code>ApiDeps</code> still has no <code>root</code></strong
+        >.
+      </li>
+      <li>
+        <strong>Gate round-trip (integration)</strong> — a guarded move is blocked; POST the
+        approval; <code>check_transition</code> now passes; DELETE it;
+        <code>check_transition</code> blocks again (AC6). This is the test that proves the surface
+        actually operates the gate rather than just writing a field.
+      </li>
+      <li>
+        <strong>B3 regression</strong> — with the write routes mounted, an agent’s
+        <code>update_task</code> still refuses a <code>human_only</code> field and
+        <code>update_board</code> still refuses to un-protect one. The new channel must not have
+        opened an old door.
+      </li>
+      <li>
+        <strong><code>ui/src/routes/Approvals.test.tsx</code></strong> — new. Grouped rendering; the
+        empty state; <strong>no button, checkbox or select-all in the DOM</strong> (AC8).
+      </li>
+      <li>
+        <strong><code>ui/src/routes/TaskDetail.test.tsx</code></strong> — the tab appears when
+        pending and when a field is set, and is absent otherwise; all seven blocks render; a dead
+        document reference is marked and not a link; a board with no document field renders no
+        block; the control renders <em>after</em> the evidence in document order; the stranded
+        warning shows on revoke; a version conflict renders the re-read state.
+      </li>
+      <li>
+        <strong>Manual, once, end to end:</strong> take a real pending approval, clear it from the
+        browser, confirm the blocked agent’s next <code>update_task</code> succeeds, then
+        <code>substrate activity --actor human:$(whoami)</code> and check the event says
+        <code>channel: inspector</code>. That last check only exists if <code>847358dc</code> has
+        landed; otherwise read it via <code>get_task_history</code>.
+      </li>
+    </ul>
+    <p>
+      <strong>Local gate before <code>tests_green</code>:</strong> <code>pnpm build</code>,
+      <code>tsc --noEmit</code> at the root <em>and</em> in <code>ui/</code>,
+      <code>pnpm lint</code>, <code>pnpm format:check</code>, <code>pnpm test</code>, plus the
+      Playwright UI smoke if the tab is covered there.
+    </p>
+
+    <h2>Rollout</h2>
+    <ol>
+      <li>
+        <strong>After <code>69cd3660</code> merges to <code>dev</code>.</strong> Branch off
+        <code>dev</code> at that point so <code>GET /api/tasks/:id/documents</code> exists to build
+        against.
+      </li>
+      <li>
+        Commit order follows the steps:
+        <code>refactor(approval): extract the human-only write to an operation</code> →
+        <code>feat(http): approval write routes</code> →
+        <code>feat(ui): pending-approvals queue</code> →
+        <code>feat(ui): approval evidence panel</code> → docs. The first commit should be reviewable
+        as a pure no-op refactor.
+      </li>
+      <li>
+        Two independent reviewers, distinct lenses. Suggested split: (a) correctness &amp; security
+        — the single <code>human_only</code> check, <code>ApiDeps</code>, origin handling, OCC under
+        concurrent writes, and whether B3 still holds for agents; (b) product &amp; docs — is the
+        evidence genuinely above the control, did any batch affordance appear, is the read-only
+        restatement honest in README and PRD, and is the B3 property described without overclaim.
+      </li>
+      <li>
+        <strong>No migration and no data change.</strong> Reverting removes a route and a tab; every
+        approval already made stays a normal task field.
+      </li>
+      <li>
+        Dogfood signal from the plan: time from “agent reports blocked” to “gate cleared”, whether
+        approvals stop arriving in clusters of five-plus, and — the honest one — whether Diego ever
+        declines or asks a question back. If the rate stays 100%, the gate is ceremony and we should
+        say so rather than admire the new surface.
+      </li>
+    </ol>
+  </body>
+</html>

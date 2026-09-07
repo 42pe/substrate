@@ -9,3 +9,6 @@ pnpm-lock.yaml
 # Long-form documentation — formatted by hand, not by Prettier
 *.md
 .agents/**/*.md
+
+# Agent git worktrees — separate checkouts, formatted on their own branches
+.claude/worktrees/
