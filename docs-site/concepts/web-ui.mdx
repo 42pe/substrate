@@ -39,10 +39,10 @@ seconds. You can leave it open beside your editor and watch the work land.
   that change state.
 </Note>
 
-Two reasons this is deliberate. The agent is the writer, and a second write path would
-make the event log lie about who did what. And the one human write channel that does
-exist — [`substrate approve`](/cli/approve) — is a CLI command precisely so it cannot be
-clicked by accident.
+Two reasons this is deliberate. **The event log** stays truthful about who did what —
+the agent is the writer, and a second write path would blur that. **The one human write
+channel that does exist** — [`substrate approve`](/cli/approve) — is a CLI command
+precisely so it cannot be clicked by accident.
 
 ## One owner per directory
 
