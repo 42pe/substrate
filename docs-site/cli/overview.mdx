@@ -49,9 +49,9 @@ is no `--version` flag in v0.7.0 — `substrate --help` names the version on its
 ## Global behaviour
 
 **Working directory is the addressing scheme.** Every command operates on the
-`.substrate/` in the directory it runs from. There is no `--project` flag and no global
-registry. This is also the mechanism for pointing a process at another checkout — see
-[worktrees and fresh clones](/agents/worktrees-and-clones).
+`.substrate/` in the directory it runs from. No command takes a `--project` flag, and no
+global registry of projects exists. That same rule is how you point a process at another
+checkout — see [worktrees and fresh clones](/agents/worktrees-and-clones).
 
 **Unknown flags are rejected** per command, rather than silently ignored.
 

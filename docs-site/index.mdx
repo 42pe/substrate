@@ -26,10 +26,12 @@ runtime state, sitting beside your code. No accounts, no cloud, no telemetry.
 Two things those cannot do, which are the whole reason Substrate exists.
 
 **State that survives the context window.** A harness-native todo list is per-session —
-it evaporates when the context resets. A markdown file is durable but unstructured, and
-agents drift from it as context fills. Substrate's state lives in `.substrate/`, so a
-new session or a second agent reads exactly where work stands, and which gates are
-unmet, without reconstructing it from `git log`.
+it evaporates when the context resets. A `CLAUDE.md` is durable but unstructured, and
+agents drift from it as context fills. GitHub Issues is durable and structured, but it
+lives outside the repo the agent is working in, so reading it is a round trip the agent
+has to remember to make. Substrate's state lives in `.substrate/`, so a new session or a
+second agent reads exactly where work stands, and which gates are unmet, without
+reconstructing it from `git log`.
 
 **Enforcement at the moment of the action.** A convention in a prompt is advisory. A
 [`transition_guard`](/concepts/policies-and-gates) returns `transition_blocked` at the
