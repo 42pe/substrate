@@ -1,0 +1,102 @@
+---
+title: "Boards, groups, and tasks"
+description: "The objects Substrate tracks and how work moves between them."
+---
+
+## Project
+
+One `.substrate/` is one project: an id, a name, a description and a `version` for
+optimistic concurrency. Read it with `get_project`; change the name or description with
+`update_project`.
+
+A project holds any number of **boards**.
+
+## Boards
+
+A board is a workspace — one workflow, with its own stages, its own custom fields and
+its own rules. Most projects want few boards, each modelling one flow end to end.
+
+Boards carry `id`, `name`, `description`, `field_schema`, `groups`, `policies`, an
+optional `team`, and a `version`. They are soft-deleted: `archive_board` sets
+`archived_at`, `unarchive_board` clears it. Both are idempotent.
+
+<Tip>
+  Prefer extending an existing board over inventing a new one. Two boards that model
+  the same flow is the most common way a substrate stops being a single source of truth.
+</Tip>
+
+## Groups
+
+A group is a column on the board. What it means is your call — status, phase, owner —
+but the ordering is explicit: `position` (0, 1, 2, …) is the left-to-right flow.
+
+- `create_group` appends by default; pass `position` to place it.
+- `reorder_groups` sets the whole order at once and requires exactly the board's group
+  ids.
+- `archive_group` is refused with `conflict` if active tasks still reference it — move
+  them first.
+
+Group ids are referenced by policies and by every task, so keep them short, stable and
+readable (`spec`, `build`, `done`).
+
+## Tasks
+
+A task belongs to **one** group at a time. It carries:
+
+| Field | Notes |
+| --- | --- |
+| `title` | Required. |
+| `description` | Markdown. |
+| `custom_data` | Your board's custom fields, validated lazily against `field_schema`. |
+| `group_id` | Moving between groups is what policies guard. |
+| `parent_id` | Optional — subtasks. |
+| `version` | Echo it back on every update, or get `version_mismatch`. |
+
+Moving a task **is** an update: `update_task` with a new `group_id`. That is the write
+a [`transition_guard`](/concepts/policies-and-gates) inspects.
+
+`archive_task` soft-deletes (history is preserved); `unarchive_task` restores. Nothing
+in Substrate hard-deletes a task.
+
+### Reading tasks without flooding your context
+
+`list_tasks` returns lightweight **summary** rows by default: id, title, group, version,
+timestamps, a `description_excerpt`, and a `custom_data` trimmed to small scalars, with
+bulky keys named in `custom_data_omitted`.
+
+- `view: 'titles'` — the leanest rows, for pure selection.
+- `view: 'summary'` — the default.
+- `view: 'full'` — complete `description` and `custom_data` on every row.
+- `get_task(id)` — one task, in full.
+
+Filtering is unaffected by the projection: `custom_field` and
+`missing_required_fields` run against the full task even when the value is omitted from
+the returned row.
+
+## Comments
+
+Comments are threaded (`parent_id` makes a reply), markdown-bodied, and can carry their
+own `custom_data` against `field_schema.comments`.
+
+Unlike tasks, comments are **last-write-wins** — `edit_comment` takes no `version`.
+Their `version` in a write envelope is `null`.
+
+Use a comment for a decision, a rationale, or a note to the next session. Use a
+**field** for anything a policy needs to read.
+
+## The event log
+
+Every write appends to an event log: `created`, `updated`, `archived`,
+`comment_added`, `move_blocked`, and so on, in chronological order. Read it with
+`get_task_history`.
+
+Two things make it worth reading:
+
+- `move_blocked` records a `transition_guard` that rejected a move — the trail of what
+  a task was not allowed to do.
+- `created` and `updated` events carry a `policies_fired` list in `changes` when a
+  policy engaged.
+
+A human approval through [`substrate approve`](/cli/approve) is stamped with a
+`human:<os-user>` actor, so the log distinguishes a person's sign-off from an agent's
+write.

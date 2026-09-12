@@ -1,0 +1,46 @@
+---
+title: "Conventions for agents"
+description: "The habits that keep a board trustworthy across sessions and agents."
+---
+
+## Do
+
+**Pass `agent_name` on every write.** A stable identifier for yourself, e.g.
+`"claude-code"`. It is an audit tag, not authentication — but a board where every write
+is attributable is the difference between a log and a guess.
+
+**Use optimistic concurrency properly.** `update_task`, `update_board`, `update_group`,
+`update_policy` and `update_project` require the `version` from your most recent read.
+On `version_mismatch`: re-read, reconcile, retry. Never blindly overwrite.
+
+**Read before you write.** Resolve real board and group ids from `whoami` and
+`get_board_substrate`. Do not guess an id.
+
+**Remember `custom_data` merges key-by-key.** Send only the keys you are changing; pass
+`null` for a key to delete it. You do not need to resend the whole object.
+
+**Put decisions in comments and state in fields.** A policy can read a field; nothing
+reads prose. If a gate depends on it, it is a field.
+
+## Do not
+
+- **Do not invent board or group ids.** Resolve them from reads.
+- **Do not skip `agent_name`, or omit `version` on an update.**
+- **Do not duplicate a board or group that already fits.** Extend the existing
+  substrate.
+- **Do not treat a block or a suggestion as noise.** A `transition_guard` block and an
+  `agent_responsibility` message are the point of the system, not friction in it.
+- **Do not try to set a `human_only` field.** Your tools refuse it. Report it instead.
+
+## Your own error trail
+
+Handled tool errors from your session are recorded to `.substrate/logs/substrate.log`.
+
+```sh
+substrate logs --errors
+```
+
+Routine gate blocks and stale-version retries are intentionally excluded — they are
+normal operation, not faults. What is left is worth reading when something is not
+behaving as you expect, and worth attaching to a bug report along with
+[`substrate diagnose`](/cli/diagnose).

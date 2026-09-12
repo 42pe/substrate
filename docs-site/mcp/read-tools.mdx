@@ -1,0 +1,152 @@
+---
+title: "Read tools"
+description: "Orient, list, and inspect — without changing anything."
+---
+
+Read tools return raw data, not an envelope. None of them take `agent_name`.
+
+## Orientation
+
+### `whoami`
+
+No parameters. **Call this first.** Returns project metadata, a summary of every board
+with its id, and hints. One call orients a session that has no memory of the last one.
+
+### `get_project`
+
+No parameters. The full project record — name, description, `version`. Cheap; call it
+after `whoami` when you need fields beyond the summary. The `version` is what
+`update_project` requires.
+
+### `list_boards`
+
+<ParamField path="archived" type="boolean" />
+<ParamField path="pagination" type="object" />
+
+Board summaries. `whoami` already gives you these — reach for `list_boards` only when you
+need a fresh paginated view or the archived ones.
+
+### `get_board_substrate`
+
+<ParamField path="board_id" type="string" required />
+
+**The board's complete operating context in one payload**, and the call that stops an
+agent guessing: `groups`, `field_schema`, `policies` and the resolved `team`. Call it once
+per board before doing work there, then cache it.
+
+- `field_schema.{task,comments}` maps a field name to
+  `{ type, required?, values?, human_only? }`. The boolean gate fields are what
+  `transition_guard` policies check.
+- Each policy carries `{ type, definition, enabled, priority, … }`.
+- `team[]` entries are `{ member, groups, unresolved }` — member identity is joined from
+  the project registry, `groups` is advisory, and `unresolved: true` marks a reference
+  with no registry file.
+
+## Tasks
+
+### `list_tasks`
+
+Filters are **top-level parameters**:
+
+<ParamField path="board_id" type="string" />
+<ParamField path="group_id" type="string">Single group; sugar for `in_groups`.</ParamField>
+<ParamField path="in_groups" type="string[]" />
+<ParamField path="not_in_groups" type="string[]" />
+<ParamField path="parent_id" type="string | null" />
+<ParamField path="has_subtasks" type="boolean" />
+<ParamField path="archived" type="boolean" />
+<ParamField path="created_before / created_after" type="string" />
+<ParamField path="updated_before / updated_after" type="string" />
+<ParamField path="custom_field" type="object" />
+<ParamField path="missing_required_fields" type="boolean" />
+<ParamField path="text_search" type="string" />
+<ParamField path="view" type="'summary' | 'full' | 'titles'" default="summary" />
+<ParamField path="sort" type="object" />
+<ParamField path="pagination" type="object" />
+
+<Warning>
+  An unrecognized key is **ignored**, not rejected. A filter that fails to narrow the
+  result usually means a misspelled name.
+</Warning>
+
+Default rows are **summaries**: id, title, `group_id`, `version`, timestamps, a
+`description_excerpt` (with `description_truncated`), and a `custom_data` trimmed to small
+scalars, with bulky keys named in `custom_data_omitted`. Use `view: 'titles'` for the
+leanest selection rows and `view: 'full'` when you genuinely need every value.
+
+Filtering is unaffected by the projection: `custom_field` and `missing_required_fields`
+run against the full task even when the value is omitted from the row.
+
+### `get_task`
+
+<ParamField path="id" type="string" required />
+
+One task in full: complete `description`, all `custom_data`, and the current `version` you
+must echo back on `update_task`.
+
+### `get_task_history`
+
+<ParamField path="task_id" type="string" required />
+<ParamField path="filters" type="object" />
+<ParamField path="pagination" type="object" />
+
+The event log in chronological order: `created`, `updated`, `archived`, `comment_added`,
+`move_blocked`, and so on. `move_blocked` records a guard that rejected a move;
+`created` / `updated` carry a `policies_fired` list in `changes` when a policy engaged.
+
+## Comments
+
+### `list_comments`
+
+<ParamField path="task_id" type="string" required />
+<ParamField path="filters" type="object">Optional `parent_id` for one thread, or a time window.</ParamField>
+<ParamField path="pagination" type="object" />
+
+### `get_comment`
+
+<ParamField path="id" type="string" required />
+
+## Gates
+
+### `check_transition`
+
+<ParamField path="task_id" type="string" required />
+<ParamField path="to_group" type="string" required />
+
+Dry-run: **would this move be allowed by the board's guards** — without writing anything
+or creating a throwaway task? Returns `{ allowed, from_group, to_group, blocked_by? }`.
+
+Use it to confirm a gate is actually live before relying on it, or to see exactly what a
+move needs.
+
+### `list_pending_approvals`
+
+<ParamField path="board_id" type="string" />
+
+Every task whose move is gated on an unset `human_only` field. Returns
+`{ project_name, count, items[] }`, each item carrying the board, the task, its current
+group, the gate (policy plus target group), and **`awaiting_fields`** — exactly what a
+human must set.
+
+Agent-set gates and already-approved tasks are excluded. Use it to report what is blocked
+on the human; the same aggregate backs
+[`substrate pending-approval`](/cli/pending-approval).
+
+## Meta
+
+### `submit_feedback`
+
+<ParamField path="title" type="string" required />
+<ParamField path="body" type="string" required />
+<ParamField path="agent_name" type="string" />
+
+Returns a **prefilled GitHub issue URL** for `42pe/substrate` that a human opens and
+submits. Nothing is sent automatically — no network, no credentials, nothing stored.
+
+### `reverse_captcha`
+
+<ParamField path="challenge_id" type="string" />
+<ParamField path="answer" type="string" />
+
+An easter egg: a timed puzzle for agents. Call with no arguments for a challenge, then
+again with the answer. Not part of normal work.

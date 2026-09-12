@@ -1,0 +1,71 @@
+---
+title: "substrate init"
+description: "Initialize a new .substrate/ in the current directory."
+---
+
+```sh
+substrate init
+substrate init --template <name-or-path>
+```
+
+Creates `.substrate/` in the current working directory. **Refuses if one already
+exists.** If anything fails after the directory is created, `init` rolls back the partial
+`.substrate/` so you can retry cleanly.
+
+## Options
+
+<ParamField path="--template <name-or-path>" type="string">
+  Seed with a starter board. Accepts either the bundled template name **`web-delivery`**,
+  or a **local directory** holding a published workflow.
+
+  Resolution order: a bundled name resolves bundled; otherwise an existing path is
+  resolved by the network-free external loader. A template that resolves to neither fails
+  **before** `.substrate/` is created.
+</ParamField>
+
+## What it writes
+
+```
+.substrate/
+├── config.json        project id (uuid), name, description, schema version
+├── boards/            template boards, or empty for a bare init
+├── members/           default members — bundled templates only
+└── data.sqlite        a fresh, migrated, empty database
+```
+
+It also appends a managed block to your `.gitignore`, under a marker comment so
+re-running is idempotent:
+
+```
+.substrate/data.sqlite
+.substrate/data.sqlite-wal
+.substrate/data.sqlite-shm
+.substrate/substrate.pid
+.substrate/serve.json
+.substrate/attachments/
+.substrate/logs/
+```
+
+<Note>
+  A **bundled** template ships default members; a **path** template carries boards only in
+  v0.7.0. See [publish a template](/authoring/publish-a-template).
+</Note>
+
+## Output
+
+A bare init prints no board line. With a template, it names the board ids it added and
+the files to review.
+
+```
+Substrate initialized in /path/to/project/.substrate
+Starter boards added (web-delivery): delivery.
+
+Next steps:
+  1. Review the starter board(s): .substrate/boards/delivery.json
+  2. Start the substrate UI:  substrate serve
+  3. Configure your agent runtime to spawn:  substrate mcp
+```
+
+## See also
+
+[`substrate add`](/cli/add) applies a template into a `.substrate/` that already exists.

@@ -1,0 +1,30 @@
+---
+title: "substrate diagnose"
+description: "Print environment and substrate health."
+---
+
+```sh
+substrate diagnose
+```
+
+**Exits non-zero if it finds a problem.** Built to run when things are broken: every probe
+is wrapped, so a missing or malformed `config.json` produces a diagnostic line rather than
+a crash.
+
+## What it reports
+
+| Probe | Tells you |
+| --- | --- |
+| Environment | Node version, platform, the binary's version and schema version. |
+| Substrate | Whether `.substrate/` exists, and whether `config.json` parses. |
+| Boards | Whether the substrate loads, and how many boards, policies and members. |
+| Database | Whether `data.sqlite` opens, and its current schema version. |
+| Server | Whether a `serve` is live and **which port it bound**, read from `.substrate/serve.json`, falling back to probing 7475–7499. |
+| Skill | Whether the installed agent skill has drifted from this binary. |
+| Log | Recent error activity from `.substrate/logs/substrate.log`. |
+
+## Use it in bug reports
+
+Include the full output. Paired with [`substrate logs --errors`](/cli/logs) it answers
+most of the first round of questions on an issue — see
+[diagnostics and logs](/operations/diagnostics).

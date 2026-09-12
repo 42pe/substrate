@@ -1,0 +1,92 @@
+---
+title: "How it works"
+description: "Substrate-as-code on disk, runtime state in SQLite, and two surfaces on top."
+---
+
+## Substrate-as-code
+
+Your workflow is data, not configuration you compile. Each board is one JSON file at
+`.substrate/boards/<id>.json` holding its groups, its `field_schema`, its policies and
+an optional `team`.
+
+These files are **read fresh on every call**. Edit the JSON — or have an agent use the
+[substrate-edit tools](/mcp/substrate-edit-tools) — and the change is live on the next
+read. There is no migration step, no cascade, and no rebuild.
+
+Because it is JSON in your repo, your workflow is reviewable in a pull request and
+versioned with your code.
+
+## Runtime state in SQLite
+
+Tasks, comments and the append-only event log live in `.substrate/data.sqlite` — libsql
+in WAL mode, which is safe for concurrent agents.
+
+Runtime state is deliberately **not** substrate-as-code. It changes constantly, it is
+per-checkout, and it would make every board file a merge conflict.
+
+## What is committed and what is not
+
+| Path | Contents | Git |
+| --- | --- | --- |
+| `config.json` | Project id, name, description, schema version | committed |
+| `boards/*.json` | Boards, groups, field schema, policies, team | committed |
+| `members/*.json` | The persona registry | committed |
+| `data.sqlite` (+ `-wal`, `-shm`) | Tasks, comments, event log | gitignored |
+| `attachments/` | Task attachments | gitignored |
+| `logs/substrate.log` | Warnings and errors from long-lived processes | gitignored |
+| `substrate.pid` | Single-owner lock held by a live `serve` | gitignored |
+| `serve.json` | The port `serve` actually bound | gitignored |
+
+`substrate init` writes that gitignore block for you, under a marker comment, and is
+idempotent about it.
+
+<Warning>
+  Because the database is gitignored, **a git worktree or fresh clone checks out your
+  boards but starts with an empty task database.** Substrate warns on startup when it
+  detects this. See [worktrees and fresh clones](/agents/worktrees-and-clones).
+</Warning>
+
+## Two surfaces
+
+**The MCP server** (`substrate mcp`) is the read/write surface. Agent runtimes spawn it
+over stdio; it exposes 32 tools covering reads, task and comment writes, and edits to
+the workflow itself.
+
+**The web UI** (`substrate serve`) is a localhost-only, **read-only** inspector. Boards
+render as a live kanban that auto-refreshes, so when an agent moves a task you see it
+within seconds. The UI never writes — there is no drag-and-drop.
+
+There is one exception to "the CLI is for humans, MCP is for agents":
+[`substrate approve`](/cli/approve) is a **write** channel deliberately reserved for
+people. That asymmetry is what makes a `human_only` gate real.
+
+## Anatomy of a board file
+
+```json .substrate/boards/delivery.json
+{
+  "id": "delivery",
+  "name": "Delivery",
+  "description": "How work ships.",
+  "field_schema": {
+    "task": {
+      "spec_approved": { "type": "boolean" },
+      "priority": { "type": "enum", "values": ["low", "med", "high"] }
+    },
+    "comments": {}
+  },
+  "groups": [
+    { "id": "spec", "name": "Spec", "description": "", "position": 0,
+      "color": null, "version": 1, "archived_at": null }
+  ],
+  "policies": [],
+  "team": [{ "member": "builder", "groups": ["spec"] }],
+  "version": 1,
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "updated_at": "2026-01-01T00:00:00.000Z",
+  "archived_at": null
+}
+```
+
+A board file that does not match this shape fails the whole substrate load with
+`substrate_corrupt`, and the error names the file and how to fix it. Run
+[`substrate validate`](/cli/validate) to check without starting a server.

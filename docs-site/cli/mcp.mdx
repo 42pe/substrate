@@ -1,0 +1,38 @@
+---
+title: "substrate mcp"
+description: "Start the stdio MCP server that agent runtimes spawn."
+---
+
+```sh
+substrate mcp
+```
+
+Speaks MCP over stdin/stdout. You rarely run this yourself — your agent runtime spawns it
+as a child process. There is no port and no network.
+
+It exposes 32 tools: see the [MCP tool reference](/mcp/overview).
+
+## Working directory
+
+<Warning>
+  The server reads the `.substrate/` in its **working directory**. Your runtime spawns it
+  from the project root, which is normally what you want — but a runtime spawned from a
+  git worktree gets that worktree's empty database.
+</Warning>
+
+Pointing the process at another checkout's working directory is also the supported
+workaround for that problem. See
+[worktrees and fresh clones](/agents/worktrees-and-clones).
+
+## Logging
+
+`mcp` is a long-lived process, so it records warnings and errors to
+`.substrate/logs/substrate.log` — including an agent's handled tool errors. Read them with
+[`substrate logs --errors`](/cli/logs).
+
+It also emits the fresh-empty-database warning at startup when it opens a `.substrate/`
+that has boards but no task database.
+
+## Configuration
+
+See [connect an agent over MCP](/getting-started/mcp-setup) for the config block.

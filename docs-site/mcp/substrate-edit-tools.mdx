@@ -1,0 +1,157 @@
+---
+title: "Substrate-edit tools"
+description: "Change the workflow itself — boards, groups, and policies."
+---
+
+These twelve tools edit substrate-as-code, the same thing you could edit by hand in
+`.substrate/boards/<id>.json`. Changes take effect on the next read: no migration, no
+restart.
+
+All require `agent_name`; all updates and archives require the current `version`.
+
+<Tip>
+  Reach for these to **extend** an existing board. Creating a second board that models the
+  same flow is the most common way a substrate stops being a single source of truth.
+</Tip>
+
+## Project
+
+### `update_project`
+
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="name" type="string" />
+<ParamField path="description" type="string" />
+
+## Boards
+
+### `create_board`
+
+<ParamField path="name" type="string" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="description" type="string" />
+<ParamField path="field_schema" type="object">Optional; validated structurally.</ParamField>
+<ParamField path="project_id" type="string" />
+
+Returns the board with its generated id.
+
+### `update_board`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="name" type="string" />
+<ParamField path="description" type="string" />
+<ParamField path="field_schema" type="object">Replaces the whole schema.</ParamField>
+<ParamField path="field_schema_patch" type="object">Merges; `null` deletes a field.</ParamField>
+
+Schema changes **never reject existing data** — validation is lazy. To change one field,
+prefer `field_schema_patch` over resending everything.
+
+<Warning>
+  `update_board` refuses to **downgrade** a `human_only` field — an agent can neither clear
+  the flag nor delete the field to escape a human gate.
+</Warning>
+
+### `archive_board` / `unarchive_board`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+
+Both idempotent.
+
+## Groups
+
+### `create_group`
+
+<ParamField path="board_id" type="string" required />
+<ParamField path="name" type="string" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="description" type="string" />
+<ParamField path="position" type="integer">Defaults to the next slot.</ParamField>
+<ParamField path="color" type="string" />
+
+### `update_group`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="name" type="string" />
+<ParamField path="description" type="string" />
+<ParamField path="position" type="integer" />
+<ParamField path="color" type="string | null" />
+
+### `reorder_groups`
+
+<ParamField path="board_id" type="string" required />
+<ParamField path="ordered_ids" type="string[]" required>Must be **exactly** the board's group ids.</ParamField>
+<ParamField path="agent_name" type="string" required />
+
+### `archive_group`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+
+Refused with `conflict` if active tasks still reference the group. Move them first.
+Idempotent otherwise.
+
+## Policies
+
+### `create_policy`
+
+<ParamField path="board_id" type="string" required />
+<ParamField path="name" type="string" required />
+<ParamField path="type" type="'transition_guard' | 'agent_responsibility'" required />
+<ParamField path="definition" type="object" required>Validated against `type`.</ParamField>
+<ParamField path="agent_name" type="string" required />
+<ParamField path="description" type="string" />
+<ParamField path="priority" type="integer" />
+<ParamField path="enabled" type="boolean" />
+
+The definition shapes:
+
+- **`transition_guard`** → `{ from_group, to_group, require?, on_failure_message? }`.
+  Blocks a matching move unless every `require` condition passes. `from_group` and
+  `to_group` are group ids, or `"*"` for any.
+- **`agent_responsibility`** → `{ when?, message }`. Never blocks; attaches `message` as a
+  suggestion in the write envelope when `when` matches. An empty `when` always matches.
+
+Conditions are `{ field, op, value?, values? }` or a compound
+`{ all_of | any_of | none_of: Condition[] }`. Fields resolve literal-then-`custom_data`,
+so a gate field is `task.<name>`. Full grammar: [write policies](/authoring/write-policies).
+
+### `update_policy`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+<ParamField path="name" type="string" />
+<ParamField path="description" type="string" />
+<ParamField path="definition" type="object">Re-validated against the policy's type.</ParamField>
+<ParamField path="priority" type="integer" />
+<ParamField path="enabled" type="boolean" />
+
+<Note>
+  **`type` is immutable.** Archive the policy and create a new one to change class.
+</Note>
+
+### `archive_policy`
+
+<ParamField path="id" type="string" required />
+<ParamField path="version" type="integer" required />
+<ParamField path="agent_name" type="string" required />
+
+Idempotent.
+
+<Warning>
+  Archiving a guard removes a rail. It is git-visible and event-logged rather than silent —
+  but an agent under pressure archiving the gate that blocks it is the residual risk in
+  the model. See [what a gate guarantees](/concepts/policies-and-gates#what-a-gate-actually-guarantees).
+</Warning>
+
+## After editing
+
+Run [`substrate validate`](/cli/validate), then prove the rail fires:
+[validate your gates](/authoring/validate-gates).

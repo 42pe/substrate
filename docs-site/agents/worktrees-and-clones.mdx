@@ -1,0 +1,58 @@
+---
+title: "Worktrees and fresh clones"
+description: "Why task state does not travel with git, and how to avoid the footgun."
+---
+
+## The failure mode
+
+`.substrate/boards/*.json` — your workflow — is committed. `.substrate/data.sqlite` —
+your tasks, comments and event log — is **gitignored**.
+
+So a git worktree or a fresh clone checks out the boards but **not** the database.
+libsql then creates a fresh, empty one on open, and an agent working in that checkout
+silently operates on its own empty board rather than the one in your main checkout.
+
+<Warning>
+  This is the sharpest footgun in Substrate today. Nothing errors; the agent simply sees
+  no tasks and starts adding its own.
+</Warning>
+
+## The warning
+
+Substrate detects the specific shape of this problem — a `.substrate/` that has board
+files but whose `data.sqlite` did not exist and was just created — and warns loudly on
+startup:
+
+> This .substrate/ has boards but no task database — a fresh EMPTY one was just created
+> at … If this is a git worktree or fresh clone, its task state is NOT shared with your
+> main checkout.
+
+A genuine first `substrate init` has no committed boards yet, so it does not trip the
+check.
+
+## What to do
+
+<Steps>
+  <Step title="Stick to one checkout per project">
+    The simplest answer, and the recommended one for v0.7.0. Drive Substrate from the
+    main checkout; let worktrees be for code.
+  </Step>
+  <Step title="Or point the process at the main checkout">
+    `substrate mcp` and `substrate serve` read the `.substrate/` in their **working
+    directory**. Run them with the working directory set to the main checkout and every
+    agent shares one board, whichever worktree the code edits happen in.
+  </Step>
+  <Step title="Or move state deliberately">
+    ```sh
+    substrate export /tmp/substrate.tar.gz     # from the source checkout
+    substrate import /tmp/substrate.tar.gz     # into the target
+    ```
+    Explicit, one-directional, and safe as long as you know which side is authoritative.
+    See [backup, export, and import](/operations/backup-and-restore).
+  </Step>
+</Steps>
+
+<Note>
+  A shared-database pointer that lets several checkouts address one substrate is planned.
+  It is not in v0.7.0.
+</Note>

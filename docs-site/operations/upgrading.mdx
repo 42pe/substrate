@@ -1,0 +1,63 @@
+---
+title: "Upgrading"
+description: "Keep the binary, the installed skill, and your boards in step."
+---
+
+## The binary
+
+While v0.7.0 is pre-release, upgrade by pulling and rebuilding the clone you linked:
+
+```sh
+git pull
+pnpm install
+pnpm build
+```
+
+The global link keeps pointing at the same build output, so `substrate` picks up the new
+version with no relink. Confirm with:
+
+```sh
+substrate --help     # the first line names the version
+```
+
+Once the package is on npm, `npx @diegoferreyra/substrate` resolves the published version
+and the link step goes away entirely.
+
+## The agent skill
+
+The skill installed at `~/.claude/skills/substrate` is stamped with the binary version it
+came from, so the two cannot silently drift.
+
+```sh
+substrate install-skill --check   # report drift, exit non-zero, write nothing
+substrate install-skill           # refresh it
+```
+
+`--check` is the CI-friendly form and is also what `substrate diagnose` reports on. A
+refresh is idempotent: re-running against a current install reports "already current".
+
+<Warning>
+  **Upgrade the binary and the skill together.** A skill describing tools or conventions
+  the binary no longer has is worse than no skill — the agent follows instructions that
+  quietly fail.
+</Warning>
+
+## Boards and schema
+
+`config.json` carries a `schema_version`; the database runs its migrations when opened by
+a newer binary. Boards are read fresh on every call and are not migrated — a board file
+that no longer matches the schema fails the load loudly with `substrate_corrupt`, naming
+the file.
+
+After any upgrade, the cheap confidence check is:
+
+```sh
+substrate validate
+substrate diagnose
+```
+
+<Note>
+  Substrate is pre-1.0. Board and schema shapes can still change between versions; the
+  [CHANGELOG](https://github.com/42pe/substrate/blob/main/CHANGELOG.md) is where those
+  changes are recorded.
+</Note>
