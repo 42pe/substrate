@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 26"
+     width="28" height="26" shape-rendering="crispEdges"
+     role="img" aria-label="Substrate">
+  <title>Substrate</title>
+  <desc>A plug of earth cut out at an isometric angle, its two soil layers visible on the cut faces, with a sprout growing from the top.</desc>
+  <style>
+    svg {
+    --sbl-K: #14110c;
+    --sbl-S: #6b4526;
+    --sbl-F: #3a2512;
+    --sbl-D: #462c17;
+    --sbl-E: #7a5030;
+    --sbl-g: #49c96a;
+    --sbl-l: #8ed84e;
+    --sbl-h: #c8f272;
+    --sbl-d: #1f8a4a;
+    --sbl-X: #2a1a0e;
+    }
+  </style>
+<path fill="var(--sbl-K)" d="M17 0h1v1h-1z M16 1h1v1h-1z M18 1h1v1h-1z M15 2h1v1h-1z M18 2h1v1h-1z M14 3h1v1h-1z M18 3h1v1h-1z M13 4h1v1h-1z M17 4h1v1h-1z M12 5h1v1h-1z M16 5h1v1h-1z M12 6h1v1h-1z M15 6h1v1h-1z M10 7h3v1h-3z M15 7h1v1h-1z M9 8h1v1h-1z M15 8h1v1h-1z M8 9h1v1h-1z M15 9h3v1h-3z M9 10h1v1h-1z M18 10h1v1h-1z M8 11h2v1h-2z M19 11h1v1h-1z M6 12h2v1h-2z M20 12h2v1h-2z M4 13h2v1h-2z M22 13h2v1h-2z M3 14h1v1h-1z M24 14h1v1h-1z M3 15h1v1h-1z M24 15h1v1h-1z M3 16h1v1h-1z M24 16h1v1h-1z M3 17h1v1h-1z M24 17h1v1h-1z M3 18h1v1h-1z M24 18h1v1h-1z M3 19h1v1h-1z M24 19h1v1h-1z M3 20h1v1h-1z M24 20h1v1h-1z M4 21h2v1h-2z M22 21h2v1h-2z M6 22h2v1h-2z M20 22h2v1h-2z M8 23h2v1h-2z M18 23h2v1h-2z M10 24h2v1h-2z M16 24h2v1h-2z M12 25h4v1h-4z"/>
+<path fill="var(--sbl-X)" d="M22 18h2v1h-2z M20 19h4v1h-4z M18 20h6v1h-6z M16 21h6v1h-6z M13 22h7v1h-7z M13 23h5v1h-5z M13 24h3v1h-3z"/>
+<path fill="var(--sbl-S)" d="M4 15h18v1h-18z M4 16h16v1h-16z M6 17h12v1h-12z M8 18h8v1h-8z M10 19h3v1h-3z M12 20h1v1h-1z"/>
+<path fill="var(--sbl-F)" d="M4 17h2v1h-2z M22 17h2v1h-2z M6 18h2v1h-2z M20 18h2v1h-2z M8 19h2v1h-2z M18 19h2v1h-2z M10 20h2v1h-2z M16 20h2v1h-2z M12 21h4v1h-4z"/>
+<path fill="var(--sbl-D)" d="M22 15h2v1h-2z M20 16h4v1h-4z M18 17h4v1h-4z M4 18h2v1h-2z M16 18h4v1h-4z M4 19h4v1h-4z M13 19h5v1h-5z M4 20h6v1h-6z M13 20h3v1h-3z M6 21h6v1h-6z M8 22h5v1h-5z M10 23h3v1h-3z M12 24h1v1h-1z"/>
+<path fill="var(--sbl-E)" d="M12 10h1v1h-1z M10 11h3v1h-3z M8 12h5v1h-5z M15 12h1v1h-1z M18 12h2v1h-2z M6 13h7v1h-7z M15 13h7v1h-7z M4 14h20v1h-20z"/>
+<path fill="var(--sbl-g)" d="M13 6h2v1h-2z M13 7h2v1h-2z M13 8h2v1h-2z M13 9h2v1h-2z M13 10h2v1h-2z M13 11h2v1h-2z M13 12h2v1h-2z M13 13h2v1h-2z"/>
+<path fill="var(--sbl-d)" d="M16 2h1v1h-1z M15 3h1v1h-1z M14 4h1v1h-1z M13 5h1v1h-1z M10 10h2v1h-2z M16 12h2v1h-2z"/>
+<path fill="var(--sbl-l)" d="M16 3h1v1h-1z M15 4h1v1h-1z M14 5h1v1h-1z M10 8h1v1h-1z M12 8h1v1h-1z M9 9h1v1h-1z M12 9h1v1h-1z M15 10h1v1h-1z M17 10h1v1h-1z M15 11h1v1h-1z M18 11h1v1h-1z"/>
+<path fill="var(--sbl-h)" d="M17 1h1v1h-1z M17 2h1v1h-1z M17 3h1v1h-1z M16 4h1v1h-1z M15 5h1v1h-1z M11 8h1v1h-1z M10 9h2v1h-2z M16 10h1v1h-1z M16 11h2v1h-2z"/>
+</svg>
