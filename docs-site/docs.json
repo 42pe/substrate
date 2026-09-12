@@ -64,7 +64,7 @@
         "groups": [
           {
             "group": "Overview",
-            "pages": ["cli/overview"]
+            "pages": ["cli/core-commands", "cli/overview"]
           },
           {
             "group": "Setting up",
