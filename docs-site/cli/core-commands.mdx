@@ -1,0 +1,197 @@
+---
+title: "Five commands for humans"
+description: "Not the whole CLI — the handful a person actually types."
+---
+
+Substrate ships fifteen commands, but you will not type most of them. Some are for your
+agent (`mcp`), some you run once and forget (`add`, `install-skill`), and some only come
+out when something is wrong (`diagnose`, `logs`, `backup`). The
+[full list is in the CLI overview](/cli/overview).
+
+These five are the ones that carry the human side of the workflow: standing a substrate
+up, looking at it, explaining it to someone, and signing off on the gates only a person
+can clear.
+
+| Command | When you reach for it |
+| --- | --- |
+| [`init`](#substrate-init) | Once, to create the `.substrate/` in a project. |
+| [`serve`](#substrate-serve) | Whenever you want to see what the agents have been doing. |
+| [`explain`](#substrate-explain) | To show someone the workflow — or to read one before adopting it. |
+| [`pending-approval`](#substrate-pending-approval) | To find what is blocked on you. |
+| [`approve`](#substrate-approve) | To unblock it. |
+
+<Note>
+  Every command operates on the `.substrate/` in the directory you run it from. The four
+  below `init` refuse with `No .substrate/ in <cwd>` when there isn't one; `init` is the
+  command that makes it.
+</Note>
+
+## `substrate init`
+
+**Create a `.substrate/` in the current directory** — optionally pre-loaded with a
+starter workflow.
+
+```sh
+substrate init
+substrate init --template web-delivery
+substrate init --template ./some-cloned-template
+```
+
+It writes `.substrate/` with `boards/`, `attachments/`, a `config.json` (a fresh
+`project_id` UUID and a `project_name` defaulting to the directory name), and an
+initialized `data.sqlite`. Then it appends a managed block to your `.gitignore`, creating
+the file if absent, covering `data.sqlite` (plus `-wal`/`-shm`), `substrate.pid`,
+`serve.json`, `attachments/` and `logs/`.
+
+**That split is the point.** Your boards, groups, fields and policies are committed to
+git. Runtime state is not.
+
+The safety properties are worth knowing before you run it on a real repo:
+
+- The template resolves and validates **before** anything is created, so
+  `--template ./bogus` fails without leaving a half-made `.substrate/`.
+- It refuses outright if `.substrate/` already exists — back up and remove to re-initialize.
+- Any failure after the directory is created rolls the whole directory back.
+- The `.gitignore` edit happens last and is never rolled back — it is your file — and is
+  idempotent via a marker line.
+
+Full reference: [`substrate init`](/cli/init).
+
+## `substrate serve`
+
+**Start the local web UI** — the human's window onto the same data the agents are writing.
+
+```sh
+substrate serve      # or just: substrate
+```
+
+Binds to `127.0.0.1` on port **7475**, or the first free port scanning upward through
+**7475–7499**, so several projects can have their inspector open at once. The port it
+bound is recorded in `.substrate/serve.json`, which is how
+[`substrate diagnose`](/cli/diagnose) — and you — find it later.
+
+The HTTP surface is **read-only**. The UI shows boards, tasks, comments and
+pending-approval state; writes go through MCP or the approve commands.
+
+One serve owns a directory at a time, via an exclusively-created
+`.substrate/substrate.pid`: a live PID refuses with "already running here", a stale one
+from a crashed process is reclaimed. `SIGINT`/`SIGTERM` shut down cleanly.
+
+It also warns on startup if the database is brand new while boards already exist — the
+signal that you are in a fresh clone or a
+[git worktree](/agents/worktrees-and-clones) where the gitignored `data.sqlite` did not
+travel with you, and your tasks are somewhere else.
+
+Full reference: [`substrate serve`](/cli/serve).
+
+## `substrate explain`
+
+**Render the whole substrate as a single self-contained HTML page** — the workflow as a
+picture, not a JSON file.
+
+```sh
+substrate explain
+substrate explain --out docs/our-workflow.html
+```
+
+Writes `./substrate-explain.html` by default. Per board it draws an inline-SVG flow
+diagram plus tables of the fields and policies:
+
+- Stages run left→right.
+- **Amber edges are policy gates** — the move is blocked unless the condition holds.
+- A dashed *any stage → X* edge is a definition-of-done gate.
+- A ● marks a stage carrying agent suggestions.
+- Hover any box or edge for the detail, including each policy's conditions rendered as
+  prose rather than raw JSON.
+
+The legend also explains field resolution: `task.<field>` reads the literal task field if
+it exists, else `custom_data.<field>`.
+
+What makes it useful in a way the UI isn't: **`explain` reads substrate-as-code only and
+never opens `data.sqlite`.** It works with no database at all — so you can `git clone`
+someone's shared substrate template, run `substrate explain` inside the clone, and see
+what their gates actually do before applying it to your project. It also never crashes on
+a malformed policy; an unparseable condition renders as `(unparseable condition)` so the
+rest of the map still draws.
+
+Full reference: [`substrate explain`](/cli/explain).
+
+## `substrate pending-approval`
+
+**Show every task waiting on a human** — and the exact command to unblock each one.
+
+```sh
+substrate pending-approval
+substrate pending-approval --json
+```
+
+A task lands here when an agent hit a `transition_guard` requiring a
+[`human_only` field](/concepts/fields-and-schema#human-only-fields) it is not allowed to
+set. The report is grouped by board and aligned into four columns:
+
+| Column | Contents |
+| --- | --- |
+| **Task** | Title plus a short 8-character id |
+| **Move** | `from_group → to_group` — the move being blocked |
+| **Awaiting** | The human-only field(s) still unset |
+| **Approve** | The verbatim `substrate approve …` command to run |
+
+The Approve column is never truncated — it is meant to be copy-pasted — and tasks
+awaiting several fields get one approve line per field. Titles shrink first to fit your
+terminal, with a floor of 24 characters. Color on a TTY, plain text when piped. When
+nothing is pending it says so in one line.
+
+`--json` emits the structured aggregate instead, honored even on a TTY, and valid for the
+empty case too.
+
+The same aggregate backs the `list_pending_approvals` MCP tool and the HTTP route, so the
+CLI, the UI and your agent can never disagree about what is blocked.
+
+Full reference: [`substrate pending-approval`](/cli/pending-approval).
+
+## `substrate approve`
+
+**Sign off on a gated task** — the one write channel agents cannot use.
+
+```sh
+substrate approve <task_id> <field>              # sets the field to true
+substrate approve <task_id> <field> <value>      # explicit value
+```
+
+This is what makes a human gate real. Fields marked `human_only` in a board's
+`field_schema` are **refused by the agents' MCP write tools by design**, so a
+`transition_guard` requiring one cannot be self-satisfied by an autonomous agent working
+unattended. `substrate approve`, run by a person at a terminal, is the only way that field
+gets set.
+
+- `value` defaults to `true`. A supplied value is parsed as JSON when it can be (`true`,
+  `false`, `42`, `"shipped with caveats"`) and taken as a plain string otherwise.
+- It refuses any field that isn't `human_only` on that board, pointing you at
+  `update_task` for the rest.
+- The new value is validated against the board's field schema like any other write.
+- The write is stamped into the event log as `human:<your-os-username>`, so the activity
+  trail attributes the approval to a person rather than an agent.
+- It prints the field, the value, the actor, and the task's new version.
+- It sets the field; it does **not** move the task. The agent makes the move on its next
+  attempt, now that the gate passes.
+
+Counterpart: [`substrate unapprove <task_id> <field>`](/cli/unapprove) clears a mistaken
+approval so the gate re-blocks. Also stamped as the human, also never moves the task.
+
+Full reference: [`substrate approve`](/cli/approve).
+
+## What's not on this list
+
+Not because it doesn't matter — because you are unlikely to be the one typing it.
+
+| Command | Who it's for |
+| --- | --- |
+| [`mcp`](/cli/mcp) | Your agent runtime spawns it. You configure it once, in `.mcp.json`. |
+| [`add`](/cli/add) | Applying a shared template to an existing substrate. Setup, not routine. |
+| [`install-skill`](/cli/install-skill) | Refreshing the packaged agent skill after an upgrade. |
+| [`validate`](/cli/validate) | CI, and you — when you have just edited a policy by hand. |
+| [`backup`](/cli/backup), [`export` / `import`](/cli/export-import) | Moving or snapshotting a substrate. |
+| [`diagnose`](/cli/diagnose), [`logs`](/cli/logs) | When something is wrong. |
+
+See the [CLI overview](/cli/overview) for the complete surface, exit codes, and global
+behaviour.
