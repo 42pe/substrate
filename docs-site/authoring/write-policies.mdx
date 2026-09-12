@@ -1,0 +1,119 @@
+---
+title: "Write policies"
+description: "The policy DSL: guards that block, responsibilities that advise, and the condition grammar."
+---
+
+A policy is:
+
+```json
+{
+  "id": "gate-done",
+  "name": "Definition of done",
+  "description": "Nothing reaches Done unheard.",
+  "type": "transition_guard",
+  "definition": { "…": "…" },
+  "priority": 0,
+  "enabled": true,
+  "version": 1,
+  "created_by_agent": "you",
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "updated_at": "2026-01-01T00:00:00.000Z",
+  "archived_at": null
+}
+```
+
+`type` is immutable after creation — `update_policy` will not change it. Everything
+below is the `definition`.
+
+## transition_guard — blocks a move
+
+<ParamField path="from_group" type="string" required>
+  A group id, or `"*"` for any.
+</ParamField>
+<ParamField path="to_group" type="string" required>
+  A group id, or `"*"` for any.
+</ParamField>
+<ParamField path="require" type="Condition[]">
+  Implicit `all_of`. Evaluated against the task **as it would look after the move**.
+</ParamField>
+<ParamField path="on_failure_message" type="string | null">
+  What the agent is told when the move is blocked. Write it as an instruction.
+</ParamField>
+
+```json
+{
+  "from_group": "spec",
+  "to_group": "build",
+  "require": [{ "field": "task.plan_approved", "op": "eq", "value": true }],
+  "on_failure_message": "Set plan_approved=true once the plan is signed off."
+}
+```
+
+The guard engages when the move matches; when engaged, the move fails with
+`transition_blocked` unless every `require` condition passes.
+
+Use `"*" → done` for a definition-of-done gate that catches every path into the final
+column.
+
+## agent_responsibility — advises, never blocks
+
+<ParamField path="when" type="Condition[]">
+  Absent or empty matches **always**.
+</ParamField>
+<ParamField path="message" type="string" required>
+  Surfaced in the write's `policies_fired`.
+</ParamField>
+
+```json
+{
+  "when": [{ "field": "task.group_id", "op": "eq", "value": "build" }],
+  "message": "Write tests during development, not after."
+}
+```
+
+## Conditions
+
+A leaf is `{ field, op, value?, values? }`. Field references resolve **literal-first,
+then `custom_data`** — so a custom field is `task.<name>`, and built-ins like
+`task.group_id`, `task.title`, `task.description` and `task.parent_id` work too.
+
+| Group | Operators | Operand |
+| --- | --- | --- |
+| Existence | `exists`, `not_exists`, `is_empty`, `not_empty` | none |
+| Equality | `eq`, `neq` | `value` |
+| Sets | `in`, `not_in` | `values` |
+| Numeric | `gt`, `gte`, `lt`, `lte` | `value` |
+| String | `contains`, `not_contains`, `starts_with`, `ends_with`, `matches_regex` | `value` |
+| String (multi) | `matches_any_keyword` | `values` |
+| Array | `has_any`, `has_all` | `values` |
+
+Compounds nest: `{ "all_of": [ … ] }`, `{ "any_of": [ … ] }`, `{ "none_of": [ … ] }`.
+
+<Note>
+  **Operators never throw.** A type mismatch, a bad operand, an unparseable regex — every
+  degenerate case evaluates to `false`, so a malformed policy can never crash a write.
+  The trade-off is that a wrong `field` path reads as "condition not met" rather than as
+  an error, which is exactly why you [validate](/authoring/validate-gates).
+
+  String operators coerce scalars but not arrays: a `string_list` field will not match
+  `contains`. Use `has_any` / `has_all`.
+
+  `matches_regex` compiles an author-supplied pattern. Patterns over 1000 characters,
+  non-strings, and anything that throws are treated as a non-match.
+</Note>
+
+## Validation
+
+Definitions are validated **strictly** against their type at `create_policy` /
+`update_policy` time and on load. A misspelled key (`valeu`, `any-of`) or an unknown
+operator is a `schema_violation`, not a silently-ignored field.
+
+This catches shape errors. It does **not** catch a `from_group` that names a group you
+did not mean, or a `field` path that resolves to nothing — for those, see
+[validate your gates](/authoring/validate-gates).
+
+## Priority and enabled
+
+`priority` orders evaluation among policies on the same board. `enabled: false` keeps a
+policy in the file as documentation without enforcing it — useful for a rule you intend
+to turn on once the team is ready.

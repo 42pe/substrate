@@ -1,0 +1,58 @@
+---
+title: "Diagnostics and logs"
+description: "Find out what a long-running process actually did."
+---
+
+## Health check
+
+```sh
+substrate diagnose
+```
+
+Prints environment and substrate health, and **exits non-zero if it finds a problem**.
+
+It is built to run when things are broken: every probe is wrapped, so a missing or
+malformed `config.json` produces a diagnostic line rather than a crash. It also reports
+where a live `serve` is bound, reading `.substrate/serve.json`, and whether the installed
+agent skill has drifted from the binary.
+
+Include its output in any bug report.
+
+## Logs
+
+The long-lived processes — `substrate mcp` and `substrate serve` — record warnings and
+errors to `.substrate/logs/substrate.log` (gitignored, local-only), so a problem is
+diagnosable after the fact.
+
+```sh
+substrate logs              # last 50 lines
+substrate logs -n 200       # last 200
+substrate logs --errors     # errors only
+```
+
+Reading is rotation-aware, so `-n` is honoured across a rotation boundary.
+
+Two empty states mean different things:
+
+| Output | Meaning |
+| --- | --- |
+| The log file is **absent** | No `mcp` or `serve` has ever logged here. |
+| Present, but **no errors** | It ran cleanly. |
+
+<Note>
+  Only `mcp` and `serve` write to the log. Short-lived commands do not, so
+  `substrate logs` after a failed `substrate import` tells you nothing about that import.
+</Note>
+
+An agent's handled tool errors land here too — `substrate logs --errors` is how an agent
+reviews its own error trail. Routine gate blocks and stale-version retries are excluded
+deliberately: they are normal operation, not faults.
+
+## Filing feedback
+
+The `submit_feedback` MCP tool takes a `title` and `body` and returns a **prefilled
+GitHub issue URL** for `42pe/substrate`.
+
+Nothing is sent automatically — no network call, no credentials, nothing stored. A human
+opens the URL and submits it. Attach `substrate diagnose` output and, if relevant,
+`substrate logs --errors`.

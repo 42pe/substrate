@@ -1,0 +1,80 @@
+---
+title: "Publish a substrate as a template"
+description: "Share a workflow so other projects can fork it in."
+---
+
+A **template** is a workflow — boards with their groups, `field_schema` and policies.
+Never tasks, comments or the database. Applying one forks it into the consumer's project:
+they own their copy from that moment on.
+
+## Publish
+
+<Steps>
+  <Step title="Copy your board JSON out">
+    Take `.substrate/boards/*.json` into a repo or folder. They are already pure
+    substrate-as-code — nothing to strip.
+  </Step>
+  <Step title="Add a manifest">
+    ```json substrate-template.json
+    {
+      "name": "Your Workflow",
+      "description": "What this workflow is and who it's for.",
+      "version": "1.0.0",
+      "boards": ["boards/your-board.json"]
+    }
+    ```
+
+    `name`, `description`, `version` and `boards` are all required. `version` is your own
+    author metadata — Substrate never enforces it. **Unknown keys are rejected.**
+
+    Without a manifest a folder still resolves **by convention**, if its boards live
+    under `.substrate/boards/` or `boards/`.
+  </Step>
+  <Step title="Share the repo URL">
+    Consumers clone it and apply from the local directory. See
+    [`examples/web-delivery`](https://github.com/42pe/substrate/tree/main/examples/web-delivery)
+    for a complete working template — manifest plus board.
+  </Step>
+</Steps>
+
+## Apply someone else's template
+
+<Warning>
+  **The CLI is network-free — it never fetches.** `<path>` is always a local directory;
+  the agent (or you) clones the repo first. That is a deliberate boundary: nothing
+  Substrate runs reaches the network.
+</Warning>
+
+Into an existing `.substrate/`:
+
+```sh
+substrate add <clone-dir>          # preview — validates and writes NOTHING
+substrate add <clone-dir> --yes    # apply transactionally
+```
+
+Into a fresh project:
+
+```sh
+substrate init --template <clone-dir>
+```
+
+`add` is a **dry run by default**. Board-id collisions are refused; `--as <id>` renames a
+single-board template so it can sit beside an existing board of the same name. An apply
+that fails partway rolls back only the files it created — pre-existing boards are never
+touched.
+
+See [`substrate add`](/cli/add).
+
+## What does not travel
+
+Members are the notable gap in v0.7.0. The **bundled** `web-delivery` template ships its
+default members, but a **path template** carries boards only — the registry files are not
+part of the template format. So a shared board whose `team` references members arrives
+with dangling references: each one resolves as `unresolved`, which is a warning rather
+than a failure, so the template still applies cleanly. Consumers author their own
+`.substrate/members/<id>.json` to fill them in.
+
+<Note>
+  A first-party `substrate template export` to scaffold the manifest for you is planned.
+  In v0.7.0 you hand-write it.
+</Note>

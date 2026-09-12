@@ -1,0 +1,46 @@
+---
+title: "substrate pending-approval"
+description: "List every task waiting on a human sign-off."
+---
+
+```sh
+substrate pending-approval
+substrate pending-approval --json
+```
+
+Your cross-board report of everything waiting on **you**: an agent hit a
+`transition_guard` requiring a [`human_only` field](/concepts/fields-and-schema#human-only-fields)
+it cannot set, so the task sits until you decide.
+
+Output is an aligned table grouped by board, carrying the exact command to unblock each
+row. Color on a TTY, plain when piped.
+
+## Options
+
+<ParamField path="--json" type="flag">
+  Emit the structured aggregate instead of the table.
+</ParamField>
+
+## What is included
+
+Only tasks blocked on a **human** gate. Agent-set gates and already-approved tasks are
+excluded — this is the list of things only a person can move.
+
+Each row names the board, the task (title and short id), the blocked move
+(`from → to`), the `awaiting_fields`, and the command:
+
+```sh
+substrate approve <task_id> <field>
+```
+
+A task awaiting several fields gets one row per field.
+
+<Note>
+  The CLI, the `list_pending_approvals` MCP tool and the UI's "pending approval" pill all
+  read the same aggregate, so they never disagree about what is pending.
+</Note>
+
+## See also
+
+- [`substrate approve`](/cli/approve) — clear one.
+- [The agent loop](/agents/agent-workflow) — how an agent should report this to you.

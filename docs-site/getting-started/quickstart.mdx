@@ -1,0 +1,77 @@
+---
+title: "Quickstart"
+description: "Initialize a substrate, look at it in the browser, and let an agent drive it."
+---
+
+Run everything below from the root of the project you want to track.
+
+<Steps>
+  <Step title="Initialize a .substrate/">
+    ```sh
+    substrate init
+    ```
+
+    That creates a blank substrate: a project record and an empty task database, with
+    the runtime files added to your `.gitignore`. To start from a working example
+    instead of an empty board:
+
+    ```sh
+    substrate init --template web-delivery
+    ```
+
+    `web-delivery` is the bundled starter — a Spec → Plan → Build → Review → QA → Done
+    board whose gates block a task from advancing until each stage's field is set. You
+    can also pass a **local directory** holding someone else's published workflow. See
+    [`substrate init`](/cli/init).
+  </Step>
+
+  <Step title="Look at it">
+    ```sh
+    substrate serve
+    ```
+
+    Opens the read-only inspector on `http://localhost:7475`. If that port is taken —
+    another project is already serving — it scans upward through 7475–7499 and prints
+    the URL it bound. The board auto-refreshes, so an agent's writes appear within
+    seconds. See [the web UI](/concepts/web-ui).
+  </Step>
+
+  <Step title="Connect your agent">
+    Register the stdio MCP server with your agent runtime, then have the agent call
+    `whoami` to confirm it can see the project. Full instructions:
+    [connect an agent over MCP](/getting-started/mcp-setup).
+  </Step>
+
+  <Step title="Let it work">
+    Tell the agent what you want tracked. Its loop is:
+
+    1. `whoami` — project, boards, hints.
+    2. `get_board_substrate` — the board's groups, `field_schema` and policies.
+    3. `list_tasks` — what already exists.
+    4. `create_task` / `update_task` — record and advance the work.
+
+    Each write returns an envelope naming the policies that fired. See
+    [the agent loop](/agents/agent-workflow).
+  </Step>
+</Steps>
+
+## What just got created
+
+```
+.substrate/
+├── config.json          project id, name, schema version   (committed)
+├── boards/<id>.json     your workflow, as code             (committed)
+├── members/<id>.json    optional roster of personas        (committed)
+├── data.sqlite          tasks, comments, event log         (gitignored)
+├── logs/substrate.log   warnings and errors                (gitignored)
+├── substrate.pid        single-owner lock while serving    (gitignored)
+└── serve.json           the port serve actually bound      (gitignored)
+```
+
+The split matters: **your workflow travels with git, your task state does not.** That
+is deliberate, and it has one sharp consequence in worktrees and fresh clones —
+read [worktrees and fresh clones](/agents/worktrees-and-clones) before you make one.
+
+<Card title="How it works" icon="gears" href="/concepts/how-it-works">
+  The model behind those files: substrate-as-code, runtime state, and the two surfaces.
+</Card>

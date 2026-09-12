@@ -9,3 +9,6 @@ pnpm-lock.yaml
 # Long-form documentation — formatted by hand, not by Prettier
 *.md
 .agents/**/*.md
+
+# Long-form documentation — formatted by hand, not by Prettier
+*.mdx

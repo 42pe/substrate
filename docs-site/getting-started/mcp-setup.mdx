@@ -1,0 +1,98 @@
+---
+title: "Connect an agent over MCP"
+description: "Register the stdio MCP server with your agent runtime and confirm the connection."
+---
+
+Substrate exposes 32 tools over a **stdio MCP server**. Your agent runtime spawns
+`substrate mcp` as a child process; there is no port, no daemon and no network.
+
+## The config block
+
+```json .mcp.json
+{
+  "mcpServers": {
+    "substrate": {
+      "command": "npx",
+      "args": ["@diegoferreyra/substrate", "mcp"]
+    }
+  }
+}
+```
+
+While v0.7.0 is pre-release and installed via a global link, use the linked binary
+directly:
+
+```json .mcp.json
+{
+  "mcpServers": {
+    "substrate": {
+      "command": "substrate",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+<Warning>
+  **The server reads the `.substrate/` in its working directory.** Your runtime spawns
+  it from the project root, which is what you want — but it also means a runtime
+  spawned from a git worktree gets that worktree's empty database. See
+  [worktrees and fresh clones](/agents/worktrees-and-clones).
+</Warning>
+
+<Tabs>
+  <Tab title="Claude Code">
+    Put the block above in `.mcp.json` at the project root. Claude Code asks you to
+    approve a project-scoped MCP server the first time it starts, so approve it once
+    in an interactive session before relying on it in an automated one.
+
+    Then install the agent skill so future sessions know the conventions without being
+    told:
+
+    ```sh
+    substrate install-skill
+    ```
+  </Tab>
+  <Tab title="Any MCP runtime">
+    Substrate is a plain stdio MCP server — anything that can spawn a command and speak
+    MCP over stdin/stdout works. Configure:
+
+    - **command:** `substrate` (or `npx`)
+    - **args:** `["mcp"]` (or `["@diegoferreyra/substrate", "mcp"]`)
+    - **working directory:** the project root that owns the `.substrate/`
+
+    Tool input schemas are advertised through `tools/list`, so a runtime that
+    introspects tools needs no extra configuration.
+  </Tab>
+</Tabs>
+
+## Verify
+
+Ask the agent to call `whoami`. A healthy response names the project, lists every board
+with its id, and carries a few hints:
+
+```json
+{
+  "project_id": "…",
+  "project_name": "substrate",
+  "schema_version": 2,
+  "boards": [{ "id": "dev", "name": "Substrate Dev", "…": "…" }],
+  "hints": ["…"]
+}
+```
+
+If it errors with `not_found`, the server is running somewhere without a `.substrate/` —
+check the working directory, then run `substrate init` there.
+
+## The skill
+
+`substrate install-skill` writes the packaged agent skill to
+`~/.claude/skills/substrate`. It teaches the agent the conventions that make a shared
+board trustworthy — `whoami` first, optimistic-concurrency updates, reading the policy
+envelope — so you do not have to restate them per session. The skill is version-stamped
+against the binary; `substrate install-skill --check` reports drift and exits non-zero
+without writing.
+
+<Card title="The agent loop" icon="repeat" href="/agents/agent-workflow">
+  What a well-behaved agent does with those tools, in order.
+</Card>

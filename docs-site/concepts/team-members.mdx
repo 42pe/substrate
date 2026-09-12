@@ -1,0 +1,81 @@
+---
+title: "Team members"
+description: "An optional, descriptive registry of the personas that work a board."
+---
+
+A board's team — who works it, with what traits and concerns — is a queryable data
+structure rather than prose in a description. It is **optional and additive**: a project
+that keeps its roster in the board description works fine.
+
+The layer has two halves.
+
+## The registry (project-level identity)
+
+One file per member at `.substrate/members/<id>.json`. Defined once, referenceable by
+any number of boards, so one identity can span boards and stages.
+
+```json .substrate/members/oversight.json
+{
+  "id": "oversight",
+  "name": "Oversight",
+  "full_description": "Holds fidelity between what was specified and what shipped.",
+  "traits": ["holds the original intent", "reads the diff against the spec"],
+  "concerns": ["scope drift", "spec↔implementation fidelity"],
+  "memory_dir": ".substrate/members/oversight/memory"
+}
+```
+
+Only `id` and `name` are required, and `id` must match the filename. `traits` and
+`concerns` are arrays because they drive chips and queries; `full_description` is where
+the prose depth goes.
+
+`memory_dir` is a **pointer** to a git-committed folder. Substrate stores the path and
+never reads its content — read-on-spawn and write-on-exit are up to the agent.
+
+## The board binding (board-level assignment)
+
+A board nests a thin `team`: a member reference plus the groups that member is
+associated with **on this board**.
+
+```json
+"team": [
+  { "member": "oversight", "groups": ["spec", "review"] },
+  { "member": "builder",   "groups": ["build"] }
+]
+```
+
+`get_board_substrate` returns the team with each `member` **resolved** from the registry
+— name, traits, concerns, `memory_dir` — alongside the binding's `groups`. The UI shows
+it as a Team card.
+
+## Advisory, never enforced
+
+<Warning>
+  `groups` is a hint for orchestration and display. It is many-to-many, it grants
+  nothing, and it never gates a write or a move.
+</Warning>
+
+The plain noun is the signal: it is `groups`, not `owns_groups` or `allowed_groups`.
+Nothing in Substrate consults team membership when deciding whether a write is allowed.
+
+A member is also distinct from the `agent_name` / `created_by_agent` **actor** tag on a
+write: the member is a persona, the actor is who performed the write.
+
+## Integrity problems are warnings
+
+Every failure in this layer is non-blocking, routed through the same advisory channel
+`substrate validate` uses (`⚠ …`, exit 0):
+
+- a `team[].member` with no registry file — a dangling reference, surfaced with
+  `unresolved: true` rather than dropped;
+- a binding `groups` id that is not a group on the board (archived groups are fine);
+- a duplicate member `id` in the registry, or a duplicate `member` in one board's team;
+- a malformed member file — bad JSON, missing `id` or `name`, wrong types — which is
+  **warned and skipped** while the rest of the substrate loads.
+
+None of these fail a load, a `substrate validate`, or a write.
+
+<Note>
+  There are no member **write** tools in v0.7.0. Author the registry and the bindings as
+  JSON, the same way you author groups and policies.
+</Note>
